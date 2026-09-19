@@ -682,6 +682,8 @@ class PiTV:
             self.cec.start()
             if self.cfg.get("cec_wake_on_start", False):
                 threading.Thread(target=cec_tv_on, daemon=True).start()
+        # Comfortable D-pad style navigation when a physical key is held.
+        pygame.key.set_repeat(350, 90)
         self.clock = pygame.time.Clock()
 
     @property
@@ -2837,7 +2839,11 @@ class PiTV:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
-                    self.handle_key(event.key)
+                    # A USB keyboard is the guaranteed local fallback for TV
+                    # remotes. Backspace behaves as Back/Escape, matching the
+                    # on-screen keyboard legend and common media-center UX.
+                    key = pygame.K_ESCAPE if event.key == pygame.K_BACKSPACE else event.key
+                    self.handle_key(key)
 
             if self.external_proc is not None and self.external_proc.poll() is not None:
                 finished_kind = self.external_kind
