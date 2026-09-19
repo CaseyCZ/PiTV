@@ -61,7 +61,8 @@ jobs:
 
           python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
 
-          $p = Start-Process -FilePath "$env:SystemRoot\System32\tar.exe" -ArgumentList ("-xOf \"" + $xz + "\"") -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          $tarArgs = '-xOf "' + $xz + '"'
+          $p = Start-Process -FilePath "$env:SystemRoot\System32\tar.exe" -ArgumentList $tarArgs -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
           if ($p.ExitCode -ne 0) {
             Get-Content $err -ErrorAction SilentlyContinue
             throw "Windows tar/libarchive failed to expand a raw .xz stream."
