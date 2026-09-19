@@ -65,7 +65,8 @@ jobs:
 
   release:
     needs: validate-windows
-    runs-on: ubuntu-24.04    steps:
+    runs-on: ubuntu-24.04
+    steps:
       - uses: actions/checkout@v4
 
       - name: Release checks
