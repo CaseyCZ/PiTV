@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "services": [
     {
       "id": "homebridge",
@@ -17,15 +17,6 @@
       "category": "Network",
       "icon": "TS",
       "source_label": "Tailscale official repository"
-    },
-    {
-      "id": "plexmediaserver",
-      "name": "Plex Media Server",
-      "description": "Oficiální Plex server pro Linux ARM64. Sdílí média z PiTV do Plex klientů v síti.",
-      "category": "Media Server",
-      "icon": "PLEX",
-      "web_port": 32400,
-      "source_label": "Plex official repository"
     },
     {
       "id": "docker",
