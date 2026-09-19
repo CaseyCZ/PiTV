@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CaseyCZ/PiTV#instalace"><img src="https://img.shields.io/badge/PiTV-Instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Instalace PiTV" /></a>
+  <a href="INSTALL.md"><img src="https://img.shields.io/badge/PiTV-Instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Instalace PiTV" /></a>
 </p>
 
 ## O projektu
@@ -42,7 +42,13 @@ Cílem je spojit TV aplikace, Android aplikace, systémová nastavení a servero
 
 ## Instalace
 
-Primární cíl je **Raspberry Pi 4 + Ubuntu Server 24.04 ARM64**.
+<p>
+  <a href="INSTALL.md"><img src="https://img.shields.io/badge/N%C3%A1vod-Kompletn%C3%AD%20instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Kompletní návod instalace PiTV" /></a>
+</p>
+
+Kompletní postup od prázdné microSD přes Raspberry Pi Imager, Wi-Fi a SSH až po první spuštění PiTV je v **[INSTALL.md](INSTALL.md)**.
+
+Rychlá instalace na připraveném **Raspberry Pi 4 + Ubuntu Server 24.04 ARM64**:
 
 ```bash
 git clone https://github.com/CaseyCZ/PiTV.git
