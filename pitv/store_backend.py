@@ -108,6 +108,15 @@ def store_state(item):
     if kind == "play_store":
         package = installer.get("package", "")
         return "installed" if package and package in _waydroid_packages() else "available"
+    if kind == "kodi_addon":
+        addon_id = installer.get("addon_id", "")
+        if not addon_id:
+            return "unsupported"
+        candidates = [
+            Path.home() / ".kodi" / "addons" / addon_id / "addon.xml",
+            Path("/usr/share/kodi/addons") / addon_id / "addon.xml",
+        ]
+        return "installed" if any(p.is_file() for p in candidates) else "available"
     return "unsupported"
 
 
