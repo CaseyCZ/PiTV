@@ -8,6 +8,28 @@ fi
 export HOME=/home/pitv
 export USER=pitv
 export LOGNAME=pitv
+RUNTIME="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="$RUNTIME"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+
+if [ ! -S "$RUNTIME/bus" ] || [ ! -S "$RUNTIME/pulse/native" ]; then
+  echo "PiTV TV session (D-Bus/PipeWire) není připravená." >&2
+  exit 11
+fi
+if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$RUNTIME/${WAYLAND_DISPLAY}" ]; then
+  WAYLAND_DISPLAY=""
+  for socket in "$RUNTIME"/wayland-*; do
+    if [ -S "$socket" ]; then
+      WAYLAND_DISPLAY="$(basename "$socket")"
+      export WAYLAND_DISPLAY
+      break
+    fi
+  done
+fi
+[ -n "${WAYLAND_DISPLAY:-}" ] || { echo "PiTV Wayland není připravený." >&2; exit 12; }
 
 MODE="${1:-run}"
 ADDON="${2:-script.plexmod}"
