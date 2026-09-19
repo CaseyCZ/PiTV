@@ -120,7 +120,7 @@ install -m 0644 -o pitv -g pitv system/bash_profile /home/pitv/.bash_profile
 
 # Let PiTV perform only these two privileged TV actions.
 cat >/etc/sudoers.d/pitv-power <<'EOF'
-pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *
+pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/bin/cec-ctl *
 EOF
 chmod 0440 /etc/sudoers.d/pitv-power
 
