@@ -4,11 +4,12 @@ Malé grafické rozhraní pro vytvoření PiTV microSD bez ruční instalace Ubu
 
 ## Spuštění
 
-1. vlož microSD do čtečky,
-2. spusť **Start-PiTV-SD-Installer.cmd**,
-3. potvrď UAC,
-4. vyber microSD,
-5. klikni na **VYTVOŘIT PiTV SD**.
+1. stáhni z GitHub Releases jediný ZIP, rozbal ho a ponech si `Start-PiTV-SD-Installer.cmd`,
+2. vlož microSD do čtečky,
+3. spusť **Start-PiTV-SD-Installer.cmd**,
+4. potvrď UAC,
+5. vyber microSD,
+6. zkontroluj nebo zadej Wi-Fi a klikni na **VYTVOŘIT PiTV SD**.
 
 Pokud chceš kartu pouze vrátit do běžného stavu, použij **NAFORMÁTOVAT SD**. Installer smaže staré oddíly a vytvoří jeden exFAT oddíl `SDCARD` přes dostupnou kapacitu.
 
@@ -19,7 +20,7 @@ Pokud chceš kartu pouze vrátit do běžného stavu, použij **NAFORMÁTOVAT SD
 - najde podporovaný Ubuntu Server 24.04 LTS ARM64,
 - použije oficiální Raspberry Pi Imager CLI,
 - při chybějícím Imageru se ho pokusí doinstalovat přes `winget`,
-- převezme aktuální Wi-Fi profil z Windows,
+- pokusí se načíst aktuální Wi-Fi profil z Windows; SSID a heslo lze také zadat ručně,
 - připraví cloud-init,
 - vytvoří silné náhodné recovery heslo pro `pitvadmin`,
 - při prvním bootu stáhne `CaseyCZ/PiTV`, spustí `install.sh` a Raspberry restartuje,
@@ -35,7 +36,7 @@ Samotný zápis image nedělá vlastní raw-disk kód. Používá oficiální Ra
 
 ## Stav
 
-Aktuálně jde o **v0.2 beta**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
+Aktuálně jde o **v0.3 beta**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
 
 Celý fyzický proces — skutečná microSD, první boot, Wi-Fi a automatická instalace na Raspberry Pi 4 — ještě před veřejným releasem ověříme na reálném hardware.
 
