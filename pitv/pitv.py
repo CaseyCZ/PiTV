@@ -3474,15 +3474,15 @@ class PiTV:
         if self.external_kind == "apk":
             code = self.ANDROID_KEYEVENTS.get(key)
             if code and shutil.which("waydroid"):
-                try:
-                    subprocess.Popen(
-                        ["waydroid", "shell", "input", "keyevent", code],
-                        env=build_gui_env(),
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                except Exception:
-                    pass
+                # Waydroid's upstream CLI marks 'shell' as root-only. Relay
+                # through PiTV's tightly scoped privileged helper instead of
+                # invoking 'waydroid shell' directly from the pitv GUI user.
+                def send_android_key():
+                    try:
+                        run_privileged("waydroid-keyevent", {"code": code}, 10)
+                    except Exception:
+                        pass
+                threading.Thread(target=send_android_key, daemon=True).start()
             return
 
         name = self.WTYPE_KEYS.get(key)
