@@ -982,7 +982,9 @@ class CECReader(threading.Thread):
 
 class PiTV:
     def __init__(self):
-        pygame.init()
+        # PiTV is a silent launcher. Do not initialize pygame.mixer/audio:
+        # media applications own the PipeWire/HDMI audio path.
+        pygame.display.init()
         pygame.font.init()
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption(f"{APP_NAME} {VERSION}")
