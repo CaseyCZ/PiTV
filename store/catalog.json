@@ -1,0 +1,99 @@
+{
+  "version": 4,
+  "apps": [
+    {
+      "id": "kodi",
+      "name": "Kodi",
+      "description": "Mediální centrum pro filmy, seriály, hudbu a síťové zdroje.",
+      "category": "Media",
+      "platform": "linux",
+      "icon": "KODI",
+      "featured": true,
+      "source_label": "Ubuntu",
+      "installer": {
+        "type": "apt",
+        "package": "kodi"
+      }
+    },
+    {
+      "id": "smarttube",
+      "name": "SmartTube",
+      "description": "Android TV YouTube klient. PiTV stáhne nejnovější stabilní ARM64 release.",
+      "category": "Video",
+      "platform": "android",
+      "icon": "ST",
+      "featured": true,
+      "source_label": "Official GitHub",
+      "requires": "waydroid",
+      "installer": {
+        "type": "github_release_apk",
+        "repo": "yuliskov/SmartTube",
+        "asset_regex": "^SmartTube_stable_.*_arm64-v8a\\.apk$",
+        "expected_package": "org.smarttube.stable"
+      }
+    },
+    {
+      "id": "stremio",
+      "name": "Stremio",
+      "description": "Oficiální Stremio pro Android TV ARM64.",
+      "category": "Media",
+      "platform": "android",
+      "icon": "STR",
+      "featured": true,
+      "source_label": "Stremio",
+      "requires": "waydroid",
+      "installer": {
+        "type": "direct_apk",
+        "url": "https://dl.strem.io/android/v1.10.4-androidTV/com.stremio.one-1.10.4-33145732-arm64-v8a.apk",
+        "version": "1.10.4",
+        "filename": "stremio-tv-arm64.apk",
+        "expected_package": "com.stremio.one"
+      }
+    },
+    {
+      "id": "youtube-tv",
+      "name": "YouTube",
+      "description": "Klasická oficiální aplikace YouTube pro Android TV.",
+      "category": "Video",
+      "platform": "android",
+      "icon": "YT",
+      "featured": true,
+      "source_label": "Google Play",
+      "requires": "gapps",
+      "installer": {
+        "type": "play_store",
+        "package": "com.google.android.youtube.tv"
+      }
+    },
+    {
+      "id": "spotify-tv",
+      "name": "Spotify",
+      "description": "Oficiální Spotify pro televizi s ovladačem a Spotify Connect.",
+      "category": "Music",
+      "platform": "android",
+      "icon": "SP",
+      "featured": true,
+      "source_label": "Google Play",
+      "requires": "gapps",
+      "installer": {
+        "type": "play_store",
+        "package": "com.spotify.tv.android"
+      }
+    },
+    {
+      "id": "plex",
+      "name": "Plex",
+      "description": "Oficiální Plex aplikace pro Android TV / Google TV.",
+      "category": "Media",
+      "platform": "android",
+      "icon": "PLEX",
+      "featured": true,
+      "source_label": "Google Play",
+      "requires": "gapps",
+      "installer": {
+        "type": "play_store",
+        "package": "com.plexapp.android"
+      }
+    }
+  ]
+}
