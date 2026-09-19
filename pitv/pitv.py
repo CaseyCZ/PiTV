@@ -1919,7 +1919,7 @@ class PiTV:
             ("Hodiny na ploše", "Zapnuto" if self.cfg.get("show_clock") else "Vypnuto"),
         ]
         self.draw_rows("Vzhled", "Dvě sjednocená PiTV Apple témata", rows, self.sub_selected,
-                       "↑/↓ vybere • ←/→ změní")
+                       "↑/↓ vybere • ←/→ změní • Back návrat")
 
     def draw_screensaver_settings(self):
         enabled = self.cfg.get("screensaver_enabled", True)
@@ -3078,29 +3078,31 @@ class PiTV:
                 self.enter_settings_item()
 
         elif self.page == "appearance":
-            if key == pygame.K_LEFT:
-                self.focus_sidebar("appearance")
-                return
-            if key == pygame.K_UP: self.sub_selected = max(0, self.sub_selected-1)
-            elif key == pygame.K_DOWN: self.sub_selected = min(2, self.sub_selected+1)
+            if key == pygame.K_UP:
+                self.sub_selected = max(0, self.sub_selected-1)
+            elif key == pygame.K_DOWN:
+                self.sub_selected = min(2, self.sub_selected+1)
             elif key in (pygame.K_LEFT, pygame.K_RIGHT):
+                direction = 1 if key == pygame.K_RIGHT else -1
                 if self.sub_selected == 0:
+                    themes = ["apple_dark", "apple_light"]
                     current = {"dark":"apple_dark","light":"apple_light"}.get(
                         self.cfg.get("theme","apple_dark"), self.cfg.get("theme","apple_dark"))
-                    self.cfg["theme"] = "apple_light" if current == "apple_dark" else "apple_dark"
+                    try:
+                        cur = themes.index(current)
+                    except ValueError:
+                        cur = 0
+                    self.cfg["theme"] = themes[max(0, min(len(themes)-1, cur + direction))]
                 elif self.sub_selected == 1:
                     vals = [.85, 1.0, 1.15]
                     cur = min(range(len(vals)), key=lambda i: abs(vals[i]-float(self.cfg.get("tile_scale",1))))
-                    cur = max(0, min(len(vals)-1, cur + (1 if key == pygame.K_RIGHT else -1)))
+                    cur = max(0, min(len(vals)-1, cur + direction))
                     self.cfg["tile_scale"] = vals[cur]
                 else:
                     self.cfg["show_clock"] = not self.cfg.get("show_clock", True)
                 save_user_config(self.cfg)
 
         elif self.page == "screensaver":
-            if key == pygame.K_LEFT:
-                self.focus_sidebar("screensaver")
-                return
             if key == pygame.K_UP:
                 self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN:
@@ -3144,9 +3146,6 @@ class PiTV:
                     self.connect_wifi(item["net"])
 
         elif self.page == "audio":
-            if key == pygame.K_LEFT:
-                self.focus_sidebar("audio")
-                return
             items = self.audio_items()
             if key == pygame.K_UP:
                 self.audio_selected = max(0, self.audio_selected-1)
@@ -3157,6 +3156,9 @@ class PiTV:
                 cur = self.cfg.get("hdmi_audio_port", "auto")
                 self.cfg["hdmi_audio_port"] = self._cycle(cur, vals, 1 if key == pygame.K_RIGHT else -1)
                 save_user_config(self.cfg)
+            elif key == pygame.K_LEFT:
+                self.focus_sidebar("audio")
+                return
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 action = items[self.audio_selected]["action"]
                 if action == "port":
