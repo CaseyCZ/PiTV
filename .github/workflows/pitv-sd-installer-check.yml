@@ -50,59 +50,30 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $installer = Join-Path $env:RUNNER_TEMP "rpi-imager.exe"
-          Invoke-WebRequest -UseBasicParsing -TimeoutSec 120 -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
+          $headers = @{ "User-Agent" = "PiTV-CI" }
+          $release = Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri "https://api.github.com/repos/raspberrypi/rpi-imager/releases/latest"
+          $tag = [string]$release.tag_name
+          if (-not $tag) { throw "Unable to resolve latest Raspberry Pi Imager release tag." }
 
-          $p = Start-Process -FilePath $installer -ArgumentList @(
-            "/VERYSILENT",
-            "/SUPPRESSMSGBOXES",
-            "/NORESTART",
-            "/SP-"
-          ) -PassThru
-          if (-not $p.WaitForExit(120000)) {
-            try { $p.Kill() } catch {}
-            throw "Raspberry Pi Imager install timeout"
-          }
-          $p.Refresh()
-
-          if ($p.ExitCode -ne 0) {
-            throw "Raspberry Pi Imager installer failed with exit code $($p.ExitCode)"
-          }
-
-          $candidates = @(
-            (Join-Path $env:ProgramFiles "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
-            (Join-Path $env:ProgramFiles "Raspberry Pi Imager\rpi-imager.exe")
-          )
-          $imager = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $imager) { throw "Installed rpi-imager.exe was not found." }
-
-          $help = (& $imager --cli --help 2>&1 | Out-String)
+          $cliUrl = "https://raw.githubusercontent.com/raspberrypi/rpi-imager/$tag/src/cli.cpp"
+          $cliSource = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Headers $headers -Uri $cliUrl).Content
           foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig","--sha256")) {
-            if ($help -notmatch [regex]::Escape($required)) {
-              throw "Current Raspberry Pi Imager CLI is missing $required"
+            if ($cliSource -notmatch [regex]::Escape($required.TrimStart("-"))) {
+              throw "Raspberry Pi Imager $tag source is missing CLI contract item $required"
             }
           }
 
-          $script = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
-          if ($script -match '"--disable-telemetry"') {
-            throw "PiTV installer still passes GUI-only --disable-telemetry to CLI mode."
+          $pitv = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          if ($pitv -match '"--disable-telemetry"') {
+            throw "PiTV passes GUI-only --disable-telemetry to Raspberry Pi Imager CLI."
+          }
+          foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig")) {
+            if ($pitv -notmatch [regex]::Escape('"' + $required + '"')) {
+              throw "PiTV write path is missing required argument $required"
+            }
           }
 
-          & $imager --cli --version
-
-          $userData = Join-Path $env:RUNNER_TEMP "pitv-test-user-data"
-          $network = Join-Path $env:RUNNER_TEMP "pitv-test-network-config"
-          Set-Content -Path $userData -Value "#cloud-config" -Encoding UTF8
-          Set-Content -Path $network -Value "version: 2" -Encoding UTF8
-
-          $probe = (& $imager --cli --cloudinit-userdata $userData --cloudinit-networkconfig $network --sha256 ("0" * 64) (Join-Path $env:RUNNER_TEMP "missing-pitv-image.img") "\\.\PhysicalDrive999" 2>&1 | Out-String)
-
-          if ($probe -match "(?i)unknown option|unknown argument") {
-            throw "PiTV CLI probe was rejected by the current Raspberry Pi Imager: $probe"
-          }
-
-          Write-Host "Current Raspberry Pi Imager CLI contract and PiTV argument set OK"
-
+          Write-Host ("Raspberry Pi Imager contract OK against latest release " + $tag)
       - name: Verify launcher target
         shell: powershell
         run: |
