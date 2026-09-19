@@ -2744,8 +2744,32 @@ class PiTV:
         pygame.K_RIGHT: "Right", pygame.K_RETURN: "Return", pygame.K_KP_ENTER: "Return",
         pygame.K_ESCAPE: "Escape", pygame.K_SPACE: "space",
     }
+    ANDROID_KEYEVENTS = {
+        pygame.K_UP: "19",          # KEYCODE_DPAD_UP
+        pygame.K_DOWN: "20",        # KEYCODE_DPAD_DOWN
+        pygame.K_LEFT: "21",        # KEYCODE_DPAD_LEFT
+        pygame.K_RIGHT: "22",       # KEYCODE_DPAD_RIGHT
+        pygame.K_RETURN: "23",      # KEYCODE_DPAD_CENTER
+        pygame.K_KP_ENTER: "23",
+        pygame.K_ESCAPE: "4",       # KEYCODE_BACK
+        pygame.K_SPACE: "85",       # KEYCODE_MEDIA_PLAY_PAUSE
+    }
 
     def relay_to_external(self, key):
+        if self.external_kind == "apk":
+            code = self.ANDROID_KEYEVENTS.get(key)
+            if code and shutil.which("waydroid"):
+                try:
+                    subprocess.Popen(
+                        ["waydroid", "shell", "input", "keyevent", code],
+                        env=build_gui_env(),
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+            return
+
         name = self.WTYPE_KEYS.get(key)
         if name and shutil.which("wtype"):
             try:
