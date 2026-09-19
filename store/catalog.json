@@ -78,13 +78,13 @@
     },
     {
       "id": "plex",
-      "name": "Plex",
-      "description": "Plex přehrávač pro TV přes nativní Linux Kodi a PM4K. Bez Androidu/Waydroidu.",
+      "name": "Plex Player",
+      "description": "TV přehrávač Plex pro Linux ARM64 přes Kodi + PM4K. Bez Androidu/Waydroidu.",
       "category": "Media",
       "platform": "linux",
       "icon": "PLEX",
       "featured": true,
-      "source_label": "Kodi.tv · PM4K",
+      "source_label": "Kodi + PM4K (community)",
       "requires": "kodi",
       "installer": {
         "type": "kodi_addon",
