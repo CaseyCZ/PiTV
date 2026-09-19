@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
-$InstallerVersion = "0.21"
+$InstallerVersion = "0.22"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
@@ -698,7 +698,11 @@ function Open-LogFolder {
 
 function Report-Problem {
     try {
-        $raw = if (Test-Path $SessionLog) { Get-Content -LiteralPath $SessionLog -Raw -Encoding UTF8 } else { $log.Text }
+        $raw = if (Test-Path $SessionLog) {
+            Get-Content -LiteralPath $SessionLog -Raw -Encoding UTF8
+        } else {
+            $log.Text
+        }
         if ([string]::IsNullOrWhiteSpace($raw)) {
             $raw = "Log zatím neobsahuje žádná data."
         }
@@ -712,25 +716,26 @@ function Report-Problem {
                 }
             }
         } catch {}
+
         $currentSsid = $wifiSsid.Text.Trim()
         if ($currentSsid -and -not $knownSsids.Contains($currentSsid)) {
             [void]$knownSsids.Add($currentSsid)
         }
+
         foreach ($name in ($knownSsids | Sort-Object Length -Descending)) {
             if ($name) { $raw = $raw.Replace($name, "<SSID>") }
         }
 
         $lines = @($raw -split "\r?\n" | Where-Object { $_ })
-        if ($lines.Count -gt 120) {
-            $lines = $lines[($lines.Count-120)..($lines.Count-1)]
+        if ($lines.Count -gt 160) {
+            $lines = $lines[($lines.Count-160)..($lines.Count-1)]
         }
         $diag = $lines -join [Environment]::NewLine
 
-        $titleText = "[Alpha] PiTV SD Installer – automatický error report"
         $bodyText = @"
 ### PiTV SD Installer diagnostika
 
-Installer: Alpha / Windows
+Installer: v$InstallerVersion Alpha / Windows
 Windows: $([Environment]::OSVersion.VersionString)
 Čas: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
@@ -741,15 +746,54 @@ $diag
 > Automatický error report z PiTV SD Installeru. Log byl před odesláním zkrácen a všechna nalezená SSID byla skryta.
 "@
 
-        $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" +
-            [Uri]::EscapeDataString($titleText) +
-            "&body=" + [Uri]::EscapeDataString($bodyText)
+        # Long prefilled GitHub URLs can be rejected or truncated by Windows.
+        # Keep the report in a local UTF-8 file + clipboard, and open only the
+        # stable GitHub issue page with a short title parameter.
+        $reportPath = Join-Path $LogDir ("pitv-error-report-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt")
+        [IO.File]::WriteAllText($reportPath, $bodyText, (New-Object Text.UTF8Encoding($false)))
+        [Windows.Forms.Clipboard]::SetText($bodyText)
 
-        Start-Process $url
-        Log "Připraven error report. V GitHubu klikni už jen na Submit new issue."
+        $titleText = "[Alpha] PiTV SD Installer – error report"
+        $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" + [Uri]::EscapeDataString($titleText)
+
+        try {
+            Start-Process -FilePath $url -ErrorAction Stop
+            Log ("Error report uložen: " + $reportPath)
+            Log "Report byl zkopírován do schránky. V GitHubu ho vlož přes Ctrl+V a odešli."
+            [Windows.Forms.MessageBox]::Show(
+                "Otevřel se nový GitHub issue. Kompletní anonymizovaný report je už ve schránce." +
+                [Environment]::NewLine + [Environment]::NewLine +
+                "Klikni do pole popisu, dej Ctrl+V a potom Submit new issue.",
+                "ODESLAT CHYBU",
+                [Windows.Forms.MessageBoxButtons]::OK,
+                [Windows.Forms.MessageBoxIcon]::Information
+            ) | Out-Null
+        }
+        catch {
+            Log ("Otevření GitHubu selhalo: " + $_.Exception.Message)
+            [Windows.Forms.MessageBox]::Show(
+                "Report je zkopírovaný ve schránce a uložený zde:" +
+                [Environment]::NewLine + $reportPath +
+                [Environment]::NewLine + [Environment]::NewLine +
+                "Otevři GitHub PiTV → Issues → New issue a vlož report přes Ctrl+V.",
+                "ODESLAT CHYBU",
+                [Windows.Forms.MessageBoxButtons]::OK,
+                [Windows.Forms.MessageBoxIcon]::Warning
+            ) | Out-Null
+        }
     }
     catch {
         Log ("Příprava hlášení selhala: " + $_.Exception.Message)
+        try {
+            $fallback = if (Test-Path $SessionLog) {
+                Get-Content -LiteralPath $SessionLog -Raw -Encoding UTF8
+            } else {
+                $log.Text
+            }
+            if ($fallback) {
+                [Windows.Forms.Clipboard]::SetText($fallback)
+            }
+        } catch {}
     }
 }
 
