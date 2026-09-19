@@ -11,7 +11,8 @@ All notable PiTV changes are documented here.
 - Server Store: Homebridge, Tailscale, Docker Engine and ATVLoadly,
 - in-app Waydroid + GAPPS installation,
 - in-app PiTV/catalog/Ubuntu update center,
-- automated x64/ARM64 smoke tests.
+- automated x64/ARM64 smoke tests,
+- Waydroid ARM64/Noble fallback package snapshot with weekly refresh and SHA-256 verification.
 
 ### Improved
 - Apple-TV-inspired Home, Store, Server Store, Settings and Updates layouts,
