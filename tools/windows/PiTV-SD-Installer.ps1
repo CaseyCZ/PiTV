@@ -306,13 +306,18 @@ function Get-Entries([string]$url,[int]$depth=0) {
     return $all
 }
 
-function Get-Ubuntu2404 {
+function Get-Ubuntu2404([string]$deviceTag = "pi4-64bit") {
+    $supportedTags = @("pi3-64bit","pi4-64bit","pi5-64bit")
+    if ($deviceTag -notin $supportedTags) {
+        throw ("Nepodporovaný Raspberry Pi device tag: " + $deviceTag)
+    }
+
     $entries = Get-Entries $RepoListUrl
     $list = $entries | Where-Object {
         $name = [string](Get-Prop $_ "name")
-        $devices = Get-Prop $_ "devices"
+        $devices = @(Get-Prop $_ "devices")
         $name -match "^Ubuntu Server 24\.04(?:\.\d+)? LTS \(64-bit\)$" -and
-        (-not $devices -or $devices -contains "pi4-64bit" -or $devices -contains "pi4-64" -or $devices -contains "pi4")
+        ($devices -contains $deviceTag)
     } | Sort-Object @{ Expression={
         try {
             $releaseDate = Get-Prop $_ "release_date"
@@ -321,25 +326,29 @@ function Get-Ubuntu2404 {
     } } -Descending
 
     $image = $list | Select-Object -First 1
-    if (-not $image) { throw "Ubuntu Server 24.04 LTS pro Raspberry Pi 4 nebyl v oficiálním katalogu nalezen." }
+    if (-not $image) {
+        throw ("Ubuntu Server 24.04 LTS pro " + $deviceTag + " nebyl v oficiálním katalogu nalezen.")
+    }
     return $image
 }
 
 if ($SelfTestCatalog) {
-    $image = Get-Ubuntu2404
-    $name = [string](Get-Prop $image "name")
-    $url = [string](Get-Prop $image "url")
-    $devices = @(Get-Prop $image "devices")
+    foreach ($tag in @("pi3-64bit","pi4-64bit","pi5-64bit")) {
+        $image = Get-Ubuntu2404 $tag
+        $name = [string](Get-Prop $image "name")
+        $url = [string](Get-Prop $image "url")
+        $devices = @(Get-Prop $image "devices")
 
-    if (-not $name -or -not $url) {
-        throw "Catalog self-test found an incomplete Ubuntu image entry."
-    }
-    if ($devices.Count -gt 0 -and $devices -notcontains "pi4-64bit") {
-        throw "Catalog self-test image is not tagged for pi4-64bit."
-    }
+        if (-not $name -or -not $url) {
+            throw ("Catalog self-test found an incomplete Ubuntu image entry for " + $tag + ".")
+        }
+        if ($devices -notcontains $tag) {
+            throw ("Catalog self-test image is not tagged for " + $tag + ".")
+        }
 
-    Write-Host ("CATALOG SELF-TEST OK: " + $name)
-    Write-Host ("Image host: " + ([Uri]$url).Host)
+        Write-Host ("CATALOG SELF-TEST OK [" + $tag + "]: " + $name)
+        Write-Host ("Image host: " + ([Uri]$url).Host)
+    }
     exit 0
 }
 
