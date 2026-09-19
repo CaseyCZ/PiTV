@@ -141,6 +141,26 @@ elif action == "waydroid-ready":
         out("ready")
     out("Android framework ještě není připravený", 4)
 
+elif action == "waydroid-keyevent":
+    # Upstream Waydroid requires "waydroid shell" to run as root. PiTV owns
+    # the TV CEC adapter and relays only this small allowlist into Android.
+    code = str(payload.get("code", "")).strip()
+    allowed = {
+        "4",   # KEYCODE_BACK
+        "19",  # KEYCODE_DPAD_UP
+        "20",  # KEYCODE_DPAD_DOWN
+        "21",  # KEYCODE_DPAD_LEFT
+        "22",  # KEYCODE_DPAD_RIGHT
+        "23",  # KEYCODE_DPAD_CENTER
+        "85",  # KEYCODE_MEDIA_PLAY_PAUSE
+    }
+    if code not in allowed:
+        out("Nepovolená Android klávesa", 2)
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    run(["waydroid", "shell", "input", "keyevent", code], timeout=10)
+    out("keyevent sent")
+
 elif action == "waydroid-app-running":
     package = str(payload.get("package", "")).strip()
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
