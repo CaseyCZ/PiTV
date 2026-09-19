@@ -1,5 +1,9 @@
 # PiTV Alpha
 
+### PiTV 1.4.13 · HDMI audio default
+- PiTV při startu vybere dostupný HDMI PipeWire/Pulse sink jako výchozí pro Kodi, Stremio a Waydroid
+- změna HDMI audio portu v Nastavení se okamžitě promítne do výchozího Pulse sinku
+- řeší stav, kdy Kodi vidělo HDMI zařízení, ale zůstalo na Default Output Device bez zvuku
 ### PiTV 1.4.12 · Full Settings audit
 - Vzhled: levá/pravá šipka spolehlivě mění Motiv, Velikost dlaždic a Hodiny; Back se vrací
 - Spořič: časové hodnoty už nepřetékají z minima na maximum a opačně
