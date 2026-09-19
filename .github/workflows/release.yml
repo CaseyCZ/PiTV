@@ -80,11 +80,11 @@ jobs:
           fi
 
           # Keep exactly one custom downloadable asset in the rolling Alpha.
-          gh release view alpha --json assets --jq '.assets[].name' \
-            | grep -v '^PiTV-SD-Installer-Windows.zip$' \
-            | while read -r asset; do
-                [ -z "$asset" ] || gh release delete-asset alpha "$asset" -y
-              done
+          while IFS= read -r asset; do
+            if [ -n "$asset" ] && [ "$asset" != "PiTV-SD-Installer-Windows.zip" ]; then
+              gh release delete-asset alpha "$asset" -y
+            fi
+          done < <(gh release view alpha --json assets --jq '.assets[].name')
 
           gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
 
