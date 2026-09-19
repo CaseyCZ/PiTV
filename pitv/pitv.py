@@ -16,9 +16,9 @@ import pygame
 from apk_backend import (discover_apks, ensure_apk_installed, inspect_apk,
                          waydroid_available, waydroid_packages, waydroid_status,
                          tailscale_info)
-from store_backend import (download_direct_apk, download_github_apk,
-                           load_store_catalog, mark_android_installed,
-                           store_state)
+from store_backend import (clear_android_receipts, download_direct_apk,
+                           download_github_apk, load_store_catalog,
+                           mark_android_installed, store_state)
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
@@ -1038,6 +1038,7 @@ class PiTV:
         self.store_states = {}
         self.store_refreshing = False
         self.store_busy_id = ""
+        self.app_action_busy = False
         self.server_store_selected = 0
         self.server_store_catalog = load_server_catalog()
         self.server_store_states = {}
@@ -2174,6 +2175,132 @@ class PiTV:
         self.text("↑/↓ vybere • OK spustí • Back návrat",
                   x, int(self.h*.90), self.h*.016, self.t["muted"])
 
+    def _store_item_for_app(self, app):
+        """Return the Store entry that owns an app, without confusing legacy APKs."""
+        if not app:
+            return None
+        kind = app.get("kind", "linux")
+        package = str(app.get("package", "") or "").strip()
+        command = str(app.get("command", "") or "")
+        name = str(app.get("name", "") or "").strip().lower()
+
+        # Android entries must match by package. A legacy Android Stremio can
+        # have the same display name as today's native Linux Stremio.
+        if kind == "apk":
+            if not package:
+                return None
+            for item in self.store_catalog:
+                installer = item.get("installer", {})
+                candidate = installer.get("package") or installer.get("expected_package")
+                if candidate == package:
+                    return item
+            return None
+
+        for item in self.store_catalog:
+            installer = item.get("installer", {})
+            app_id = str(installer.get("app_id", "") or "")
+            package_name = str(installer.get("package", "") or "")
+            if app_id and app_id in command:
+                return item
+            if package_name and command.split()[:1] == [package_name]:
+                return item
+            if name and str(item.get("name", "")).strip().lower() == name:
+                return item
+        return None
+
+    def app_can_uninstall(self, app):
+        if not app:
+            return False
+        if app.get("kind") == "apk":
+            return bool(app.get("package"))
+        item = self._store_item_for_app(app)
+        if not item:
+            return False
+        return item.get("installer", {}).get("type") in ("apt", "flatpak")
+
+    def uninstall_app_async(self, app):
+        if self.app_action_busy:
+            self.show_toast("Probíhá jiná operace s aplikací", 3)
+            return
+        app = dict(app or {})
+        if not self.app_can_uninstall(app):
+            self.show_toast("Tuto aplikaci PiTV neumí bezpečně odinstalovat", 5)
+            return
+
+        self.app_action_busy = True
+        name = app.get("name", "Aplikace")
+        self.set_operation(f"Odinstalovávám {name}…")
+        self.show_toast(f"Odinstalovávám {name}…", 4)
+
+        def worker():
+            ok = False
+            msg = ""
+            try:
+                if app.get("kind") == "apk":
+                    package = str(app.get("package", "") or "").strip()
+                    apk_path = str(app.get("apk_path", "") or "").strip()
+                    ok, msg = run_privileged(
+                        "waydroid-app-uninstall", {"package": package}, 300
+                    )
+                    if ok:
+                        # PiTV-managed APK files are safe to remove together
+                        # with the Android package. Never unlink an arbitrary path.
+                        if apk_path:
+                            try:
+                                target = Path(apk_path).resolve()
+                                roots = [
+                                    Path("/var/lib/pitv/apks").resolve(),
+                                    (Path.home() / "PiTV" / "APKs").resolve(),
+                                ]
+                                if target.suffix.lower() == ".apk" and any(
+                                        target == root or root in target.parents
+                                        for root in roots):
+                                    target.unlink(missing_ok=True)
+                            except Exception:
+                                pass
+                        clear_android_receipts(package, apk_path)
+                else:
+                    item = self._store_item_for_app(app)
+                    installer = item.get("installer", {}) if item else {}
+                    install_type = installer.get("type")
+                    if install_type == "flatpak":
+                        ok, msg = run_privileged(
+                            "flatpak-uninstall",
+                            {"app_id": installer.get("app_id", "")},
+                            1200,
+                        )
+                    elif install_type == "apt":
+                        ok, msg = run_privileged(
+                            "apt-remove",
+                            {"package": installer.get("package", "")},
+                            1200,
+                        )
+                    else:
+                        msg = "Tento typ aplikace zatím nelze odinstalovat"
+
+                if ok:
+                    hidden = set(self.cfg.get("hidden_apps", []))
+                    hidden.discard(str(name))
+                    self.cfg["hidden_apps"] = sorted(hidden)
+                    save_user_config(self.cfg)
+                    self.apps = load_apps()
+                    self.apps_selected = min(
+                        self.apps_selected, max(0, len(self.app_items()) - 1)
+                    )
+                    self.android_selected = min(
+                        self.android_selected, max(0, len(self.android_items()) - 1)
+                    )
+                    self.refresh_store_async()
+            except Exception as e:
+                ok, msg = False, f"Odinstalace selhala: {e}"
+            finally:
+                self.app_action_busy = False
+                final = f"{name} odinstalováno" if ok else (msg or "Odinstalace selhala")
+                self.finish_operation(final, ok, 4.0 if ok else 7.0)
+                self.show_toast(final, 5 if ok else 7)
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def app_items(self):
         hidden = set(self.cfg.get("hidden_apps", []))
         rows = [{"name": "PiTV Store", "store": True, "visible": True}]
@@ -2196,14 +2323,19 @@ class PiTV:
             elif x.get("refresh"):
                 rows.append((x["name"], "OK"))
             else:
-                rows.append((x["name"], "Na ploše" if x["visible"] else "Skryto"))
+                state = "Na ploše" if x["visible"] else "Skryto"
+                if self.app_can_uninstall(x.get("app")):
+                    state += " · → Odinstalovat"
+                rows.append((x["name"], state))
 
         visible = 8
         start = max(0, min(self.apps_selected-visible//2, max(0, len(rows)-visible)))
         subset = rows[start:start+visible]
         selected = self.apps_selected-start if subset else 0
-        self.draw_rows("Aplikace", "Store + aplikace dostupné PiTV", subset, selected,
-                       "↑/↓ vybere • OK = Store / zobrazit / skrýt • Back návrat")
+        self.draw_rows(
+            "Aplikace", "Store + aplikace dostupné PiTV", subset, selected,
+            "↑/↓ vybere • OK zobrazit/skrýt • → odinstalovat • Back návrat",
+        )
 
     STORE_STATE_LABELS = {
         "installed": "Nainstalováno",
@@ -2656,9 +2788,11 @@ class PiTV:
         self.android_selected = max(0, min(self.android_selected, max(0, len(rows)-1)))
         visible = 8
         start = max(0, min(self.android_selected-visible//2, max(0, len(rows)-visible)))
-        self.draw_rows("Android / APK", "APK inspector · aapt/apktool · Waydroid",
-                       rows[start:start+visible], self.android_selected-start,
-                       "Nahraj .apk přes SSH do /var/lib/pitv/apks • OK = akce")
+        self.draw_rows(
+            "Android / APK", "APK inspector · aapt/apktool · Waydroid",
+            rows[start:start+visible], self.android_selected-start,
+            "OK = spustit/akce • → = odinstalovat vybrané APK • Back návrat",
+        )
 
     def update_items(self):
         if self.remote_pitv:
@@ -3435,6 +3569,18 @@ class PiTV:
                 self.apps_selected = max(0, self.apps_selected-1)
             elif key == pygame.K_DOWN:
                 self.apps_selected = min(len(items)-1, self.apps_selected+1)
+            elif key == pygame.K_RIGHT:
+                item = items[self.apps_selected]
+                app = item.get("app")
+                if app and self.app_can_uninstall(app):
+                    name = app.get("name", "aplikaci")
+                    self.open_confirm(
+                        f"Odinstalovat {name}",
+                        "Opravdu aplikaci odinstalovat z PiTV?",
+                        lambda selected=dict(app): self.uninstall_app_async(selected),
+                    )
+                elif app:
+                    self.show_toast("Tuto aplikaci nelze bezpečně odinstalovat", 4)
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 item = items[self.apps_selected]
                 if item.get("store"):
@@ -3502,6 +3648,17 @@ class PiTV:
                 self.android_selected = max(0, self.android_selected-1)
             elif key == pygame.K_DOWN:
                 self.android_selected = min(len(rows)-1, self.android_selected+1)
+            elif key == pygame.K_RIGHT and self.android_selected >= 6:
+                apks = [a for a in self.apps if a.get("kind") == "apk"]
+                apk_index = self.android_selected - 6
+                if 0 <= apk_index < len(apks):
+                    app = apks[apk_index]
+                    name = app.get("name", "APK")
+                    self.open_confirm(
+                        f"Odinstalovat {name}",
+                        "Odebrat Android aplikaci a její PiTV APK soubor?",
+                        lambda selected=dict(app): self.uninstall_app_async(selected),
+                    )
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.android_selected == 0 and not waydroid_available():
                     self.open_confirm(
