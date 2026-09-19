@@ -186,7 +186,8 @@ function New-PiTVRawImageInfo([string]$path,[bool]$temporary,[string]$cleanupDir
 }
 
 function Format-PiTVProcessExitCode([int]$code) {
-    $hex = ("0x{0:X8}" -f ([uint32]$code))
+    $unsigned = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$code),0)
+    $hex = ("0x{0:X8}" -f $unsigned)
     switch ($hex) {
         "0xC0000135" { return ($code.ToString() + " / " + $hex + " · chybějící DLL") }
         "0xC0000005" { return ($code.ToString() + " / " + $hex + " · access violation") }
