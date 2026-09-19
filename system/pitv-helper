@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+import json, os, shutil, subprocess, sys, tempfile, urllib.request
+
+ALLOWED_STORE_APT = {"kodi"}
+ALLOWED_PLAY_PACKAGES = {"com.google.android.youtube.tv", "com.spotify.tv.android", "com.plexapp.android"}
+
+def out(msg, code=0):
+    print(msg)
+    raise SystemExit(code)
+
+def run(args, timeout=600, stdin=None, env=None):
+    p = subprocess.run(args, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True, timeout=timeout, check=False, env=env)
+    text = (p.stdout or "").strip()
+    if p.returncode != 0:
+        out(text or f"Chyba ({p.returncode})", p.returncode)
+    return text
+
+if os.geteuid() != 0:
+    out("PiTV helper musí běžet jako root", 1)
+
+action = sys.argv[1] if len(sys.argv) > 1 else ""
+try:
+    payload = json.loads(sys.stdin.read() or "{}")
+except Exception:
+    payload = {}
+
+if action == "wifi-radio":
+    enabled = bool(payload.get("enabled"))
+    run(["nmcli", "radio", "wifi", "on" if enabled else "off"], timeout=20)
+    out("Wi‑Fi zapnuto" if enabled else "Wi‑Fi vypnuto")
+
+elif action == "wifi-connect":
+    ssid = str(payload.get("ssid",""))[:128]
+    password = str(payload.get("password",""))[:256]
+    if not ssid:
+        out("Chybí SSID", 2)
+    args = ["nmcli", "device", "wifi", "connect", ssid]
+    if password:
+        args += ["password", password]
+    text = run(args, timeout=45)
+    out(text or f"Připojeno k {ssid}")
+
+elif action == "wifi-disconnect":
+    dev = str(payload.get("device",""))[:64]
+    if not dev or not dev.replace("-","").replace("_","").isalnum():
+        out("Neplatné Wi‑Fi zařízení", 2)
+    run(["nmcli", "device", "disconnect", dev], timeout=20)
+    out(f"{dev} odpojeno")
+
+elif action == "waydroid-install":
+    if shutil.which("waydroid") is not None:
+        out("Waydroid už je nainstalovaný")
+    installer = "/usr/local/libexec/pitv-install-waydroid"
+    if not os.path.isfile(installer):
+        out("Waydroid instalátor PiTV není nainstalovaný", 2)
+    run([installer], timeout=1800)
+    out("Waydroid + Google Play nainstalován")
+
+elif action == "waydroid-open-play-store":
+    package = str(payload.get("package", "")).strip()
+    if package not in ALLOWED_PLAY_PACKAGES:
+        out("Aplikace není povolena pro Google Play akci", 2)
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    run([
+        "waydroid", "shell", "am", "start",
+        "-a", "android.intent.action.VIEW",
+        "-d", f"market://details?id={package}",
+    ], timeout=30)
+    out("Google Play detail otevřen")
+
+elif action == "waydroid-container-start":
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    run(["waydroid", "container", "start"], timeout=60)
+    out("Waydroid container spuštěn")
+
+elif action == "waydroid-container-stop":
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    run(["waydroid", "container", "stop"], timeout=60)
+    out("Waydroid container zastaven")
+
+elif action == "apt-install":
+    package = str(payload.get("package", "")).strip()
+    if package not in ALLOWED_STORE_APT:
+        out("Balíček není povolený v PiTV Store", 2)
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    run(["apt-get", "update"], timeout=300, env=env)
+    run(["apt-get", "-y", "install", package], timeout=1200, env=env)
+    out(f"{package} nainstalováno")
+
+elif action == "pitv-self-update":
+    updater = "/usr/local/libexec/pitv-self-update"
+    if not os.path.isfile(updater):
+        out("PiTV updater není nainstalovaný", 2)
+    text = run([updater], timeout=1800)
+    out(text or "PiTV aktualizováno")
+
+elif action == "store-catalog-update":
+    target_dir = "/etc/pitv/store"
+    os.makedirs(target_dir, exist_ok=True)
+    catalogs = [
+        ("catalog.json", "apps"),
+        ("server_catalog.json", "services"),
+    ]
+    try:
+        for filename, list_key in catalogs:
+            url = f"https://raw.githubusercontent.com/CaseyCZ/PiTV/Master/store/{filename}"
+            req = urllib.request.Request(url, headers={"User-Agent": "PiTV-Updater/1.3"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = r.read()
+            parsed = json.loads(data.decode("utf-8"))
+            if not isinstance(parsed, dict) or not isinstance(parsed.get(list_key), list):
+                out(f"Stažený katalog {filename} není platný", 2)
+            target = os.path.join(target_dir, filename)
+            fd, tmp = tempfile.mkstemp(prefix=filename + "-", suffix=".tmp", dir=target_dir)
+            try:
+                with os.fdopen(fd, "wb") as h:
+                    h.write(data)
+                os.chmod(tmp, 0o644)
+                os.replace(tmp, target)
+            finally:
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+        out("PiTV Store a Server Store katalog aktualizovány")
+    except Exception as e:
+        out(f"Aktualizace Store katalogů selhala: {e}", 2)
+
+elif action == "apt-store-upgrade":
+    packages = payload.get("packages", [])
+    if not isinstance(packages, list):
+        out("Neplatný seznam balíčků", 2)
+    packages = [str(x).strip() for x in packages if str(x).strip()]
+    if any(p not in ALLOWED_STORE_APT for p in packages):
+        out("Seznam obsahuje nepovolený Store balíček", 2)
+    if not packages:
+        out("Žádné Linux Store aplikace k aktualizaci")
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    run(["apt-get", "update"], timeout=300, env=env)
+    run(["apt-get", "-y", "install", "--only-upgrade"] + packages, timeout=1200, env=env)
+    out("Linux Store aplikace aktualizovány")
+
+elif action == "background-status":
+    def svc(name):
+        p = subprocess.run(["systemctl", "is-active", name], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, text=True, check=False)
+        state = (p.stdout or "").strip()
+        return state or "není"
+
+    status = {
+        "tailscale": svc("tailscaled"),
+        "homebridge": svc("homebridge"),
+        "docker": svc("docker"),
+        "ssh": svc("ssh"),
+        "atvloadly": "nenalezen",
+        "atvloadly_container": "",
+    }
+
+    if shutil.which("docker"):
+        p = subprocess.run(
+            ["docker", "ps", "-a", "--format", "{{.Names}}|{{.State}}"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, check=False,
+        )
+        for line in (p.stdout or "").splitlines():
+            if "|" not in line:
+                continue
+            name, state = line.split("|", 1)
+            if "atvloadly" in name.lower():
+                status["atvloadly"] = state.strip() or "nalezen"
+                status["atvloadly_container"] = name.strip()
+                break
+
+    print(json.dumps(status, ensure_ascii=False))
+    raise SystemExit(0)
+
+elif action == "background-restart":
+    target = str(payload.get("target", "")).strip().lower()
+    if target in ("tailscale", "tailscaled"):
+        run(["systemctl", "restart", "tailscaled"], timeout=45)
+        out("Tailscale restartován")
+    if target == "homebridge":
+        run(["systemctl", "restart", "homebridge"], timeout=60)
+        out("Homebridge restartován")
+    if target == "atvloadly":
+        if shutil.which("docker") is None:
+            out("Docker není nainstalovaný", 2)
+        p = subprocess.run(
+            ["docker", "ps", "-a", "--format", "{{.Names}}"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, check=False,
+        )
+        name = next((x.strip() for x in (p.stdout or "").splitlines()
+                     if "atvloadly" in x.lower()), "")
+        if not name:
+            out("ATVLoadly kontejner nebyl nalezen", 2)
+        run(["docker", "restart", name], timeout=90)
+        out("ATVLoadly restartováno")
+    out("Tato služba není povolena pro restart z PiTV", 2)
+
+elif action == "server-store-status":
+    def service_state(name):
+        p = subprocess.run(["systemctl", "is-active", name],
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           text=True, check=False)
+        return (p.stdout or "").strip() or "inactive"
+
+    status = {}
+
+    hb_installed = subprocess.run(
+        ["dpkg-query", "-W", "-f=${Status}", "homebridge"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        text=True, check=False
+    )
+    status["homebridge"] = {
+        "installed": hb_installed.returncode == 0 and "install ok installed" in hb_installed.stdout,
+        "state": service_state("homebridge"),
+    }
+
+    ts_installed = shutil.which("tailscale") is not None
+    ts_ip = ""
+    if ts_installed:
+        p = subprocess.run(["tailscale", "ip", "-4"],
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           text=True, timeout=5, check=False)
+        ts_ip = (p.stdout or "").strip().splitlines()[0] if (p.stdout or "").strip() else ""
+    status["tailscale"] = {
+        "installed": ts_installed,
+        "state": service_state("tailscaled"),
+        "authenticated": bool(ts_ip),
+        "ip": ts_ip,
+    }
+
+    docker_installed = shutil.which("docker") is not None
+    status["docker"] = {
+        "installed": docker_installed,
+        "state": service_state("docker"),
+    }
+
+    atv = {"installed": False, "state": "inactive"}
+    if docker_installed:
+        p = subprocess.run(
+            ["docker", "ps", "-a", "--filter", "name=^/atvloadly$", "--format", "{{.State}}"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, check=False
+        )
+        state = (p.stdout or "").strip()
+        if state:
+            atv = {"installed": True, "state": state}
+    status["atvloadly"] = atv
+
+    print(json.dumps(status, ensure_ascii=False))
+    raise SystemExit(0)
+
+elif action == "server-store-install":
+    target = str(payload.get("target", "")).strip().lower()
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+
+    if target == "homebridge":
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "curl", "gnupg", "ca-certificates"], timeout=600, env=env)
+        fd, key_tmp = tempfile.mkstemp(prefix="pitv-homebridge-", suffix=".gpg")
+        os.close(fd)
+        try:
+            run(["curl", "-fsSL", "https://repo.homebridge.io/KEY.gpg", "-o", key_tmp], timeout=60)
+            run(["gpg", "--dearmor", "--yes", "--output", "/usr/share/keyrings/homebridge.gpg", key_tmp], timeout=60)
+        finally:
+            try:
+                os.unlink(key_tmp)
+            except FileNotFoundError:
+                pass
+        with open("/etc/apt/sources.list.d/homebridge.list", "w", encoding="utf-8") as h:
+            h.write("deb [signed-by=/usr/share/keyrings/homebridge.gpg] https://repo.homebridge.io stable main\n")
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "homebridge"], timeout=1200, env=env)
+        subprocess.run(["systemctl", "enable", "--now", "homebridge"], check=False)
+        out("Homebridge nainstalován · web na portu 8581")
+
+    if target == "tailscale":
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "curl", "ca-certificates"], timeout=600, env=env)
+        fd, script = tempfile.mkstemp(prefix="pitv-tailscale-", suffix=".sh")
+        os.close(fd)
+        try:
+            run(["curl", "-fsSL", "https://tailscale.com/install.sh", "-o", script], timeout=60)
+            os.chmod(script, 0o700)
+            run(["sh", script], timeout=1200, env=env)
+        finally:
+            try:
+                os.unlink(script)
+            except FileNotFoundError:
+                pass
+        subprocess.run(["systemctl", "enable", "--now", "tailscaled"], check=False)
+        out("Tailscale nainstalován · přihlášení dokonči přes položku Tailscale")
+
+    if target == "docker":
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "ca-certificates", "curl"], timeout=600, env=env)
+        os.makedirs("/etc/apt/keyrings", mode=0o755, exist_ok=True)
+        run(["curl", "-fsSL", "https://download.docker.com/linux/ubuntu/gpg",
+             "-o", "/etc/apt/keyrings/docker.asc"], timeout=60)
+        os.chmod("/etc/apt/keyrings/docker.asc", 0o644)
+
+        os_release = {}
+        try:
+            for line in open("/etc/os-release", encoding="utf-8"):
+                if "=" in line:
+                    k, v = line.rstrip().split("=", 1)
+                    os_release[k] = v.strip().strip('"')
+        except Exception:
+            pass
+        distro = os_release.get("ID", "")
+        codename = os_release.get("UBUNTU_CODENAME") or os_release.get("VERSION_CODENAME", "")
+        if distro not in ("ubuntu", "debian") or not codename:
+            out("Docker Store podporuje Ubuntu/Debian s rozpoznaným codename", 2)
+
+        arch = subprocess.check_output(["dpkg", "--print-architecture"], text=True).strip()
+        with open("/etc/apt/sources.list.d/docker.sources", "w", encoding="utf-8") as h:
+            h.write(
+                "Types: deb\n"
+                f"URIs: https://download.docker.com/linux/{distro}\n"
+                f"Suites: {codename}\n"
+                "Components: stable\n"
+                f"Architectures: {arch}\n"
+                "Signed-By: /etc/apt/keyrings/docker.asc\n"
+            )
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "docker-ce", "docker-ce-cli", "containerd.io",
+             "docker-buildx-plugin", "docker-compose-plugin"], timeout=1200, env=env)
+        subprocess.run(["systemctl", "enable", "--now", "docker"], check=False)
+        out("Docker Engine nainstalován")
+
+    if target == "atvloadly":
+        if shutil.which("docker") is None:
+            out("Nejdřív nainstaluj Docker Engine ze Server Store", 3)
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "avahi-daemon"], timeout=600, env=env)
+        subprocess.run(["systemctl", "enable", "--now", "avahi-daemon"], check=False)
+        os.makedirs("/var/lib/atvloadly", exist_ok=True)
+
+        exists = subprocess.run(
+            ["docker", "inspect", "atvloadly"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            check=False
+        ).returncode == 0
+        if not exists:
+            run(["docker", "pull", "bitxeno/atvloadly:latest"], timeout=1200)
+            run([
+                "docker", "run",
+                "--security-opt", "seccomp:unconfined",
+                "-d", "--name=atvloadly", "--restart=always",
+                "-p", "5533:80",
+                "-v", "/var/lib/atvloadly:/data",
+                "-v", "/var/run/dbus:/var/run/dbus",
+                "-v", "/var/run/avahi-daemon:/var/run/avahi-daemon",
+                "bitxeno/atvloadly:latest"
+            ], timeout=300)
+        else:
+            run(["docker", "start", "atvloadly"], timeout=60)
+        out("ATVLoadly nainstalováno · web na portu 5533")
+
+    out("Neznámá položka Server Store", 2)
+
+elif action == "tailscale-login":
+    if shutil.which("tailscale") is None:
+        out("Tailscale není nainstalovaný", 2)
+    p = subprocess.run(
+        ["tailscale", "up", "--timeout=8s"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=12, check=False
+    )
+    text = (p.stdout or "").strip()
+    url = ""
+    for token in text.split():
+        if token.startswith("https://"):
+            url = token.strip()
+            break
+    if url:
+        out("Tailscale přihlášení: " + url)
+    if p.returncode == 0:
+        out("Tailscale připojeno")
+    out(text or "Tailscale vyžaduje přihlášení", 3)
+
+elif action == "apt-update":
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    run(["apt-get", "update"], timeout=300, env=env)
+    out("Seznam aktualizací obnoven")
+
+elif action == "apt-upgrade":
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    run(["apt-get", "-y", "upgrade"], timeout=1200, env=env)
+    out("Aktualizace nainstalovány")
+
+else:
+    out("Nepovolená akce", 2)
