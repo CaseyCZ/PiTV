@@ -12,4 +12,17 @@
   <keyboard>
     <keybind key="W-Home"><action name="Execute" command="wtype -k Home" /></keybind>
   </keyboard>
+
+  <!--
+    Cage is the documented Waydroid-only/fullscreen compositor. When Cage is
+    nested inside labwc, wlroots exposes its parent Wayland toplevel with the
+    generic app_id "wlroots". Maximizing that one outer surface gives PiTV a
+    borderless TV-sized Android canvas while Cage maximizes the Android client
+    inside it.
+  -->
+  <windowRules>
+    <windowRule identifier="wlroots">
+      <action name="Maximize" />
+    </windowRule>
+  </windowRules>
 </labwc_config>
