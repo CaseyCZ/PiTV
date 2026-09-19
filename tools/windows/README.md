@@ -81,7 +81,7 @@ Při chybě se zapisuje typ výjimky, zpráva, HResult, PowerShell error ID, kat
 
 ## Stav
 
-Aktuálně jde o **v0.20 alpha**.
+Aktuálně jde o **v0.21 alpha**.
 
 GitHub Actions na Windows kontrolují:
 
@@ -92,3 +92,5 @@ GitHub Actions na Windows kontrolují:
 - že release ZIP obsahuje nový zapisovací engine.
 
 Skutečný zápis na fyzickou microSD a první boot je dál potřeba ověřovat na reálném hardware.
+
+- vlastní PiTV uživatel a heslo se zadávají přímo v installeru před zápisem
