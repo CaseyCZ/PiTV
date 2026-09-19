@@ -81,7 +81,7 @@ Při chybě se zapisuje typ výjimky, zpráva, HResult, PowerShell error ID, kat
 
 ## Stav
 
-Aktuálně jde o **v0.15 alpha**.
+Aktuálně jde o **v0.16 alpha**.
 
 GitHub Actions na Windows kontrolují:
 
