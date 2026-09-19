@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import re
 import shutil
@@ -10,6 +11,35 @@ SYSTEM_CATALOG = Path("/etc/pitv/store/catalog.json")
 BUNDLED_CATALOG = Path(__file__).resolve().parent.parent / "store" / "catalog.json"
 USER_APK_DIR = Path.home() / "PiTV" / "APKs"
 RECEIPT_DIR = Path.home() / ".local" / "share" / "pitv" / "store"
+MAX_APK_BYTES = 1024 * 1024 * 1024
+
+
+def _sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as src:
+        for chunk in iter(lambda: src.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _verify_sha256(path, expected, required=False):
+    expected = str(expected or "").strip().lower()
+    if expected.startswith("sha256:"):
+        expected = expected.split(":", 1)[1]
+    if not expected:
+        if required:
+            raise RuntimeError("Store zdroj nemá povinný SHA-256 otisk")
+        return _sha256_file(path)
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise RuntimeError("Store zdroj má neplatný SHA-256 otisk")
+    actual = _sha256_file(path)
+    if actual != expected:
+        try:
+            Path(path).unlink()
+        except Exception:
+            pass
+        raise RuntimeError("SHA-256 staženého APK nesouhlasí")
+    return actual
 
 
 def _read_json(path, fallback):
@@ -159,6 +189,8 @@ def download_github_apk(item, progress=None):
     req = urllib.request.Request(url, headers={"User-Agent": "PiTV-Store/1.3"})
     with urllib.request.urlopen(req, timeout=60) as src, open(tmp, "wb") as out:
         total = int(src.headers.get("Content-Length", "0") or 0)
+        if total and total > MAX_APK_BYTES:
+            raise RuntimeError("APK je neočekávaně velké")
         done = 0
         while True:
             chunk = src.read(1024 * 256)
@@ -166,16 +198,22 @@ def download_github_apk(item, progress=None):
                 break
             out.write(chunk)
             done += len(chunk)
+            if done > MAX_APK_BYTES:
+                raise RuntimeError("APK překročilo bezpečný limit velikosti")
             if progress and total:
                 progress(done, total)
 
     tmp.replace(dest)
+    digest = asset.get("digest", "")
+    sha256 = _verify_sha256(dest, digest, required=False)
     write_receipt(
         item.get("id", ""),
         path=str(dest),
         version=release.get("tag_name", ""),
         asset=name,
         source=repo,
+        sha256=sha256,
+        verified_digest=bool(digest),
     )
     return dest, release.get("tag_name", "")
 
@@ -187,6 +225,9 @@ def download_direct_apk(item, progress=None):
         raise RuntimeError("PiTV Store povoluje pouze HTTPS APK zdroje")
 
     version = str(installer.get("version", ""))
+    expected_sha256 = str(installer.get("sha256", "")).strip()
+    if not expected_sha256:
+        raise RuntimeError("Přímý APK zdroj musí mít v katalogu SHA-256")
     filename = installer.get("filename", "") or Path(url).name or "app.apk"
     if not filename.lower().endswith(".apk"):
         raise RuntimeError("Store zdroj není APK")
@@ -210,11 +251,14 @@ def download_direct_apk(item, progress=None):
                 progress(done, total)
 
     tmp.replace(dest)
+    sha256 = _verify_sha256(dest, expected_sha256, required=True)
     write_receipt(
         item.get("id", ""),
         path=str(dest),
         version=version,
         source=url,
+        sha256=sha256,
+        verified_digest=True,
     )
     return dest, version
 
