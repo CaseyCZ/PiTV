@@ -11,6 +11,8 @@ $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 $SessionLog = Join-Path $LogDir ("pitv-sd-installer-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+$script:WifiInternalUpdate = $false
+$script:WifiPasswordSsid = ""
 
 # Keep only the five most recent completed/current sessions.
 Get-ChildItem $LogDir -Filter "pitv-sd-installer-*.log" -File -ErrorAction SilentlyContinue |
@@ -561,9 +563,22 @@ function Report-Problem {
             $raw = "Log zatím neobsahuje žádná data."
         }
 
-        # Never place the selected Wi-Fi name into a public GitHub issue.
-        $ssid = $wifiSsid.Text.Trim()
-        if ($ssid) { $raw = $raw.Replace($ssid, "<SSID>") }
+        # Never place Wi-Fi network names into a public GitHub issue.
+        $knownSsids = New-Object System.Collections.Generic.List[string]
+        try {
+            foreach ($name in (Get-WifiChoices)) {
+                if ($name -and -not $knownSsids.Contains([string]$name)) {
+                    [void]$knownSsids.Add([string]$name)
+                }
+            }
+        } catch {}
+        $currentSsid = $wifiSsid.Text.Trim()
+        if ($currentSsid -and -not $knownSsids.Contains($currentSsid)) {
+            [void]$knownSsids.Add($currentSsid)
+        }
+        foreach ($name in ($knownSsids | Sort-Object Length -Descending)) {
+            if ($name) { $raw = $raw.Replace($name, "<SSID>") }
+        }
 
         $lines = @($raw -split "\r?\n" | Where-Object { $_ })
         if ($lines.Count -gt 60) {
@@ -583,7 +598,7 @@ Windows: $([Environment]::OSVersion.VersionString)
 $diag
 ```
 
-> Automatický error report z PiTV SD Installeru. Log byl před odesláním zkrácen a vybrané SSID bylo skryto.
+> Automatický error report z PiTV SD Installeru. Log byl před odesláním zkrácen a všechna nalezená SSID byla skryta.
 "@
 
         $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" +
@@ -622,8 +637,9 @@ function Load-PasswordForSelectedWifi {
         $saved = Get-SavedWifiPassword $ssid
         if ($saved) {
             $wifiPass.Text = $saved
+            $script:WifiPasswordSsid = $ssid
             $wifiStatus.Text = "Uložené heslo bylo načteno z Windows"
-            Log ("Uložené heslo načteno pro Wi-Fi: " + $ssid)
+            Log "Uložené heslo pro vybranou Wi-Fi bylo načteno z Windows."
             return $true
         }
     } catch {}
@@ -643,11 +659,20 @@ function Load-WifiFromWindows {
         $wifiSsid.Items.Clear()
         foreach ($ssid in $choices) { [void]$wifiSsid.Items.Add($ssid) }
 
-        if ($current) {
-            $wifiSsid.Text = $current
-        } elseif ($choices.Count -gt 0 -and [string]::IsNullOrWhiteSpace($wifiSsid.Text)) {
-            $wifiSsid.Text = [string]$choices[0]
+        $script:WifiInternalUpdate = $true
+        try {
+            if ($current) {
+                $wifiSsid.Text = $current
+            } elseif ($choices.Count -gt 0 -and [string]::IsNullOrWhiteSpace($wifiSsid.Text)) {
+                $wifiSsid.Text = [string]$choices[0]
+            }
         }
+        finally {
+            $script:WifiInternalUpdate = $false
+        }
+
+        $wifiPass.Clear()
+        $script:WifiPasswordSsid = ""
 
         if ($choices.Count -gt 0) {
             Log ("Nalezeno Wi-Fi sítí/profilů: " + $choices.Count)
@@ -676,9 +701,34 @@ $wifiShow.Add_CheckedChanged({
     $wifiPass.UseSystemPasswordChar = -not $wifiShow.Checked
 })
 
-$wifiSsid.Add_SelectedIndexChanged({
+$wifiPass.Add_TextChanged({
+    if ($wifiPass.Text) {
+        $script:WifiPasswordSsid = $wifiSsid.Text.Trim()
+    }
+})
+
+$wifiSsid.Add_TextChanged({
+    if (-not $script:WifiInternalUpdate) {
+        # Never carry a password from one SSID to another.
+        if ($script:WifiPasswordSsid -ne $wifiSsid.Text.Trim()) {
+            $wifiPass.Clear()
+            $script:WifiPasswordSsid = ""
+            $wifiStatus.Text = "Wi-Fi změněna · vyber síť nebo zadej heslo"
+        }
+    }
+})
+
+$wifiSsid.Add_SelectionChangeCommitted({
     $wifiPass.Clear()
+    $script:WifiPasswordSsid = ""
     [void](Load-PasswordForSelectedWifi)
+})
+
+$wifiSsid.Add_Leave({
+    $ssid = $wifiSsid.Text.Trim()
+    if ($ssid -and -not $wifiPass.Text) {
+        [void](Load-PasswordForSelectedWifi)
+    }
 })
 
 $wifiLoad.Add_Click({ [void](Load-WifiFromWindows) })
@@ -769,7 +819,10 @@ $create.Add_Click({
         if ([string]::IsNullOrWhiteSpace($password)) {
             throw "Zadej heslo cílové Wi-Fi."
         }
-        Log ("Wi-Fi pro Raspberry Pi: " + $ssid)
+        if ($script:WifiPasswordSsid -and $script:WifiPasswordSsid -ne $ssid) {
+            throw "Wi-Fi byla změněna, ale heslo patří předchozí síti. Vyber síť znovu nebo zadej správné heslo."
+        }
+        Log "Cílová Wi-Fi pro Raspberry Pi byla potvrzena."
 
         $cloud = New-CloudInit $ssid $password
         $target = "\\.\PhysicalDrive" + $d.Number
@@ -845,7 +898,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.7 · Windows"
+    Log "PiTV SD Installer v0.8 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log ("Log soubor: " + $SessionLog)
     Refresh-Drives
