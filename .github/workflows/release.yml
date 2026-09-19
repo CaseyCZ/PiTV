@@ -1,4 +1,4 @@
-name: PiTV Release
+name: PiTV Alpha Release
 
 on:
   workflow_dispatch:
@@ -7,39 +7,20 @@ on:
     paths:
       - ".github/workflows/release.yml"
       - "tools/windows/**"
-      - "release-notes/**"
+      - "release-notes/alpha.md"
 
 permissions:
   contents: write
 
 concurrency:
-  group: pitv-release
-  cancel-in-progress: false
+  group: pitv-alpha-release
+  cancel-in-progress: true
 
 jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve version
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="$(python3 - <<'PY'
-          import re
-          from pathlib import Path
-          text = Path("pitv/pitv.py").read_text(encoding="utf-8")
-          m = re.search(r'^VERSION\s*=\s*"([^"]+)"', text, re.M)
-          if not m:
-              raise SystemExit("VERSION not found")
-          print(m.group(1))
-          PY
-          )"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-          test -f "release-notes/v$VERSION.md"
 
       - name: Release checks
         shell: bash
@@ -59,52 +40,59 @@ jobs:
             for pkg in *.deb; do dpkg-deb --info "$pkg" >/dev/null; done
           )
 
-      - name: Build release assets
+      - name: Build Windows installer
         shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           rm -rf dist
-          mkdir -p "dist/PiTV-SD-Installer-Windows-v$VERSION"
+          mkdir -p "dist/PiTV-SD-Installer-Windows"
 
-          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows-v$VERSION/"
-          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows-v$VERSION/"
-          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows-v$VERSION/README.md"
-          cp LICENSE "dist/PiTV-SD-Installer-Windows-v$VERSION/LICENSE"
+          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
+          cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
 
           (
             cd dist
-            zip -9 -r "PiTV-SD-Installer-Windows-v$VERSION.zip" "PiTV-SD-Installer-Windows-v$VERSION" >/dev/null
+            zip -9 -r "PiTV-SD-Installer-Windows.zip" "PiTV-SD-Installer-Windows" >/dev/null
           )
 
-          echo "Release asset:"
-          ls -lh "dist/PiTV-SD-Installer-Windows-v$VERSION.zip"
+          ls -lh dist/PiTV-SD-Installer-Windows.zip
 
-      - name: Publish GitHub release
+      - name: Publish rolling Alpha release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          NOTES="release-notes/v$VERSION.md"
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; updating notes and assets."
-            gh release edit "$TAG" \
-              --title "PiTV v$VERSION Beta" \
-              --notes-file "$NOTES"
+          if gh release view alpha >/dev/null 2>&1; then
+            gh release edit alpha \
+              --title "PiTV Alpha" \
+              --notes-file release-notes/alpha.md \
+              --prerelease
           else
-            gh release create "$TAG" \
+            gh release create alpha \
               --target "$GITHUB_SHA" \
-              --title "PiTV v$VERSION Beta" \
-              --notes-file "$NOTES"
+              --title "PiTV Alpha" \
+              --notes-file release-notes/alpha.md \
+              --prerelease
           fi
 
-          gh release upload "$TAG" \
-            "dist/PiTV-SD-Installer-Windows-v$VERSION.zip" \
-            --clobber
+          # Keep exactly one custom downloadable asset in the rolling Alpha.
+          gh release view alpha --json assets --jq '.assets[].name' \
+            | grep -v '^PiTV-SD-Installer-Windows.zip$' \
+            | while read -r asset; do
+                [ -z "$asset" ] || gh release delete-asset alpha "$asset" -y
+              done
 
-          gh release view "$TAG" --json url,tagName,name,isDraft,isPrerelease
+          gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
+
+          # Remove the temporary versioned releases created during early testing.
+          for old in v1.3.0 v1.3.1 v1.3.2 v1.3.3; do
+            if gh release view "$old" >/dev/null 2>&1; then
+              gh release delete "$old" --cleanup-tag -y
+            fi
+          done
+
+          gh release view alpha --json url,tagName,name,isDraft,isPrerelease,assets
