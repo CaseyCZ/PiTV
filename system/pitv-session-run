@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 1 ]; then
+  echo "Použití: sudo pitv-session-run <příkaz> [argumenty...]" >&2
+  exit 2
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+  exec sudo -- "$0" "$@"
+fi
+
+id pitv >/dev/null 2>&1 || { echo "Uživatel pitv neexistuje." >&2; exit 3; }
+PITV_UID="$(id -u pitv)"
+RUNTIME="/run/user/$PITV_UID"
+
+[ -d "$RUNTIME" ] || { echo "PiTV runtime $RUNTIME neexistuje." >&2; exit 4; }
+[ -S "$RUNTIME/bus" ] || { echo "PiTV user D-Bus není aktivní." >&2; exit 5; }
+
+WAYLAND=""
+for socket in "$RUNTIME"/wayland-*; do
+  if [ -S "$socket" ]; then
+    WAYLAND="$(basename "$socket")"
+    break
+  fi
+done
+
+ENV_ARGS=(
+  "HOME=/home/pitv"
+  "USER=pitv"
+  "LOGNAME=pitv"
+  "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  "XDG_RUNTIME_DIR=$RUNTIME"
+  "DBUS_SESSION_BUS_ADDRESS=unix:path=$RUNTIME/bus"
+  "PULSE_RUNTIME_PATH=$RUNTIME/pulse"
+  "XDG_SESSION_TYPE=wayland"
+  "XDG_CURRENT_DESKTOP=labwc"
+)
+[ -n "$WAYLAND" ] && ENV_ARGS+=("WAYLAND_DISPLAY=$WAYLAND")
+
+exec runuser -u pitv -- env -i "${ENV_ARGS[@]}" "$@"
