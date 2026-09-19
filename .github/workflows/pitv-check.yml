@@ -28,6 +28,7 @@ jobs:
           bash -n uninstall.sh
           bash -n system/pitv-session
           bash -n system/pitv-waydroid-launch
+          bash -n system/pitv-kodi-addon
           bash -n scripts/install-waydroid.sh
           bash -n tools/pitv-flasher.sh
 
