@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <wchar.h>
 
 #define BUF_SIZE (1024U * 1024U)
 
@@ -19,7 +20,7 @@ static int fail(const char *message)
     return 1;
 }
 
-int main(int argc, char **argv)
+int wmain(int argc, wchar_t **argv)
 {
     FILE *input = NULL;
     FILE *output = NULL;
@@ -33,11 +34,11 @@ int main(int argc, char **argv)
     if (argc != 3)
         return fail("usage: PiTV-XZ.exe input.xz output.img");
 
-    input = fopen(argv[1], "rb");
+    input = _wfopen(argv[1], L"rb");
     if (input == NULL)
         return fail("cannot open input file");
 
-    output = fopen(argv[2], "wb");
+    output = _wfopen(argv[2], L"wb");
     if (output == NULL) {
         fclose(input);
         return fail("cannot create output file");
@@ -134,7 +135,7 @@ cleanup:
         fclose(input);
 
     if (result != 0)
-        remove(argv[2]);
+        _wremove(argv[2]);
 
     return result;
 }
