@@ -577,54 +577,88 @@ def active_hdmi_audio_device(preference="auto"):
 
 
 def set_default_hdmi_audio(preference="auto"):
-    """Select a connected HDMI Pulse/PipeWire sink as the session default."""
-    if shutil.which("pactl") is None:
-        return False, "pactl není dostupný"
+    """Select a connected HDMI PipeWire/Pulse sink as the session default."""
     try:
-        p = subprocess.run(
-            ["pactl", "list", "short", "sinks"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        if p.returncode != 0:
-            return False, (p.stdout or "PulseAudio/PipeWire není připravený").strip()
-
-        sinks = []
-        for line in (p.stdout or "").splitlines():
-            parts = line.split("\t")
-            if len(parts) < 2:
-                parts = line.split()
-            if len(parts) < 2:
-                continue
-            name = parts[1]
-            low = line.lower()
-            if "hdmi" in low:
-                sinks.append(name)
-
-        if not sinks:
-            return False, "HDMI audio sink nebyl nalezen"
-
         try:
             idx = int(preference) if str(preference) in ("0", "1") else 0
         except Exception:
             idx = 0
-        idx = max(0, min(idx, len(sinks)-1))
-        sink = sinks[idx]
 
-        q = subprocess.run(
-            ["pactl", "set-default-sink", sink],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        if q.returncode != 0:
-            return False, (q.stdout or "Nelze nastavit HDMI audio sink").strip()
-        return True, sink
+        # Prefer pactl because pipewire-pulse exposes stable sink names that
+        # Kodi also shows. Older PiTV installs may not have pulseaudio-utils,
+        # so keep a native WirePlumber/wpctl fallback.
+        if shutil.which("pactl") is not None:
+            p = subprocess.run(
+                ["pactl", "list", "short", "sinks"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if p.returncode == 0:
+                sinks = []
+                for line in (p.stdout or "").splitlines():
+                    parts = line.split("\t")
+                    if len(parts) < 2:
+                        parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    if "hdmi" in line.lower():
+                        sinks.append(parts[1])
+                if sinks:
+                    idx = max(0, min(idx, len(sinks)-1))
+                    sink = sinks[idx]
+                    q = subprocess.run(
+                        ["pactl", "set-default-sink", sink],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        timeout=5,
+                        check=False,
+                    )
+                    if q.returncode == 0:
+                        return True, sink
+
+        if shutil.which("wpctl") is not None:
+            p = subprocess.run(
+                ["wpctl", "status", "-n"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if p.returncode == 0:
+                sinks = []
+                in_sinks = False
+                for line in (p.stdout or "").splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("Sinks:") or "─ Sinks:" in line:
+                        in_sinks = True
+                        continue
+                    if in_sinks and ("Sink endpoints:" in line or "Sources:" in line):
+                        break
+                    if not in_sinks or "hdmi" not in line.lower():
+                        continue
+                    m = re.search(r"[*\s│├└─]*([0-9]+)\.\s+(.+?)(?:\s+\[|$)", line)
+                    if m:
+                        sinks.append((m.group(1), m.group(2).strip()))
+                if sinks:
+                    idx = max(0, min(idx, len(sinks)-1))
+                    sink_id, sink_name = sinks[idx]
+                    q = subprocess.run(
+                        ["wpctl", "set-default", sink_id],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        timeout=5,
+                        check=False,
+                    )
+                    if q.returncode == 0:
+                        return True, sink_name
+
+        return False, "HDMI audio sink nebyl v PiTV session nalezen"
     except Exception as e:
         return False, f"HDMI audio: {e}"
 
