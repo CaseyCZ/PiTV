@@ -27,6 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
+$InstallerVersion = "0.18"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
@@ -356,7 +357,7 @@ if (-not (Test-Path $enginePath -PathType Leaf)) {
 . $enginePath
 
 $form = New-Object Windows.Forms.Form
-$form.Text = "PiTV SD Installer"
+$form.Text = "PiTV SD Installer v" + $InstallerVersion
 $form.Size = New-Object Drawing.Size(840,790)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [Drawing.Color]::FromArgb(7,11,20)
@@ -369,9 +370,20 @@ $title = New-Object Windows.Forms.Label
 $title.Text = "PiTV SD Installer"
 $title.Font = New-Object Drawing.Font("Segoe UI",21,[Drawing.FontStyle]::Bold)
 $title.Location = New-Object Drawing.Point(28,20)
-$title.Size = New-Object Drawing.Size(770,42)
+$title.Size = New-Object Drawing.Size(610,42)
 $title.AutoEllipsis = $true
 $form.Controls.Add($title)
+
+$versionBadge = New-Object Windows.Forms.Label
+$versionBadge.Text = "v" + $InstallerVersion + "  ALPHA"
+$versionBadge.Font = New-Object Drawing.Font("Segoe UI",9,[Drawing.FontStyle]::Bold)
+$versionBadge.TextAlign = [Drawing.ContentAlignment]::MiddleCenter
+$versionBadge.Location = New-Object Drawing.Point(660,24)
+$versionBadge.Size = New-Object Drawing.Size(145,30)
+$versionBadge.BackColor = [Drawing.Color]::FromArgb(15,48,73)
+$versionBadge.ForeColor = [Drawing.Color]::FromArgb(125,211,252)
+$versionBadge.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
+$form.Controls.Add($versionBadge)
 
 $sub = New-Object Windows.Forms.Label
 $sub.Text = "Vyber Raspberry, systém a kartu. Image PiTV najde online nebo použije uloženou kopii."
@@ -1107,7 +1119,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.17 · Windows"
+    Log ("PiTV SD Installer v" + $InstallerVersion + " · Windows")
     Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
     Log ("Trvalá cache image: " + $ImageCacheDir)
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
