@@ -38,7 +38,7 @@
 Primární cíl je **Ubuntu Server 24.04 ARM64 na Raspberry Pi 4**.
 
 ```bash
-git clone --branch pitv-standalone --single-branch https://github.com/CaseyCZ/PiTV.git PiTV
+git clone https://github.com/CaseyCZ/PiTV.git
 cd PiTV
 sudo ./install.sh
 sudo reboot
