@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERZE-v1.3.1-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV verze 1.3.0" />
+  <img src="https://img.shields.io/badge/VERZE-v1.3.2-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV verze 1.3.0" />
   <img src="https://img.shields.io/badge/STAV-Beta-FDE68A?style=for-the-badge&labelColor=92400E" alt="PiTV Beta" />
 </p>
 
@@ -50,7 +50,7 @@ PiTV nepoužívá plný desktop typu GNOME. Grafická část běží nad lehkým
 
 Nejjednodušší cesta je přes **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)**.
 
-Pro Windows stáhni jediný instalační balík **`PiTV-SD-Installer-Windows-v1.3.1.zip`**, rozbal ho a spusť **`Start-PiTV-SD-Installer.cmd`**. Launcher při každém spuštění zkontroluje nejnovější GitHub Release a použije aktuální installer.
+Pro Windows stáhni jediný instalační balík **`PiTV-SD-Installer-Windows-v1.3.2.zip`**, rozbal ho a spusť **`Start-PiTV-SD-Installer.cmd`**. Launcher při každém spuštění zkontroluje nejnovější GitHub Release a použije aktuální installer.
 
 Linux a macOS používají `tools/pitv-flasher.sh` přímo z repozitáře. GitHub ke každému Release automaticky přidává také Source code ZIP/TAR.GZ.
 
