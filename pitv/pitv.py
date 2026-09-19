@@ -573,6 +573,59 @@ def active_hdmi_audio_device(preference="auto"):
     }
 
 
+def set_default_hdmi_audio(preference="auto"):
+    """Select a connected HDMI Pulse/PipeWire sink as the session default."""
+    if shutil.which("pactl") is None:
+        return False, "pactl není dostupný"
+    try:
+        p = subprocess.run(
+            ["pactl", "list", "short", "sinks"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if p.returncode != 0:
+            return False, (p.stdout or "PulseAudio/PipeWire není připravený").strip()
+
+        sinks = []
+        for line in (p.stdout or "").splitlines():
+            parts = line.split("\t")
+            if len(parts) < 2:
+                parts = line.split()
+            if len(parts) < 2:
+                continue
+            name = parts[1]
+            low = line.lower()
+            if "hdmi" in low:
+                sinks.append(name)
+
+        if not sinks:
+            return False, "HDMI audio sink nebyl nalezen"
+
+        try:
+            idx = int(preference) if str(preference) in ("0", "1") else 0
+        except Exception:
+            idx = 0
+        idx = max(0, min(idx, len(sinks)-1))
+        sink = sinks[idx]
+
+        q = subprocess.run(
+            ["pactl", "set-default-sink", sink],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if q.returncode != 0:
+            return False, (q.stdout or "Nelze nastavit HDMI audio sink").strip()
+        return True, sink
+    except Exception as e:
+        return False, f"HDMI audio: {e}"
+
+
 def test_hdmi_audio(preference="auto"):
     if shutil.which("speaker-test") is None:
         return False, "speaker-test není nainstalovaný"
@@ -899,6 +952,9 @@ class PiTV:
         pygame.mouse.set_visible(False)
         self.w, self.h = self.screen.get_size()
         self.cfg = load_config()
+        # PiTV is HDMI-only. Make the connected HDMI PipeWire/Pulse sink the
+        # default before any TV app (Kodi, Stremio, Waydroid) is launched.
+        set_default_hdmi_audio(self.cfg.get("hdmi_audio_port", "auto"))
         self.apps = load_apps()
         self.page = "home"
         self.selected = 0
@@ -3228,6 +3284,7 @@ class PiTV:
                 cur = self.cfg.get("hdmi_audio_port", "auto")
                 self.cfg["hdmi_audio_port"] = self._cycle(cur, vals, 1 if key == pygame.K_RIGHT else -1)
                 save_user_config(self.cfg)
+                set_default_hdmi_audio(self.cfg["hdmi_audio_port"])
             elif key == pygame.K_LEFT:
                 self.focus_sidebar("audio")
                 return
@@ -3237,6 +3294,7 @@ class PiTV:
                     vals = ["auto", "0", "1"]
                     self.cfg["hdmi_audio_port"] = self._cycle(self.cfg.get("hdmi_audio_port","auto"), vals, 1)
                     save_user_config(self.cfg)
+                    set_default_hdmi_audio(self.cfg["hdmi_audio_port"])
                 elif action == "volup":
                     self.run_cec_action(cec_volume_up)
                 elif action == "voldown":
