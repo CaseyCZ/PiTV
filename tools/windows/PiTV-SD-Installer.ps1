@@ -6,6 +6,21 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Is-Admin {
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $p = New-Object Security.Principal.WindowsPrincipal($id)
+    return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Elevate before loading GUI/storage modules. This avoids transient red PowerShell
+# messages in the bootstrap console and keeps the elevated console hidden.
+if (-not $SelfTestCatalog -and -not (Is-Admin)) {
+    $ps = (Get-Process -Id $PID).Path
+    $arg = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
+    Start-Process -FilePath $ps -ArgumentList $arg -Verb RunAs -WindowStyle Hidden
+    exit
+}
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Net.Http
@@ -27,19 +42,6 @@ Get-ChildItem $LogDir -Filter "pitv-sd-installer-*.log" -File -ErrorAction Silen
     Sort-Object LastWriteTime -Descending |
     Select-Object -Skip 4 |
     Remove-Item -Force -ErrorAction SilentlyContinue
-
-function Is-Admin {
-    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $p = New-Object Security.Principal.WindowsPrincipal($id)
-    return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-if (-not $SelfTestCatalog -and -not (Is-Admin)) {
-    $ps = (Get-Process -Id $PID).Path
-    $arg = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
-    Start-Process -FilePath $ps -ArgumentList $arg -Verb RunAs
-    exit
-}
 
 function Get-SafeDisks {
     try {
@@ -1105,7 +1107,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.16 · Windows"
+    Log "PiTV SD Installer v0.17 · Windows"
     Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
     Log ("Trvalá cache image: " + $ImageCacheDir)
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
