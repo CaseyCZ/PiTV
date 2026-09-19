@@ -11,6 +11,7 @@ public static class PiTVNativeDisk
     private const uint FILE_SHARE_READ = 0x00000001;
     private const uint FILE_SHARE_WRITE = 0x00000002;
     private const uint OPEN_EXISTING = 3;
+    private const uint FILE_FLAG_WRITE_THROUGH = 0x80000000;
 
     private const uint FSCTL_LOCK_VOLUME = 0x00090018;
     private const uint FSCTL_UNLOCK_VOLUME = 0x0009001C;
@@ -27,6 +28,9 @@ public static class PiTVNativeDisk
         IntPtr hTemplateFile);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool FlushFileBuffers(SafeFileHandle hFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool DeviceIoControl(
         SafeFileHandle hDevice,
         uint dwIoControlCode,
@@ -37,7 +41,7 @@ public static class PiTVNativeDisk
         out uint lpBytesReturned,
         IntPtr lpOverlapped);
 
-    private static SafeFileHandle OpenHandle(string path, uint access)
+    private static SafeFileHandle OpenHandle(string path, uint access, uint flags = 0)
     {
         SafeFileHandle handle = CreateFile(
             path,
@@ -45,7 +49,7 @@ public static class PiTVNativeDisk
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             IntPtr.Zero,
             OPEN_EXISTING,
-            0,
+            flags,
             IntPtr.Zero);
 
         if (handle.IsInvalid)
@@ -61,13 +65,32 @@ public static class PiTVNativeDisk
     public static FileStream Open(string path, bool writable)
     {
         uint access = GENERIC_READ | (writable ? GENERIC_WRITE : 0);
-        SafeFileHandle handle = OpenHandle(path, access);
+        uint flags = writable ? FILE_FLAG_WRITE_THROUGH : 0;
+        SafeFileHandle handle = OpenHandle(path, access, flags);
 
         return new FileStream(
             handle,
             writable ? FileAccess.ReadWrite : FileAccess.Read,
             1024 * 1024,
             false);
+    }
+
+    public static void Flush(FileStream stream)
+    {
+        if (stream == null)
+            throw new ArgumentNullException("stream");
+
+        stream.Flush();
+
+        SafeFileHandle handle = stream.SafeFileHandle;
+        if (handle == null || handle.IsInvalid || handle.IsClosed)
+            throw new IOException("PhysicalDrive handle is not available for flush.");
+
+        if (!FlushFileBuffers(handle))
+        {
+            int error = Marshal.GetLastWin32Error();
+            throw new Win32Exception(error, "FlushFileBuffers failed for PhysicalDrive.");
+        }
     }
 
     private static string NormalizeVolumePath(string path)
