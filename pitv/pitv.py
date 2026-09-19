@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -792,12 +792,12 @@ class PiTV:
         self.text("Your TV. Your Way.", x, top+int(self.h*.065), self.h*.015, self.t["muted"])
 
         items = [
-            ("home", "⌂", "Domů"),
+            ("home", "⌂", "Home"),
             ("store", "▣", "Store"),
             ("server_store", "◉", "Server Store"),
             ("android", "◆", "Android / APK"),
-            ("updates", "↻", "Aktualizace"),
-            ("settings", "⚙", "Nastavení"),
+            ("updates", "↻", "Updates"),
+            ("settings", "⚙", "Settings"),
         ]
         y0 = top + int(self.h*.115)
         row_h = int(self.h*.058)
@@ -821,20 +821,29 @@ class PiTV:
                          (rect.x+int(w*.08), divider_y),
                          (rect.right-int(w*.08), divider_y), 1)
 
-        self.text("Média & nástroje", x, divider_y+int(self.h*.020),
+        self.text("Media & Tools", x, divider_y+int(self.h*.020),
                   self.h*.014, self.t["muted"], True)
         quick = [
             ("▦", "Kodi"),
             ("▶", "SmartTube"),
             ("◆", "Stremio"),
             ("❯", "Plex"),
-            ("•••", "Další aplikace"),
+            ("•••", "More Apps"),
         ]
         qy = divider_y + int(self.h*.055)
         qh = int(self.h*.049)
-        for icon, label in quick:
-            self.text(icon, x, qy+int(qh*.12), qh*.31, self.t["muted"], True)
-            self.text(label, x+int(qh*.72), qy+int(qh*.16), qh*.24, self.t["muted"])
+        for j, (icon, label) in enumerate(quick):
+            rr = pygame.Rect(rect.x+int(w*.055), qy, int(w*.89), int(qh*.82))
+            selected = self.sidebar_focus and self.sidebar_selected == 6+j
+            if selected:
+                surf = pygame.Surface((rr.w, rr.h), pygame.SRCALPHA)
+                pygame.draw.rect(surf, (*self.t["accent_soft"], 235), surf.get_rect(), border_radius=12)
+                self.screen.blit(surf, rr.topleft)
+                pygame.draw.rect(self.screen, self.t["accent"], rr, 2, border_radius=12)
+            self.text(icon, rr.x+14, rr.y+int(rr.h*.16), rr.h*.34,
+                      self.t["accent"] if selected else self.t["muted"], True)
+            self.text(label, rr.x+int(rr.h*.78), rr.y+int(rr.h*.20), rr.h*.25,
+                      self.t["text"] if selected else self.t["muted"], selected)
             qy += qh
 
         self.text("PiTV  "+VERSION, x, rect.bottom-int(self.h*.045), self.h*.013, self.t["muted"])
@@ -865,31 +874,62 @@ class PiTV:
         self.sidebar_focus = True
 
     def activate_sidebar(self):
-        target = self.SIDEBAR_PAGES[self.sidebar_selected]
+        idx = self.sidebar_selected
         self.sidebar_focus = False
-        if target == "home":
-            self.page = "home"
-            self.selected = 0
-        elif target == "store":
+
+        if idx < len(self.SIDEBAR_PAGES):
+            target = self.SIDEBAR_PAGES[idx]
+            if target == "home":
+                self.page = "home"
+                self.selected = 0
+            elif target == "store":
+                self.page = "store"
+                self.store_return_page = "home"
+                self.store_selected = 0
+                self.refresh_store_async()
+            elif target == "server_store":
+                self.page = "server_store"
+                self.server_store_return_page = "home"
+                self.server_store_selected = 0
+                self.refresh_server_store_async()
+            elif target == "android":
+                self.page = "android"
+                self.android_selected = 0
+            elif target == "updates":
+                self.page = "updates"
+                self.updates_selected = 0
+                self.check_updates_async()
+            else:
+                self.page = "settings"
+                self.settings_selected = 0
+            return
+
+        shortcuts = [
+            ("kodi", "Kodi"),
+            ("smarttube", "SmartTube"),
+            ("stremio", "Stremio"),
+            ("plex", "Plex"),
+        ]
+        q = idx - len(self.SIDEBAR_PAGES)
+        if q >= len(shortcuts):
             self.page = "store"
             self.store_return_page = "home"
             self.store_selected = 0
             self.refresh_store_async()
-        elif target == "server_store":
-            self.page = "server_store"
-            self.server_store_return_page = "home"
-            self.server_store_selected = 0
-            self.refresh_server_store_async()
-        elif target == "android":
-            self.page = "android"
-            self.android_selected = 0
-        elif target == "updates":
-            self.page = "updates"
-            self.updates_selected = 0
-            self.check_updates_async()
-        else:
-            self.page = "settings"
-            self.settings_selected = 0
+            return
+
+        store_id, app_name = shortcuts[q]
+        app = next((a for a in self.apps if a.get("name","").lower() == app_name.lower()), None)
+        if app:
+            self.launch(app)
+            return
+
+        self.page = "store"
+        self.store_return_page = "home"
+        self.store_selected = next(
+            (i for i, item in enumerate(self.store_catalog) if item.get("id") == store_id), 0
+        )
+        self.refresh_store_async()
 
     def header(self, title, subtitle=None):
         left = self.main_left()+int(self.w*.018)
@@ -2468,7 +2508,7 @@ class PiTV:
             if key == pygame.K_UP:
                 self.sidebar_selected = max(0, self.sidebar_selected-1)
             elif key == pygame.K_DOWN:
-                self.sidebar_selected = min(len(self.SIDEBAR_PAGES)-1, self.sidebar_selected+1)
+                self.sidebar_selected = min(len(self.SIDEBAR_PAGES)+4, self.sidebar_selected+1)
             elif key == pygame.K_RIGHT:
                 self.sidebar_focus = False
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
