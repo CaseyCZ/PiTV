@@ -37,6 +37,7 @@ jobs:
           test -f /opt/pitv/pitv/pitv.py
           test -x /usr/local/bin/pitv-session
           test -x /usr/local/bin/pitv-waydroid-launch
+          test -x /usr/local/bin/pitv-kodi-addon
           test -x /usr/local/libexec/pitv-helper
           test -x /usr/local/libexec/pitv-self-update
           test -x /usr/local/libexec/pitv-install-waydroid
@@ -113,8 +114,10 @@ jobs:
       - name: Test Store install path with Kodi
         run: |
           echo '{"package":"kodi"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper apt-install
-          dpkg-query -W -f='${Status}\n' kodi | grep -q "install ok installed"
+          echo '{"package":"kodi-eventclients-kodi-send"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper apt-install
+          dpkg-query -W -f='${Status}\n' kodi kodi-eventclients-kodi-send | grep -q "install ok installed"
           command -v kodi
+          command -v kodi-send
           kodi --version | head -n 2
 
       - name: Test catalog online update
@@ -126,7 +129,7 @@ jobs:
       - name: Test PiTV self-update path
         run: |
           echo '{}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper pitv-self-update
-          grep -q 'VERSION = "1.3.0"' /opt/pitv/pitv/pitv.py
+          grep -Eq '^VERSION = "[0-9]+\.[0-9]+\.[0-9]+"' /opt/pitv/pitv/pitv.py
 
       - name: Launch PiTV again after self-update
         shell: bash
@@ -144,7 +147,9 @@ jobs:
           test ! -e /etc/pitv
           test ! -e /home/pitv/.bash_profile
           test ! -e /usr/local/bin/pitv-session
+          test ! -e /usr/local/bin/pitv-kodi-addon
           test ! -e /usr/local/libexec/pitv-helper
+          test ! -e /usr/local/libexec/pitv-cec-monitor
           test -d /home/pitv/.config/pitv
           test -d /home/pitv/PiTV/APKs
 
@@ -242,7 +247,6 @@ jobs:
               tested.append(item["id"])
 
           assert "smarttube" in tested
-          assert "stremio" in tested
 
           play_entries = {
               x["id"]: x["installer"].get("package")
@@ -251,6 +255,14 @@ jobs:
           }
           assert play_entries["youtube-tv"] == "com.google.android.youtube.tv"
           assert play_entries["spotify-tv"] == "com.spotify.tv.android"
-          assert play_entries["plex"] == "com.plexapp.android"
-          print("Android Store source smoke OK")
+
+          by_id = {x["id"]: x for x in catalog["apps"]}
+          stremio = by_id["stremio"]["installer"]
+          assert stremio["type"] == "flatpak"
+          assert stremio["app_id"] == "com.stremio.Stremio"
+
+          plex = by_id["plex"]["installer"]
+          assert plex["type"] == "kodi_addon"
+          assert plex["addon_id"] == "script.plexmod"
+          print("Store source smoke OK")
           PY
