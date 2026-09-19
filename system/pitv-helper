@@ -2,7 +2,7 @@
 import json, os, re, shutil, subprocess, sys, tempfile, urllib.request
 
 ALLOWED_STORE_APT = {"kodi", "kodi-eventclients-kodi-send"}
-ALLOWED_PLAY_PACKAGES = {"com.google.android.youtube.tv", "com.spotify.tv.android", "com.plexapp.android"}
+ALLOWED_PLAY_PACKAGES = {"com.google.android.youtube.tv", "com.spotify.tv.android"}
 
 def out(msg, code=0):
     print(msg)
