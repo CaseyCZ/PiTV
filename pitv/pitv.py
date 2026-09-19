@@ -1959,6 +1959,32 @@ class PiTV:
         save_user_config(self.cfg)
         self.mark_activity()
 
+    def open_screensaver_choice(self, row):
+        choices = {
+            0: ("Spořič", [("Zapnuto", True), ("Vypnuto", False)], "screensaver_enabled"),
+            1: ("Spustit po", [(f"{v} min", v) for v in (1,2,5,10,15,30,60)], "screensaver_after_min"),
+            2: ("Typ spořiče", [("Hodiny","clock"), ("Černá obrazovka","black")], "screensaver_mode"),
+            3: ("Úplně zčernat po", [("Vypnuto",0)] + [(f"{v} min",v) for v in (10,15,30,60,120)], "screensaver_black_after_min"),
+            4: ("TV do standby přes CEC", [("Vypnuto",0)] + [(f"{v} min",v) for v in (15,30,60,120,240)], "screensaver_cec_standby_after_min"),
+        }
+        if row not in choices:
+            return
+        title, options, key = choices[row]
+        self.open_choice(
+            title, options, self.cfg.get(key, DEFAULT_CONFIG.get(key)),
+            lambda value, setting=key: self._save_choice(setting, value),
+        )
+
+    def open_audio_port_choice(self):
+        options = [("Automaticky","auto"), ("HDMI 0","0"), ("HDMI 1","1")]
+        def apply(value):
+            self._save_choice("hdmi_audio_port", value)
+            set_default_hdmi_audio(value)
+        self.open_choice(
+            "HDMI audio výstup", options,
+            str(self.cfg.get("hdmi_audio_port", "auto")), apply,
+        )
+
     HOME_TILE_STYLE = {
         "kodi":       ((14,165,233), (2,132,199), "K"),
         "smarttube":  ((248,48,58), (185,28,28), "▶"),
@@ -2462,7 +2488,7 @@ class PiTV:
         ]
         self.draw_rows("Spořič obrazovky", "PiTV i server dál běží 24/7",
                        rows, self.sub_selected,
-                       "←/→ změní • OK na Náhledu • Back se vrátí")
+                       "OK otevře seznam možností • Náhled spustí spořič • Back návrat")
 
     def draw_network(self):
         items = self.network_items()
@@ -3374,8 +3400,36 @@ class PiTV:
         self.draw_background()
         if self.page == "home": self.draw_home()
         elif self.page == "settings": self.draw_settings()
-        elif self.page == "appearance": self.draw_appearance()
-        elif self.page == "screensaver": self.draw_screensaver_settings()
+        elif self.page == "appearance":
+            rows = self.appearance_rows()
+            if key == pygame.K_UP:
+                self.sub_selected = max(0, self.sub_selected-1)
+            elif key == pygame.K_DOWN:
+                self.sub_selected = min(len(rows)-1, self.sub_selected+1)
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+                self.open_appearance_choice(self.sub_selected)
+            elif key == pygame.K_LEFT:
+                self.page = "settings"
+                self.settings_selected = 0
+
+        elif self.page == "screensaver":
+            if key == pygame.K_UP:
+                self.sub_selected = max(0, self.sub_selected-1)
+            elif key == pygame.K_DOWN:
+                self.sub_selected = min(5, self.sub_selected+1)
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+                if self.sub_selected == 5:
+                    self.screensaver_preview = True
+                    self.screensaver_stage = (
+                        "clock" if self.cfg.get("screensaver_mode","clock") == "clock"
+                        else "black"
+                    )
+                else:
+                    self.open_screensaver_choice(self.sub_selected)
+            elif key == pygame.K_LEFT:
+                self.page = "settings"
+                self.settings_selected = 1
+
         elif self.page == "network": self.draw_network()
         elif self.page == "audio": self.draw_audio()
         elif self.page == "cec": self.draw_cec()
@@ -3875,22 +3929,13 @@ class PiTV:
                 self.audio_selected = max(0, self.audio_selected-1)
             elif key == pygame.K_DOWN:
                 self.audio_selected = min(len(items)-1, self.audio_selected+1)
-            elif key in (pygame.K_LEFT, pygame.K_RIGHT) and self.audio_selected == 0:
-                vals = ["auto", "0", "1"]
-                cur = self.cfg.get("hdmi_audio_port", "auto")
-                self.cfg["hdmi_audio_port"] = self._cycle(cur, vals, 1 if key == pygame.K_RIGHT else -1)
-                save_user_config(self.cfg)
-                set_default_hdmi_audio(self.cfg["hdmi_audio_port"])
             elif key == pygame.K_LEFT:
                 self.focus_sidebar("audio")
                 return
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
                 action = items[self.audio_selected]["action"]
                 if action == "port":
-                    vals = ["auto", "0", "1"]
-                    self.cfg["hdmi_audio_port"] = self._cycle(self.cfg.get("hdmi_audio_port","auto"), vals, 1)
-                    save_user_config(self.cfg)
-                    set_default_hdmi_audio(self.cfg["hdmi_audio_port"])
+                    self.open_audio_port_choice()
                 elif action == "volup":
                     self.run_cec_action(cec_volume_up)
                 elif action == "voldown":
