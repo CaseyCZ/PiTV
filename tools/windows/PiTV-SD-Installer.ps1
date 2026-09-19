@@ -478,20 +478,26 @@ $form.Controls.Add($log)
 $copyLog = New-Object Windows.Forms.Button
 $copyLog.Text = "Kopírovat log"
 $copyLog.Location = New-Object Drawing.Point(32,526)
-$copyLog.Size = New-Object Drawing.Size(145,32)
+$copyLog.Size = New-Object Drawing.Size(135,32)
 $form.Controls.Add($copyLog)
 
 $openLogs = New-Object Windows.Forms.Button
 $openLogs.Text = "Otevřít logy"
-$openLogs.Location = New-Object Drawing.Point(185,526)
-$openLogs.Size = New-Object Drawing.Size(145,32)
+$openLogs.Location = New-Object Drawing.Point(174,526)
+$openLogs.Size = New-Object Drawing.Size(135,32)
 $form.Controls.Add($openLogs)
 
+$reportLog = New-Object Windows.Forms.Button
+$reportLog.Text = "Nahlásit problém"
+$reportLog.Location = New-Object Drawing.Point(316,526)
+$reportLog.Size = New-Object Drawing.Size(160,32)
+$form.Controls.Add($reportLog)
+
 $logPathLabel = New-Object Windows.Forms.Label
-$logPathLabel.Location = New-Object Drawing.Point(342,531)
-$logPathLabel.Size = New-Object Drawing.Size(318,24)
+$logPathLabel.Location = New-Object Drawing.Point(488,531)
+$logPathLabel.Size = New-Object Drawing.Size(172,24)
 $logPathLabel.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
-$logPathLabel.Text = "Ukládá se posledních 5 logů"
+$logPathLabel.Text = "5 posledních logů"
 $form.Controls.Add($logPathLabel)
 
 $format = New-Object Windows.Forms.Button
@@ -545,6 +551,50 @@ function Open-LogFolder {
     }
     catch {
         Log ("Otevření složky s logy selhalo: " + $_.Exception.Message)
+    }
+}
+
+function Report-Problem {
+    try {
+        $raw = if (Test-Path $SessionLog) { Get-Content $SessionLog -Raw } else { $log.Text }
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            $raw = "Log zatím neobsahuje žádná data."
+        }
+
+        # Never place the selected Wi-Fi name into a public GitHub issue.
+        $ssid = $wifiSsid.Text.Trim()
+        if ($ssid) { $raw = $raw.Replace($ssid, "<SSID>") }
+
+        $lines = @($raw -split "\r?\n" | Where-Object { $_ })
+        if ($lines.Count -gt 60) {
+            $lines = $lines[($lines.Count-60)..($lines.Count-1)]
+        }
+        $diag = $lines -join [Environment]::NewLine
+
+        $titleText = "[Alpha] PiTV SD Installer – chyba"
+        $bodyText = @"
+### PiTV SD Installer diagnostika
+
+Installer: Alpha / Windows
+Windows: $([Environment]::OSVersion.VersionString)
+Čas: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+
+```text
+$diag
+```
+
+> Log byl před otevřením Issue automaticky zkrácen a vybrané SSID bylo skryto.
+"@
+
+        $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" +
+            [Uri]::EscapeDataString($titleText) +
+            "&body=" + [Uri]::EscapeDataString($bodyText)
+
+        Start-Process $url
+        Log "Otevřen GitHub formulář s diagnostikou."
+    }
+    catch {
+        Log ("Příprava hlášení selhala: " + $_.Exception.Message)
     }
 }
 
@@ -620,6 +670,7 @@ function Load-WifiFromWindows {
 
 $copyLog.Add_Click({ Copy-CurrentLog })
 $openLogs.Add_Click({ Open-LogFolder })
+$reportLog.Add_Click({ Report-Problem })
 
 $wifiShow.Add_CheckedChanged({
     $wifiPass.UseSystemPasswordChar = -not $wifiShow.Checked
@@ -708,7 +759,7 @@ $create.Add_Click({
 
         Log "Načítám oficiální Ubuntu image..."
         $image = Get-Ubuntu2404
-        Log ("Vybráno: " + $image.name)
+        Log ("Vybráno: " + [string](Get-Prop $image "name"))
 
         $ssid = $wifiSsid.Text.Trim()
         $password = $wifiPass.Text
@@ -729,10 +780,13 @@ $create.Add_Click({
             "--cloudinit-userdata", $cloud.UserData,
             "--cloudinit-networkconfig", $cloud.Network
         )
-        if ($image.extract_sha256) {
-            $args += @("--sha256",[string]$image.extract_sha256)
+        $imageSha = Get-Prop $image "extract_sha256"
+        if ($imageSha) {
+            $args += @("--sha256",[string]$imageSha)
         }
-        $args += @([string]$image.url,$target)
+        $imageUrl = Get-Prop $image "url"
+        if (-not $imageUrl) { throw "Vybraný Ubuntu záznam neobsahuje URL image." }
+        $args += @([string]$imageUrl,$target)
 
         $outFile = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".log")
         $argText = ($args | ForEach-Object { Q ([string]$_) }) -join " "
@@ -791,7 +845,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.6 · Windows"
+    Log "PiTV SD Installer v0.7 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log ("Log soubor: " + $SessionLog)
     Refresh-Drives
