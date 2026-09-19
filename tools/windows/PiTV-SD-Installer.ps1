@@ -1,4 +1,8 @@
 ﻿#requires -Version 5.1
+param(
+    [switch]$SelfTestCatalog
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -27,7 +31,7 @@ function Is-Admin {
     return $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-if (-not (Is-Admin)) {
+if (-not $SelfTestCatalog -and -not (Is-Admin)) {
     $ps = (Get-Process -Id $PID).Path
     $arg = '-NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
     Start-Process -FilePath $ps -ArgumentList $arg -Verb RunAs
@@ -293,6 +297,24 @@ function Get-Ubuntu2404 {
     $image = $list | Select-Object -First 1
     if (-not $image) { throw "Ubuntu Server 24.04 LTS pro Raspberry Pi 4 nebyl v oficiálním katalogu nalezen." }
     return $image
+}
+
+if ($SelfTestCatalog) {
+    $image = Get-Ubuntu2404
+    $name = [string](Get-Prop $image "name")
+    $url = [string](Get-Prop $image "url")
+    $devices = @(Get-Prop $image "devices")
+
+    if (-not $name -or -not $url) {
+        throw "Catalog self-test found an incomplete Ubuntu image entry."
+    }
+    if ($devices.Count -gt 0 -and $devices -notcontains "pi4-64bit") {
+        throw "Catalog self-test image is not tagged for pi4-64bit."
+    }
+
+    Write-Host ("CATALOG SELF-TEST OK: " + $name)
+    Write-Host ("Image host: " + ([Uri]$url).Host)
+    exit 0
 }
 
 function Yaml-Q([string]$s) {
