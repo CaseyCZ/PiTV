@@ -393,6 +393,23 @@ function Q([string]$s) {
     return '"' + $s.Replace('"','\"') + '"'
 }
 
+function Assert-ImagerCliContract([string]$imager) {
+    try {
+        $help = (& $imager --cli --help 2>&1 | Out-String)
+    }
+    catch {
+        throw ("Raspberry Pi Imager CLI nelze ověřit: " + $_.Exception.Message)
+    }
+
+    foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig","--sha256")) {
+        if ($help -notmatch [regex]::Escape($required)) {
+            throw ("Nainstalovaný Raspberry Pi Imager nepodporuje požadovanou CLI volbu " + $required + ".")
+        }
+    }
+
+    Log "Raspberry Pi Imager CLI kontrakt ověřen."
+}
+
 function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName) {
     $candidate = Get-SafeDisks | Where-Object { $_.Number -eq $Number } | Select-Object -First 1
     if (-not $candidate) { throw "Vybraný disk už není dostupný jako bezpečný výměnný disk." }
