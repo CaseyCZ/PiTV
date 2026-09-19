@@ -17,9 +17,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release:
-    runs-on: ubuntu-24.04
+  validate-windows:
+    runs-on: windows-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
+      - name: Verify current Raspberry Pi Imager CLI
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Join-Path $env:RUNNER_TEMP "rpi-imager.exe"
+          Invoke-WebRequest -UseBasicParsing -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
+          $p = Start-Process -FilePath $installer -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/SP-") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Raspberry Pi Imager installer failed with exit code $($p.ExitCode)" }
+          $candidates = @(
+            (Join-Path $env:ProgramFiles "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
+            (Join-Path $env:ProgramFiles "Raspberry Pi Imager\rpi-imager.exe")
+          )
+          $imager = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $imager) { throw "Installed rpi-imager.exe was not found." }
+          $help = (& $imager --cli --help 2>&1 | Out-String)
+          foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig","--sha256")) {
+            if ($help -notmatch [regex]::Escape($required)) { throw "Current Raspberry Pi Imager CLI is missing $required" }
+          }
+          $probe = (& $imager --cli --cloudinit-userdata (Join-Path $env:RUNNER_TEMP "missing-user-data") --cloudinit-networkconfig (Join-Path $env:RUNNER_TEMP "missing-network") --sha256 ("0" * 64) (Join-Path $env:RUNNER_TEMP "missing.img") "\\.\PhysicalDrive999" 2>&1 | Out-String)
+          if ($probe -match "(?i)unknown option|unknown argument") { throw "PiTV CLI arguments are incompatible: $probe" }
+
+  release:
+    needs: validate-windows
+    runs-on: ubuntu-24.04    steps:
       - uses: actions/checkout@v4
 
       - name: Release checks
@@ -65,6 +111,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f alpha "$GITHUB_SHA"
+          git push -f origin refs/tags/alpha
 
           if gh release view alpha >/dev/null 2>&1; then
             gh release edit alpha \
