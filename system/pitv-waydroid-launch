@@ -13,11 +13,12 @@ TARGET="${1:-}"
 APK="${2:-}"
 [ -n "$TARGET" ] || exit 2
 
-RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+RUNTIME="/run/user/$(id -u)"
 export XDG_RUNTIME_DIR="$RUNTIME"
-export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
-export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-labwc}"
-export PULSE_RUNTIME_PATH="${PULSE_RUNTIME_PATH:-$RUNTIME/pulse}"
+export XDG_SESSION_TYPE="wayland"
+export XDG_CURRENT_DESKTOP="labwc"
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
 
 LOG="/tmp/pitv-waydroid-launch.log"
 : >"$LOG"
@@ -56,8 +57,9 @@ if [ ! -S "$WAYLAND_SOCKET" ]; then
   exit 11
 fi
 
-if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "$RUNTIME/bus" ]; then
-  export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+if [ ! -S "$RUNTIME/bus" ]; then
+  log "PiTV user D-Bus is missing: $RUNTIME/bus"
+  exit 13
 fi
 
 # Waydroid bind-mounts the host Pulse-compatible socket into Android.
