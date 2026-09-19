@@ -7,4 +7,14 @@ RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export XDG_RUNTIME_DIR="$RUNTIME"
 mkdir -p "$RUNTIME" 2>/dev/null || true
 chmod 700 "$RUNTIME" 2>/dev/null || true
+
+# Waydroid bind-mounts the host Pulse-compatible socket into Android.
+# Ubuntu Server does not necessarily start the user audio stack until a
+# graphical desktop asks for it, so PiTV brings it up before labwc/Waydroid.
+systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service >/dev/null 2>&1 || true
+for _ in $(seq 1 30); do
+  [ -S "$RUNTIME/pulse/native" ] && break
+  sleep 0.1
+done
+
 exec dbus-run-session -- labwc
