@@ -340,7 +340,7 @@ function Set-PiTVTargetDiskOffline($d) {
         }
     }
     catch {
-        Log ("INFO: Windows nepovolil přepnutí celého disku Offline (" + $_.Exception.Message + "). Zamykám a odpojuji jeho svazky přes Windows FSCTL.")
+        Log ("INFO: Windows nepovolil přepnutí celého disku Offline (" + $_.Exception.Message + "). Zamykám jeho svazky přes Windows FSCTL bez jejich dismountu.")
 
         foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
             $accesses = @($part.AccessPaths | Where-Object { $_ })
@@ -376,9 +376,9 @@ function Set-PiTVTargetDiskOffline($d) {
 
             if ($lockPath) {
                 try {
-                    $guard = [PiTVNativeDisk]::LockAndDismount([string]$lockPath)
+                    $guard = [PiTVNativeDisk]::LockVolume([string]$lockPath)
                     [void]$locks.Add($guard)
-                    Log ("Svazek " + $guard.Path + " byl uzamčen a odpojen pro raw zápis.")
+                    Log ("Svazek " + $guard.Path + " byl uzamčen pro raw zápis.")
                 }
                 catch {
                     foreach ($held in @($locks)) {
@@ -493,13 +493,30 @@ function Write-PiTVRawImageToDisk($raw,$d) {
     $writeGuard = $null
 
     try {
+        # Prefer opening the physical device before touching mounted volumes.
+        # A few USB/SD bridges briefly report "device not ready" after a volume
+        # is dismounted or its partition table changes. Holding this handle
+        # across the lock/write/verify cycle avoids reopening during that window.
+        try {
+            $dest = [PiTVNativeDisk]::Open($target,$true)
+            Log ("RAW HANDLE: " + $target + " otevřen před uzamčením svazků.")
+        }
+        catch {
+            Log ("INFO: PhysicalDrive se před uzamčením nepodařilo otevřít (" + $_.Exception.Message + "). Zkusím to po uzamčení svazků.")
+            $dest = $null
+        }
+
         $writeGuard = Set-PiTVTargetDiskOffline $d
         Log ("RAW WRITE: " + $raw.Path + " -> " + $target)
         Set-InstallerProgress "Zapisuji systém na SD kartu" 0
 
         $source = [IO.File]::Open($raw.Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
-        $dest = [PiTVNativeDisk]::Open($target,$true)
+        if (-not $dest) {
+            $dest = [PiTVNativeDisk]::Open($target,$true)
+            Log ("RAW HANDLE: " + $target + " otevřen po uzamčení svazků.")
+        }
 
+        [void]$dest.Seek(0,[IO.SeekOrigin]::Begin)
         $buffer = New-Object byte[] (4MB)
         [Int64]$done = 0
         while (($read = $source.Read($buffer,0,$buffer.Length)) -gt 0) {
