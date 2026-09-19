@@ -40,15 +40,23 @@ Cílem je spojit TV aplikace, Android aplikace, systémová nastavení a servero
 - 🌡️ systémový přehled — teplota, RAM, disk, uptime, kernel, síť a Tailscale
 - 🔄 self-update se zachováním uživatelského nastavení
 
-## PiTV Flasher
+## PiTV SD Installer
 
 <p>
-  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20Flasher-Automatick%C3%A1%20SD%20instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV Flasher" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Automatick%C3%A1%20microSD-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
 </p>
 
-Pro nejjednodušší instalaci lze použít **PiTV Flasher** pro Windows, Linux a macOS. Připojíš microSD kartu, vybereš ji, zadáš Wi-Fi a Flasher připraví **Ubuntu Server + automatickou první instalaci PiTV**. Podrobnosti jsou v **[FLASHER.md](FLASHER.md)**.
+Nejjednodušší instalace PiTV je přes **PiTV SD Installer**. Připojíš microSD kartu a nástroj připraví **Ubuntu Server 24.04 ARM64 + Wi-Fi + automatickou první instalaci PiTV**.
 
-> PiTV Flasher je zatím **beta** a skutečný zápis SD karty na jednotlivých hostitelských systémech ještě musí projít fyzickým testem.
+- **Windows:** grafické okno — vybereš kartu a klikneš na **VYTVOŘIT PiTV SD**
+- **Linux / macOS:** jeden shell skript v terminálu
+- samotný zápis image provádí oficiální **Raspberry Pi Imager**
+- systémový/boot disk je z výběru vyloučen a před smazáním je vždy vyžadováno potvrzení
+- po prvním zapnutí Raspberry se PiTV samo stáhne, nainstaluje a Raspberry se restartuje
+
+Podrobný postup je v **[FLASHER.md](FLASHER.md)**.
+
+> PiTV SD Installer je zatím **beta**. Syntaxe a bezpečnostní kontroly jsou automaticky testované, ale celý zápis microSD + první boot ještě ověříme na skutečném Raspberry Pi 4.
 
 ## Instalace
 
@@ -77,27 +85,6 @@ Ubuntu Server
 ```
 
 SSH a serverové služby zůstávají dostupné i při vypnuté nebo uspáné TV.
-
-## PiTV SD Installer
-
-Pro Windows je v repozitáři první verze malého průvodce, který připraví microSD bez ruční instalace systému.
-
-<p>
-  <a href="tools/windows/README.md"><img src="https://img.shields.io/badge/Windows-PiTV%20SD%20Installer-38BDF8?style=for-the-badge&labelColor=0284C7&logo=windows&logoColor=white" alt="PiTV SD Installer pro Windows" /></a>
-</p>
-
-Stačí vložit microSD, spustit **Start-PiTV-SD-Installer.cmd**, vybrat kartu a kliknout na **VYTVOŘIT PiTV SD**.
-
-Installer:
-
-- použije oficiální Raspberry Pi Imager pro samotný zápis,
-- automaticky najde podporovaný Ubuntu Server 24.04 LTS ARM64,
-- převezme aktuální Wi-Fi z Windows,
-- připraví cloud-init,
-- při prvním bootu Raspberry stáhne a nainstaluje PiTV,
-- po dokončení Raspberry restartuje a následně naběhne PiTV.
-
-> Windows verze je aktuálně **v0.1 prototyp**. Před veřejným releasem ji ještě ověříme na skutečné microSD a Raspberry Pi 4.
 
 ## PiTV Store
 
