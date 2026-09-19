@@ -190,7 +190,7 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
 
     $lower = $source.ToLowerInvariant()
     if ($lower.EndsWith(".img")) {
-        Log "Image je už v raw .img formátu — rozbalování se přeskočí."
+        Log "Image je už v raw .img formátu - rozbalování se přeskočí."
         return (New-PiTVRawImageInfo $source $false "" $expectedExtractSha)
     }
 
