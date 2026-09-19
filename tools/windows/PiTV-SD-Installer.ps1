@@ -373,7 +373,7 @@ function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName)
 
 $form = New-Object Windows.Forms.Form
 $form.Text = "PiTV SD Installer"
-$form.Size = New-Object Drawing.Size(720,680)
+$form.Size = New-Object Drawing.Size(840,730)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [Drawing.Color]::FromArgb(7,11,20)
 $form.ForeColor = [Drawing.Color]::White
@@ -389,7 +389,8 @@ $form.Controls.Add($title)
 
 $sub = New-Object Windows.Forms.Label
 $sub.Text = "Vyber systém a SD kartu. Zbytek připraví PiTV automaticky."
-$sub.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
+$sub.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
+$sub.Font = New-Object Drawing.Font("Segoe UI",11)
 $sub.Location = New-Object Drawing.Point(31,66)
 $sub.AutoSize = $true
 $form.Controls.Add($sub)
@@ -398,14 +399,14 @@ function Add-Label($text,$y) {
     $l = New-Object Windows.Forms.Label
     $l.Text = $text
     $l.Location = New-Object Drawing.Point(32,$y)
-    $l.Size = New-Object Drawing.Size(155,28)
+    $l.Size = New-Object Drawing.Size(170,28)
     $form.Controls.Add($l)
 }
 
 Add-Label "Systém" 116
 $os = New-Object Windows.Forms.ComboBox
-$os.Location = New-Object Drawing.Point(190,112)
-$os.Size = New-Object Drawing.Size(365,32)
+$os.Location = New-Object Drawing.Point(205,112)
+$os.Size = New-Object Drawing.Size(455,34)
 $os.DropDownStyle = "DropDownList"
 [void]$os.Items.Add("Ubuntu Server 24.04 LTS ARM64 — stáhnout online (doporučeno)")
 $os.SelectedIndex = 0
@@ -413,27 +414,29 @@ $form.Controls.Add($os)
 
 $imageBrowse = New-Object Windows.Forms.Button
 $imageBrowse.Text = "Vlastní image..."
-$imageBrowse.Location = New-Object Drawing.Point(565,111)
-$imageBrowse.Size = New-Object Drawing.Size(95,32)
+$imageBrowse.Location = New-Object Drawing.Point(675,111)
+$imageBrowse.Size = New-Object Drawing.Size(130,34)
+$imageBrowse.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($imageBrowse)
 
 Add-Label "microSD / USB" 164
 $disk = New-Object Windows.Forms.ComboBox
-$disk.Location = New-Object Drawing.Point(190,160)
-$disk.Size = New-Object Drawing.Size(365,32)
+$disk.Location = New-Object Drawing.Point(205,160)
+$disk.Size = New-Object Drawing.Size(455,34)
 $disk.DropDownStyle = "DropDownList"
 $form.Controls.Add($disk)
 
 $refresh = New-Object Windows.Forms.Button
 $refresh.Text = "Obnovit"
-$refresh.Location = New-Object Drawing.Point(565,159)
-$refresh.Size = New-Object Drawing.Size(95,32)
+$refresh.Location = New-Object Drawing.Point(675,159)
+$refresh.Size = New-Object Drawing.Size(130,34)
+$refresh.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($refresh)
 
 Add-Label "Wi-Fi SSID" 212
 $wifiSsid = New-Object Windows.Forms.ComboBox
-$wifiSsid.Location = New-Object Drawing.Point(190,208)
-$wifiSsid.Size = New-Object Drawing.Size(365,30)
+$wifiSsid.Location = New-Object Drawing.Point(205,208)
+$wifiSsid.Size = New-Object Drawing.Size(455,32)
 $wifiSsid.DropDownStyle = "DropDown"
 $wifiSsid.AutoCompleteMode = "SuggestAppend"
 $wifiSsid.AutoCompleteSource = "ListItems"
@@ -441,42 +444,44 @@ $form.Controls.Add($wifiSsid)
 
 $wifiLoad = New-Object Windows.Forms.Button
 $wifiLoad.Text = "Vyhledat"
-$wifiLoad.Location = New-Object Drawing.Point(565,207)
-$wifiLoad.Size = New-Object Drawing.Size(95,32)
+$wifiLoad.Location = New-Object Drawing.Point(675,207)
+$wifiLoad.Size = New-Object Drawing.Size(130,34)
+$wifiLoad.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($wifiLoad)
 
 Add-Label "Wi-Fi heslo" 254
 $wifiPass = New-Object Windows.Forms.TextBox
-$wifiPass.Location = New-Object Drawing.Point(190,250)
-$wifiPass.Size = New-Object Drawing.Size(280,30)
+$wifiPass.Location = New-Object Drawing.Point(205,250)
+$wifiPass.Size = New-Object Drawing.Size(330,32)
 $wifiPass.UseSystemPasswordChar = $true
 $form.Controls.Add($wifiPass)
 
 $wifiShow = New-Object Windows.Forms.CheckBox
 $wifiShow.Text = "Zobrazit heslo"
-$wifiShow.Location = New-Object Drawing.Point(486,251)
-$wifiShow.Size = New-Object Drawing.Size(174,28)
-$wifiShow.ForeColor = [Drawing.Color]::White
+$wifiShow.Location = New-Object Drawing.Point(550,251)
+$wifiShow.Size = New-Object Drawing.Size(190,28)
+$wifiShow.ForeColor = [Drawing.Color]::FromArgb(241,245,249)
 $wifiShow.BackColor = $form.BackColor
 $form.Controls.Add($wifiShow)
 
 $wifiStatus = New-Object Windows.Forms.Label
-$wifiStatus.Location = New-Object Drawing.Point(190,284)
-$wifiStatus.Size = New-Object Drawing.Size(470,24)
-$wifiStatus.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
+$wifiStatus.Location = New-Object Drawing.Point(205,286)
+$wifiStatus.Size = New-Object Drawing.Size(570,24)
+$wifiStatus.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
 $wifiStatus.Text = "Zkouším načíst aktuální Wi-Fi z Windows..."
 $form.Controls.Add($wifiStatus)
 
 $info = New-Object Windows.Forms.Label
-$info.Location = New-Object Drawing.Point(32,318)
-$info.Size = New-Object Drawing.Size(628,54)
+$info.Location = New-Object Drawing.Point(32,322)
+$info.Size = New-Object Drawing.Size(773,54)
 $info.Text = "BEZPEČNOST: systémový disk se nikdy nenabízí. Před zápisem znovu uvidíš model a kapacitu vybrané karty."
-$info.ForeColor = [Drawing.Color]::FromArgb(186,230,253)
+$info.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
+$info.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($info)
 
 $log = New-Object Windows.Forms.TextBox
-$log.Location = New-Object Drawing.Point(32,382)
-$log.Size = New-Object Drawing.Size(628,136)
+$log.Location = New-Object Drawing.Point(32,390)
+$log.Size = New-Object Drawing.Size(773,150)
 $log.Multiline = $true
 $log.ReadOnly = $true
 $log.ScrollBars = "Vertical"
@@ -486,33 +491,33 @@ $form.Controls.Add($log)
 
 $copyLog = New-Object Windows.Forms.Button
 $copyLog.Text = "Kopírovat log"
-$copyLog.Location = New-Object Drawing.Point(32,526)
-$copyLog.Size = New-Object Drawing.Size(135,32)
+$copyLog.Location = New-Object Drawing.Point(32,550)
+$copyLog.Size = New-Object Drawing.Size(145,34)
 $form.Controls.Add($copyLog)
 
 $openLogs = New-Object Windows.Forms.Button
 $openLogs.Text = "Otevřít logy"
-$openLogs.Location = New-Object Drawing.Point(174,526)
-$openLogs.Size = New-Object Drawing.Size(135,32)
+$openLogs.Location = New-Object Drawing.Point(187,550)
+$openLogs.Size = New-Object Drawing.Size(145,34)
 $form.Controls.Add($openLogs)
 
 $reportLog = New-Object Windows.Forms.Button
 $reportLog.Text = "ODESLAT CHYBU"
-$reportLog.Location = New-Object Drawing.Point(316,526)
-$reportLog.Size = New-Object Drawing.Size(160,32)
+$reportLog.Location = New-Object Drawing.Point(342,550)
+$reportLog.Size = New-Object Drawing.Size(170,34)
 $form.Controls.Add($reportLog)
 
 $logPathLabel = New-Object Windows.Forms.Label
-$logPathLabel.Location = New-Object Drawing.Point(488,531)
-$logPathLabel.Size = New-Object Drawing.Size(172,24)
-$logPathLabel.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
-$logPathLabel.Text = "5 posledních logů"
+$logPathLabel.Location = New-Object Drawing.Point(530,555)
+$logPathLabel.Size = New-Object Drawing.Size(275,24)
+$logPathLabel.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
+$logPathLabel.Text = "Ukládá se 5 posledních logů"
 $form.Controls.Add($logPathLabel)
 
 $format = New-Object Windows.Forms.Button
 $format.Text = "NAFORMÁTOVAT SD"
-$format.Location = New-Object Drawing.Point(32,574)
-$format.Size = New-Object Drawing.Size(198,48)
+$format.Location = New-Object Drawing.Point(32,610)
+$format.Size = New-Object Drawing.Size(245,52)
 $format.BackColor = [Drawing.Color]::FromArgb(23,32,51)
 $format.ForeColor = [Drawing.Color]::White
 $format.FlatStyle = "Flat"
@@ -521,8 +526,8 @@ $form.Controls.Add($format)
 
 $create = New-Object Windows.Forms.Button
 $create.Text = "VYTVOŘIT PiTV SD"
-$create.Location = New-Object Drawing.Point(240,574)
-$create.Size = New-Object Drawing.Size(420,48)
+$create.Location = New-Object Drawing.Point(290,610)
+$create.Size = New-Object Drawing.Size(515,52)
 $create.BackColor = [Drawing.Color]::FromArgb(2,132,199)
 $create.ForeColor = [Drawing.Color]::White
 $create.FlatStyle = "Flat"
@@ -1015,7 +1020,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.10 · Windows"
+    Log "PiTV SD Installer v0.11 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
     Refresh-Drives
