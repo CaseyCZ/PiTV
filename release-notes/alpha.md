@@ -29,3 +29,6 @@ Stáhni **PiTV-SD-Installer-Windows.zip**, rozbal **celý ZIP** a spusť `Start-
 - vlastní uživatelské jméno a heslo pro správu PiTV se zadávají před vytvořením SD
 
 - ověření zápisu nyní čte přes stejný otevřený PhysicalDrive handle; tím se vyhne okamžité chybě některých USB/SD čteček po dokončení raw zápisu
+
+- v0.24: pro výměnná média se fallback už nesnaží svazky dismountovat; pouze je zamkne a drží PhysicalDrive handle otevřený přes zápis i ověření, aby USB/SD čtečky nespadly do stavu „Zařízení není připraveno“
+- ODESLAT CHYBU nyní předvyplní do GitHub issue krátkou diagnostiku; celý report zůstává zároveň ve schránce a lokálním souboru
