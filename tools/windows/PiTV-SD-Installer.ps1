@@ -227,7 +227,7 @@ function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName)
 
 $form = New-Object Windows.Forms.Form
 $form.Text = "PiTV SD Installer"
-$form.Size = New-Object Drawing.Size(720,590)
+$form.Size = New-Object Drawing.Size(720,680)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [Drawing.Color]::FromArgb(7,11,20)
 $form.ForeColor = [Drawing.Color]::White
@@ -278,23 +278,42 @@ $refresh.Location = New-Object Drawing.Point(565,159)
 $refresh.Size = New-Object Drawing.Size(95,32)
 $form.Controls.Add($refresh)
 
-Add-Label "Wi-Fi" 212
-$wifiLabel = New-Object Windows.Forms.Label
-$wifiLabel.Location = New-Object Drawing.Point(190,212)
-$wifiLabel.Size = New-Object Drawing.Size(470,40)
-$wifiLabel.Text = "Zjišťuji aktuální Wi-Fi..."
-$form.Controls.Add($wifiLabel)
+Add-Label "Wi-Fi SSID" 212
+$wifiSsid = New-Object Windows.Forms.TextBox
+$wifiSsid.Location = New-Object Drawing.Point(190,208)
+$wifiSsid.Size = New-Object Drawing.Size(365,30)
+$form.Controls.Add($wifiSsid)
+
+$wifiLoad = New-Object Windows.Forms.Button
+$wifiLoad.Text = "Načíst"
+$wifiLoad.Location = New-Object Drawing.Point(565,207)
+$wifiLoad.Size = New-Object Drawing.Size(95,32)
+$form.Controls.Add($wifiLoad)
+
+Add-Label "Wi-Fi heslo" 254
+$wifiPass = New-Object Windows.Forms.TextBox
+$wifiPass.Location = New-Object Drawing.Point(190,250)
+$wifiPass.Size = New-Object Drawing.Size(470,30)
+$wifiPass.UseSystemPasswordChar = $true
+$form.Controls.Add($wifiPass)
+
+$wifiStatus = New-Object Windows.Forms.Label
+$wifiStatus.Location = New-Object Drawing.Point(190,284)
+$wifiStatus.Size = New-Object Drawing.Size(470,24)
+$wifiStatus.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
+$wifiStatus.Text = "Zkouším načíst aktuální Wi-Fi z Windows..."
+$form.Controls.Add($wifiStatus)
 
 $info = New-Object Windows.Forms.Label
-$info.Location = New-Object Drawing.Point(32,260)
+$info.Location = New-Object Drawing.Point(32,318)
 $info.Size = New-Object Drawing.Size(628,54)
 $info.Text = "BEZPEČNOST: systémový disk se nikdy nenabízí. Před zápisem znovu uvidíš model a kapacitu vybrané karty."
 $info.ForeColor = [Drawing.Color]::FromArgb(186,230,253)
 $form.Controls.Add($info)
 
 $log = New-Object Windows.Forms.TextBox
-$log.Location = New-Object Drawing.Point(32,320)
-$log.Size = New-Object Drawing.Size(628,150)
+$log.Location = New-Object Drawing.Point(32,382)
+$log.Size = New-Object Drawing.Size(628,170)
 $log.Multiline = $true
 $log.ReadOnly = $true
 $log.ScrollBars = "Vertical"
@@ -304,7 +323,7 @@ $form.Controls.Add($log)
 
 $format = New-Object Windows.Forms.Button
 $format.Text = "NAFORMÁTOVAT SD"
-$format.Location = New-Object Drawing.Point(32,490)
+$format.Location = New-Object Drawing.Point(32,574)
 $format.Size = New-Object Drawing.Size(198,48)
 $format.BackColor = [Drawing.Color]::FromArgb(23,32,51)
 $format.ForeColor = [Drawing.Color]::White
@@ -314,7 +333,7 @@ $form.Controls.Add($format)
 
 $create = New-Object Windows.Forms.Button
 $create.Text = "VYTVOŘIT PiTV SD"
-$create.Location = New-Object Drawing.Point(240,490)
+$create.Location = New-Object Drawing.Point(240,574)
 $create.Size = New-Object Drawing.Size(420,48)
 $create.BackColor = [Drawing.Color]::FromArgb(2,132,199)
 $create.ForeColor = [Drawing.Color]::White
@@ -345,6 +364,29 @@ function Refresh-Drives {
     Log ("Nalezeno bezpečných výměnných disků: " + $disk.Items.Count)
 }
 
+function Load-WifiFromWindows {
+    try {
+        $wifiStatus.Text = "Načítám aktuální Wi-Fi z Windows..."
+        [Windows.Forms.Application]::DoEvents()
+        $w = Get-CurrentWifi
+        if ($w -and $w.SSID) {
+            $wifiSsid.Text = $w.SSID
+            if ($w.Password) { $wifiPass.Text = $w.Password }
+            $wifiStatus.Text = "Načteno z Windows · můžeš údaje ručně upravit"
+            Log ("Wi-Fi načtena z Windows: " + $w.SSID)
+            return $true
+        }
+        $wifiStatus.Text = "Automaticky nenalezena · zadej SSID a heslo ručně"
+        return $false
+    }
+    catch {
+        $wifiStatus.Text = "Automaticky nenalezena · zadej SSID a heslo ručně"
+        Log ("Wi-Fi automatika: " + $_.Exception.Message)
+        return $false
+    }
+}
+
+$wifiLoad.Add_Click({ [void](Load-WifiFromWindows) })
 $refresh.Add_Click({ Refresh-Drives })
 
 $format.Add_Click({
@@ -363,6 +405,7 @@ $format.Add_Click({
         $format.Enabled = $false
         $create.Enabled = $false
         $refresh.Enabled = $false
+        $wifiLoad.Enabled = $false
 
         Log ("Formátuji Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
         $vol = Format-SdDisk $d.Number $d.Size $d.Name
@@ -389,6 +432,7 @@ $format.Add_Click({
         $format.Enabled = $true
         $create.Enabled = $true
         $refresh.Enabled = $true
+        $wifiLoad.Enabled = $true
     }
 })
 
@@ -409,6 +453,7 @@ $create.Add_Click({
         $format.Enabled = $false
         $create.Enabled = $false
         $refresh.Enabled = $false
+        $wifiLoad.Enabled = $false
 
         Log "Kontroluji Raspberry Pi Imager..."
         $imager = Ensure-Imager
@@ -418,14 +463,17 @@ $create.Add_Click({
         $image = Get-Ubuntu2404
         Log ("Vybráno: " + $image.name)
 
-        Log "Načítám aktuální Wi-Fi z Windows..."
-        $wifi = Get-CurrentWifi
-        if (-not $wifi -or -not $wifi.Password) {
-            throw "Nepodařilo se automaticky načíst aktuální Wi-Fi a její heslo. Připoj PC k cílové Wi-Fi a spusť aplikaci znovu."
+        $ssid = $wifiSsid.Text.Trim()
+        $password = $wifiPass.Text
+        if ([string]::IsNullOrWhiteSpace($ssid)) {
+            throw "Zadej název cílové Wi-Fi (SSID). Můžeš ho napsat ručně nebo použít tlačítko Načíst."
         }
-        Log ("Wi-Fi: " + $wifi.SSID)
+        if ([string]::IsNullOrWhiteSpace($password)) {
+            throw "Zadej heslo cílové Wi-Fi."
+        }
+        Log ("Wi-Fi pro Raspberry Pi: " + $ssid)
 
-        $cloud = New-CloudInit $wifi.SSID $wifi.Password
+        $cloud = New-CloudInit $ssid $password
         $target = "\\.\PhysicalDrive" + $d.Number
 
         $args = @(
@@ -488,23 +536,15 @@ $create.Add_Click({
         $format.Enabled = $true
         $create.Enabled = $true
         $refresh.Enabled = $true
+        $wifiLoad.Enabled = $true
     }
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.2 · Windows"
+    Log "PiTV SD Installer v0.3 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Refresh-Drives
-    try {
-        $w = Get-CurrentWifi
-        if ($w -and $w.SSID) {
-            $wifiLabel.Text = $w.SSID + " · nastavení se převezme automaticky"
-        } else {
-            $wifiLabel.Text = "Wi-Fi nebyla nalezena"
-        }
-    } catch {
-        $wifiLabel.Text = "Wi-Fi nebyla nalezena"
-    }
+    [void](Load-WifiFromWindows)
 })
 
 [void]$form.ShowDialog()
