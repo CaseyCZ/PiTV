@@ -8,6 +8,16 @@ Add-Type -AssemblyName System.Drawing
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
 
+$LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
+New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+$SessionLog = Join-Path $LogDir ("pitv-sd-installer-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+
+# Keep only the five most recent completed/current sessions.
+Get-ChildItem $LogDir -Filter "pitv-sd-installer-*.log" -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -Skip 4 |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
 function Is-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     $p = New-Object Security.Principal.WindowsPrincipal($id)
@@ -213,18 +223,42 @@ function Get-CurrentWifi {
     }
 }
 
+function Get-Prop($obj,[string]$name) {
+    if ($null -eq $obj) { return $null }
+    $p = $obj.PSObject.Properties[$name]
+    if ($null -eq $p) { return $null }
+    return $p.Value
+}
+
 function Get-Entries([string]$url,[int]$depth=0) {
     if ($depth -gt 5) { return @() }
+
     $data = Invoke-RestMethod -Uri $url -UseBasicParsing
     $all = @()
-    foreach ($item in @($data.os_list)) {
-        if ($item.subitems_url) {
-            try { $all += Get-Entries ([string]$item.subitems_url) ($depth + 1) } catch {}
+    $osList = Get-Prop $data "os_list"
+    if ($null -eq $osList) { return @() }
+
+    foreach ($item in @($osList)) {
+        $subitemsUrl = Get-Prop $item "subitems_url"
+        if ($subitemsUrl) {
+            try {
+                $all += Get-Entries ([string]$subitemsUrl) ($depth + 1)
+            } catch {
+                Log ("Katalog subitems přeskočen: " + $_.Exception.Message)
+            }
         }
-        foreach ($sub in @($item.subitems)) {
-            if ($sub -and $sub.url -and $sub.name) { $all += $sub }
+
+        $subitems = Get-Prop $item "subitems"
+        foreach ($sub in @($subitems)) {
+            if ($null -eq $sub) { continue }
+            $urlValue = Get-Prop $sub "url"
+            $nameValue = Get-Prop $sub "name"
+            if ($urlValue -and $nameValue) { $all += $sub }
         }
-        if ($item.url -and $item.name) { $all += $item }
+
+        $itemUrl = Get-Prop $item "url"
+        $itemName = Get-Prop $item "name"
+        if ($itemUrl -and $itemName) { $all += $item }
     }
     return $all
 }
@@ -232,9 +266,16 @@ function Get-Entries([string]$url,[int]$depth=0) {
 function Get-Ubuntu2404 {
     $entries = Get-Entries $RepoListUrl
     $list = $entries | Where-Object {
-        $_.name -match "^Ubuntu Server 24\.04.*LTS \(64-bit\)$" -and
-        (-not $_.devices -or $_.devices -contains "pi4" -or $_.devices -contains "pi4-64")
-    } | Sort-Object @{ Expression={ try { [datetime]$_.release_date } catch { [datetime]::MinValue } } } -Descending
+        $name = [string](Get-Prop $_ "name")
+        $devices = Get-Prop $_ "devices"
+        $name -match "^Ubuntu Server 24\.04.*LTS \(64-bit\)$" -and
+        (-not $devices -or $devices -contains "pi4" -or $devices -contains "pi4-64")
+    } | Sort-Object @{ Expression={
+        try {
+            $releaseDate = Get-Prop $_ "release_date"
+            if ($releaseDate) { [datetime]$releaseDate } else { [datetime]::MinValue }
+        } catch { [datetime]::MinValue }
+    } } -Descending
 
     $image = $list | Select-Object -First 1
     if (-not $image) { throw "Ubuntu Server 24.04 LTS pro Raspberry Pi 4 nebyl v oficiálním katalogu nalezen." }
@@ -426,13 +467,32 @@ $form.Controls.Add($info)
 
 $log = New-Object Windows.Forms.TextBox
 $log.Location = New-Object Drawing.Point(32,382)
-$log.Size = New-Object Drawing.Size(628,170)
+$log.Size = New-Object Drawing.Size(628,136)
 $log.Multiline = $true
 $log.ReadOnly = $true
 $log.ScrollBars = "Vertical"
 $log.BackColor = [Drawing.Color]::FromArgb(11,18,32)
 $log.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
 $form.Controls.Add($log)
+
+$copyLog = New-Object Windows.Forms.Button
+$copyLog.Text = "Kopírovat log"
+$copyLog.Location = New-Object Drawing.Point(32,526)
+$copyLog.Size = New-Object Drawing.Size(145,32)
+$form.Controls.Add($copyLog)
+
+$openLogs = New-Object Windows.Forms.Button
+$openLogs.Text = "Otevřít logy"
+$openLogs.Location = New-Object Drawing.Point(185,526)
+$openLogs.Size = New-Object Drawing.Size(145,32)
+$form.Controls.Add($openLogs)
+
+$logPathLabel = New-Object Windows.Forms.Label
+$logPathLabel.Location = New-Object Drawing.Point(342,531)
+$logPathLabel.Size = New-Object Drawing.Size(318,24)
+$logPathLabel.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
+$logPathLabel.Text = "Ukládá se posledních 5 logů"
+$form.Controls.Add($logPathLabel)
 
 $format = New-Object Windows.Forms.Button
 $format.Text = "NAFORMÁTOVAT SD"
@@ -455,10 +515,37 @@ $create.Font = New-Object Drawing.Font("Segoe UI",12,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($create)
 
 function Log([string]$s) {
-    $log.AppendText((Get-Date -Format "HH:mm:ss") + "  " + $s + [Environment]::NewLine)
+    $line = (Get-Date -Format "HH:mm:ss") + "  " + $s
+    $log.AppendText($line + [Environment]::NewLine)
     $log.SelectionStart = $log.TextLength
     $log.ScrollToCaret()
+
+    try {
+        Add-Content -Path $SessionLog -Value $line -Encoding UTF8
+    } catch {}
+
     [Windows.Forms.Application]::DoEvents()
+}
+
+function Copy-CurrentLog {
+    try {
+        $text = if (Test-Path $SessionLog) { Get-Content $SessionLog -Raw } else { $log.Text }
+        if ([string]::IsNullOrWhiteSpace($text)) { return }
+        [Windows.Forms.Clipboard]::SetText($text)
+        Log "Log zkopírován do schránky."
+    }
+    catch {
+        Log ("Kopírování logu selhalo: " + $_.Exception.Message)
+    }
+}
+
+function Open-LogFolder {
+    try {
+        Start-Process explorer.exe -ArgumentList ('"' + $LogDir + '"')
+    }
+    catch {
+        Log ("Otevření složky s logy selhalo: " + $_.Exception.Message)
+    }
 }
 
 function Refresh-Drives {
@@ -531,6 +618,9 @@ function Load-WifiFromWindows {
     }
 }
 
+$copyLog.Add_Click({ Copy-CurrentLog })
+$openLogs.Add_Click({ Open-LogFolder })
+
 $wifiShow.Add_CheckedChanged({
     $wifiPass.UseSystemPasswordChar = -not $wifiShow.Checked
 })
@@ -575,6 +665,9 @@ $format.Add_Click({
     }
     catch {
         Log ("CHYBA: " + $_.Exception.Message)
+        if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
+            Log ("DETAIL: " + ($_.InvocationInfo.PositionMessage -replace "[\r\n]+"," "))
+        }
         [Windows.Forms.MessageBox]::Show(
             $_.Exception.Message,
             "PiTV SD Installer",
@@ -676,6 +769,9 @@ $create.Add_Click({
     }
     catch {
         Log ("CHYBA: " + $_.Exception.Message)
+        if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
+            Log ("DETAIL: " + ($_.InvocationInfo.PositionMessage -replace "[\r\n]+"," "))
+        }
         [Windows.Forms.MessageBox]::Show(
             $_.Exception.Message,
             "PiTV SD Installer",
@@ -695,8 +791,9 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.5 · Windows"
+    Log "PiTV SD Installer v0.6 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
+    Log ("Log soubor: " + $SessionLog)
     Refresh-Drives
     [void](Load-WifiFromWindows)
 })
