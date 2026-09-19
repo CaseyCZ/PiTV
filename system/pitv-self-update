@@ -18,6 +18,8 @@ def fail(message):
 if os.geteuid() != 0:
     fail("PiTV self updater musí běžet jako root")
 
+print("PiTV: kontroluji a stahuji aktuální Master…", flush=True)
+
 with tempfile.TemporaryDirectory(prefix="pitv-update-") as td:
     td = Path(td)
     archive = td / "pitv.zip"
@@ -28,6 +30,7 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td:
     except Exception as e:
         fail(f"Stažení PiTV selhalo: {e}")
 
+    print("PiTV: staženo, rozbaluji aktualizaci…", flush=True)
     try:
         with zipfile.ZipFile(archive) as z:
             z.extractall(td / "src")
