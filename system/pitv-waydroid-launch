@@ -1,26 +1,67 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
+
 TARGET="${1:-}"
 APK="${2:-}"
 [ -n "$TARGET" ] || exit 2
 
 RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export XDG_RUNTIME_DIR="$RUNTIME"
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-labwc}"
+export PULSE_RUNTIME_PATH="${PULSE_RUNTIME_PATH:-$RUNTIME/pulse}"
+
 LOG="/tmp/pitv-waydroid-launch.log"
 : >"$LOG"
 
-# Waydroid requires a real Pulse-compatible socket; without it LXC fails while
-# creating mount entries. Try to activate the PiTV user audio stack and fail
-# early with a useful log instead of pretending the Android app is starting.
+log() {
+  printf '%s\n' "PiTV: $*" >>"$LOG"
+}
+
+valid_package() {
+  [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$ ]]
+}
+
+# PiTV normally inherits WAYLAND_DISPLAY from labwc's autostart environment.
+# Recover it from XDG_RUNTIME_DIR if an older/manual session lost the variable.
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  for socket in "$RUNTIME"/wayland-*; do
+    if [ -S "$socket" ]; then
+      export WAYLAND_DISPLAY="$(basename "$socket")"
+      break
+    fi
+  done
+fi
+
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  log "WAYLAND_DISPLAY is missing"
+  exit 11
+fi
+
+if [[ "$WAYLAND_DISPLAY" = /* ]]; then
+  WAYLAND_SOCKET="$WAYLAND_DISPLAY"
+else
+  WAYLAND_SOCKET="$RUNTIME/$WAYLAND_DISPLAY"
+fi
+if [ ! -S "$WAYLAND_SOCKET" ]; then
+  log "Wayland socket is missing: $WAYLAND_SOCKET"
+  exit 11
+fi
+
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "$RUNTIME/bus" ]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+fi
+
+# Waydroid bind-mounts the host Pulse-compatible socket into Android.
 if [ ! -S "$RUNTIME/pulse/native" ]; then
   systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service >>"$LOG" 2>&1 || true
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 50); do
     [ -S "$RUNTIME/pulse/native" ] && break
     sleep 0.1
   done
 fi
 if [ ! -S "$RUNTIME/pulse/native" ]; then
-  echo "PiTV: audio socket missing: $RUNTIME/pulse/native" >>"$LOG"
+  log "audio socket missing: $RUNTIME/pulse/native"
   exit 9
 fi
 
@@ -33,36 +74,93 @@ if ! sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null 
   waydroid log >>"$LOG" 2>&1 || true
   exit 10
 fi
+
 waydroid session start >>"$LOG" 2>&1 &
 SESSION_PID=$!
 
+# "Container: RUNNING" is not enough. Wait until the user session is running
+# and Android reports sys.boot_completed=1 before launching any application.
 READY=0
-for _ in $(seq 1 60); do
-  if waydroid status 2>/dev/null | grep -qi 'RUNNING'; then READY=1; break; fi
+for _ in $(seq 1 180); do
+  if ! kill -0 "$SESSION_PID" 2>/dev/null; then
+    break
+  fi
+  if printf '{}' | sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; then
+    READY=1
+    break
+  fi
   sleep 0.5
 done
-[ "$READY" -eq 1 ] || { waydroid log >>"$LOG" 2>&1 || true; exit 3; }
-
-if [ "$TARGET" = "--full-ui" ]; then
-  waydroid show-full-ui
-elif [ "$TARGET" = "--play-store" ]; then
-  PACKAGE="$APK"
-  [ -n "$PACKAGE" ] || exit 6
-  if ! waydroid app list 2>/dev/null | grep -Fq "com.android.vending"; then
-    exit 7
-  fi
-  if ! printf '%s' "{\"package\":\"$PACKAGE\"}" | \
-      sudo -n /usr/local/libexec/pitv-helper waydroid-open-play-store >/dev/null 2>&1; then
-    waydroid app launch com.android.vending || exit 8
-  fi
-else
-  if [ -n "$APK" ] && [ -f "$APK" ]; then
-    if ! waydroid app list 2>/dev/null | grep -Fq "$TARGET"; then
-      waydroid app install "$APK" || exit 4
-    fi
-  fi
-  waydroid app launch "$TARGET" || exit 5
+if [ "$READY" -ne 1 ]; then
+  log "Android framework did not become ready"
+  waydroid status >>"$LOG" 2>&1 || true
+  waydroid log >>"$LOG" 2>&1 || true
+  exit 3
 fi
 
-# Keep wrapper alive so HOME from PiTV can terminate the Android session.
-while kill -0 "$SESSION_PID" 2>/dev/null; do sleep 1; done
+package_installed() {
+  local package="$1"
+  waydroid app list 2>>"$LOG" |
+    awk -F': *' '/^packageName:/ {print $2}' |
+    grep -Fxq "$package"
+}
+
+launch_package() {
+  local package="$1"
+  waydroid app launch "$package" >>"$LOG" 2>&1 || return 1
+
+  # Waydroid can return exit code 0 while no window/process is actually
+  # created. Verify the package and retry at the caller if necessary.
+  for _ in $(seq 1 40); do
+    if printf '{"package":"%s"}' "$package" |
+        sudo -n /usr/local/libexec/pitv-helper waydroid-app-running >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+if [ "$TARGET" = "--full-ui" ]; then
+  waydroid show-full-ui >>"$LOG" 2>&1 || {
+    waydroid log >>"$LOG" 2>&1 || true
+    exit 5
+  }
+elif [ "$TARGET" = "--play-store" ]; then
+  PACKAGE="$APK"
+  valid_package "$PACKAGE" || exit 6
+  package_installed "com.android.vending" || exit 7
+  if ! printf '{"package":"%s"}' "$PACKAGE" |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-open-play-store >>"$LOG" 2>&1; then
+    launch_package "com.android.vending" || exit 8
+  fi
+else
+  valid_package "$TARGET" || {
+    log "invalid package ID: $TARGET"
+    exit 2
+  }
+
+  if [ -n "$APK" ] && [ -f "$APK" ] && ! package_installed "$TARGET"; then
+    waydroid app install "$APK" >>"$LOG" 2>&1 || exit 4
+  fi
+
+  if ! package_installed "$TARGET"; then
+    log "package is not installed after install step: $TARGET"
+    exit 4
+  fi
+
+  if ! launch_package "$TARGET"; then
+    log "first app launch did not create a running window/process; retrying"
+    sleep 1
+    if ! launch_package "$TARGET"; then
+      log "application failed to start: $TARGET"
+      waydroid log >>"$LOG" 2>&1 || true
+      exit 5
+    fi
+  fi
+fi
+
+# Keep the wrapper alive so HOME from PiTV can terminate the Android session.
+while kill -0 "$SESSION_PID" 2>/dev/null; do
+  sleep 1
+done
