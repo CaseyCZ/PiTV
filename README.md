@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/pitv-header.svg" alt="PiTV" width="100%"></p>
+
 # PiTV 1.3
 
 <p align="center">
@@ -193,7 +195,7 @@ Ruční těžší test. Poslední kompletní audit prošel na **Ubuntu 24.04 x64
 - Homebridge / Tailscale / Docker / ATVLoadly na ARM64,
 - stažení a `aapt` kontrolu SmartTube + Stremio ARM64 APK.
 
-Podrobnosti jsou v [AUDIT.md](AUDIT.md).
+Podrobnosti jsou v [AUDIT.md](AUDIT.md). Historie změn je v [CHANGELOG.md](CHANGELOG.md) a bezpečnostní model v [SECURITY.md](SECURITY.md).
 
 ## Co ještě vyžaduje fyzický Raspberry Pi 4
 
