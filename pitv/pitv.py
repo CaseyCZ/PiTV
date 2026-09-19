@@ -2,6 +2,7 @@
 import json
 import os
 import queue
+import pwd
 import shutil
 import socket
 import subprocess
@@ -3714,4 +3715,15 @@ class PiTV:
 
 
 if __name__ == "__main__":
+    try:
+        current_user = pwd.getpwuid(os.geteuid()).pw_name
+    except Exception:
+        current_user = ""
+    if current_user != "pitv" and os.environ.get("PITV_ALLOW_NON_KIOSK_USER") != "1":
+        print(
+            "PiTV GUI musí běžet jako uživatel pitv. "
+            "Pro příkazy z SSH použij: sudo pitv-session-run <příkaz>",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     PiTV().run()
