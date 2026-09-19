@@ -172,7 +172,7 @@ packages:
   - git
 runcmd:
   - [ bash, -lc, "echo 'pitvadmin:$adminPass' | chpasswd" ]
-  - [ bash, -lc, "set -e; rm -rf /opt/pitv-bootstrap; git clone --depth 1 $PiTVRepoUrl /opt/pitv-bootstrap; cd /opt/pitv-bootstrap; ./install.sh > /var/log/pitv-bootstrap.log 2>&1; touch /var/lib/pitv-firstboot-complete; systemctl reboot" ]
+  - [ bash, -lc, "set -e; rm -rf /opt/pitv-bootstrap; git clone --depth 1 $PiTVRepoUrl /opt/pitv-bootstrap; cd /opt/pitv-bootstrap; ./install.sh > /var/log/pitv-firstboot.log 2>&1; mkdir -p /var/lib/pitv; touch /var/lib/pitv/firstboot-complete; rm -f /boot/firmware/user-data /boot/firmware/network-config || true; systemctl reboot" ]
 "@
 
     $network = @"
