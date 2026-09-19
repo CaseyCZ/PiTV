@@ -1872,6 +1872,12 @@ class PiTV:
                     finish(msg, ok)
                     return
 
+                if install_type == "flatpak":
+                    app_id = installer.get("app_id","")
+                    ok, msg = run_privileged("flatpak-install", {"app_id": app_id}, 1800)
+                    finish(msg, ok)
+                    return
+
                 if install_type in ("github_release_apk", "direct_apk"):
                     if not waydroid_available():
                         finish("Waydroid není nainstalovaný — otevři Android / APK", False)
