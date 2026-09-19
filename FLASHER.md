@@ -20,7 +20,9 @@ Běžný uživatel tedy nemusí ručně instalovat Ubuntu, hledat IP adresu Rasp
 
 ## Windows — doporučená cesta
 
-Windows má vlastní malé grafické rozhraní. Hotový balíček je dostupný také v **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/tag/alpha)** jako `PiTV-SD-Installer-Windows.zip`.
+Windows má vlastní malé grafické rozhraní.
+
+**Výchozí režim je online:** PiTV SD Installer sám vyhledá a stáhne oficiální Ubuntu Server 24.04 ARM64. Tlačítko **Vlastní image...** je jen volitelné pro již staženou kompatibilní image. Hotový balíček je dostupný také v **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/tag/alpha)** jako `PiTV-SD-Installer-Windows.zip`.
 
 1. stáhni nebo naklonuj repozitář PiTV,
 2. otevři `tools/windows/`,
