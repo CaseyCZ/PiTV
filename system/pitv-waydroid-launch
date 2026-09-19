@@ -82,13 +82,12 @@ SESSION_PID=$!
 # and Android reports sys.boot_completed=1 before launching any application.
 READY=0
 for _ in $(seq 1 180); do
-  if ! kill -0 "$SESSION_PID" 2>/dev/null; then
-    break
-  fi
   if printf '{}' | sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; then
     READY=1
     break
   fi
+  # The session-start client may exit after handing the session to Waydroid;
+  # readiness is authoritative, not the lifetime of this helper process.
   sleep 0.5
 done
 if [ "$READY" -ne 1 ]; then
@@ -121,6 +120,7 @@ launch_package() {
   return 1
 }
 
+TRACK_PACKAGE=""
 if [ "$TARGET" = "--full-ui" ]; then
   waydroid show-full-ui >>"$LOG" 2>&1 || {
     waydroid log >>"$LOG" 2>&1 || true
@@ -134,6 +134,7 @@ elif [ "$TARGET" = "--play-store" ]; then
       sudo -n /usr/local/libexec/pitv-helper waydroid-open-play-store >>"$LOG" 2>&1; then
     launch_package "com.android.vending" || exit 8
   fi
+  TRACK_PACKAGE="com.android.vending"
 else
   valid_package "$TARGET" || {
     log "invalid package ID: $TARGET"
@@ -158,9 +159,21 @@ else
       exit 5
     fi
   fi
+  TRACK_PACKAGE="$TARGET"
 fi
 
-# Keep the wrapper alive so HOME from PiTV can terminate the Android session.
-while kill -0 "$SESSION_PID" 2>/dev/null; do
+# Keep the wrapper alive so PiTV can relay CEC while the foreground Android
+# app/session is alive. Exit naturally after the app is closed.
+MISSES=0
+while printf '{}' | sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; do
+  if [ -n "$TRACK_PACKAGE" ]; then
+    if printf '{"package":"%s"}' "$TRACK_PACKAGE" |
+        sudo -n /usr/local/libexec/pitv-helper waydroid-app-running >/dev/null 2>&1; then
+      MISSES=0
+    else
+      MISSES=$((MISSES + 1))
+      [ "$MISSES" -ge 3 ] && break
+    fi
+  fi
   sleep 1
 done
