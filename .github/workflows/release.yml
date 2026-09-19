@@ -40,6 +40,12 @@ jobs:
           bash -n system/pitv-kodi-addon
           ! grep -q 'dbus-run-session' system/pitv-session
           ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-waydroid-launch
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-kodi-addon
+          grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
+          grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
+          grep -q 'pitv-session-run' install.sh
           bash -n scripts/install-waydroid.sh
           bash -n tools/pitv-flasher.sh
 
