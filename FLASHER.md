@@ -20,7 +20,7 @@ Běžný uživatel tedy nemusí ručně instalovat Ubuntu, hledat IP adresu Rasp
 
 ## Windows — doporučená cesta
 
-Windows má vlastní malé grafické rozhraní. Hotový balíček je dostupný také v **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)** jako `PiTV-SD-Installer-Windows-v1.3.0.zip`.
+Windows má vlastní malé grafické rozhraní. Hotový balíček je dostupný také v **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)** jako `PiTV-SD-Installer-Windows-v1.3.1.zip`.
 
 1. stáhni nebo naklonuj repozitář PiTV,
 2. otevři `tools/windows/`,
@@ -29,7 +29,7 @@ Windows má vlastní malé grafické rozhraní. Hotový balíček je dostupný t
 5. vyber microSD kartu,
 6. klikni na **VYTVOŘIT PiTV SD**.
 
-Installer automaticky převezme aktuální Wi-Fi profil z Windows. Pokud Raspberry Pi Imager chybí a je dostupný `winget`, pokusí se ho nainstalovat.
+Installer se pokusí načíst aktuální Wi-Fi profil z Windows, ale **SSID i heslo lze vždy zadat ručně**. Launcher při každém spuštění zkontroluje nejnovější GitHub Release, takže kvůli běžné aktualizaci není potřeba ručně stahovat nový installer. Pokud Raspberry Pi Imager chybí a je dostupný `winget`, pokusí se ho nainstalovat.
 
 Windows nástroj nabízí pouze výměnné USB / SD / MMC disky, vylučuje systémový a boot disk a před zápisem zobrazí model i kapacitu zvolené karty.
 
