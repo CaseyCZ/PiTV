@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -643,12 +643,6 @@ class PiTV:
         self.updates_busy = False
         self.external_proc = None
         self.external_kind = None
-
-        # Reference artwork used by the TV home hero. The source repo keeps the
-        # full Dark/Light design references; install.sh copies them next to
-        # pitv.py on the device. CI can still load them from the repo root.
-        self._home_hero_cache = {}
-        self._home_tile_cache = {}
 
         self.wifi_networks = []
         self.wifi_scanning = False
@@ -1370,69 +1364,66 @@ class PiTV:
         items.append({"id": "settings", "name": "Nastavení", "kind": "settings"})
         return items[:12]
 
-    def _home_reference_path(self):
-        theme = {"dark": "apple_dark", "light": "apple_light"}.get(
-            self.cfg.get("theme", "apple_dark"), self.cfg.get("theme", "apple_dark"))
-        name = "Light.jpg" if theme == "apple_light" else "Dark.jpg"
-        here = Path(__file__).resolve().parent
-        for candidate in (here / name, here.parent / name):
-            if candidate.exists():
-                return candidate
-        return None
-
-    def _home_hero_surface(self, size):
-        key = (self.theme_name, int(size[0]), int(size[1]))
-        cached = self._home_hero_cache.get(key)
-        if cached is not None:
-            return cached
-
-        path = self._home_reference_path()
-        if path is None:
-            self._home_hero_cache[key] = False
-            return None
-
-        try:
-            source = pygame.image.load(str(path)).convert()
-            sw, sh = source.get_size()
-            # Crop exactly the hero area from the approved 16:9 reference.
-            crop = pygame.Rect(
-                int(sw * .228),
-                int(sh * .092),
-                int(sw * .714),
-                int(sh * .392),
-            ).clip(source.get_rect())
-            hero = source.subsurface(crop).copy()
-            hero = pygame.transform.smoothscale(hero, (int(size[0]), int(size[1])))
-
-            mask = pygame.Surface(hero.get_size(), pygame.SRCALPHA)
-            pygame.draw.rect(mask, (255,255,255,255), mask.get_rect(), border_radius=24)
-            hero = hero.convert_alpha()
-            hero.blit(mask, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
-            self._home_hero_cache[key] = hero
-            return hero
-        except Exception:
-            self._home_hero_cache[key] = False
-            return None
-
     def draw_home_hero(self):
+        # Dark.jpg / Light.jpg are DESIGN REFERENCES ONLY. This hero is drawn
+        # natively so the TV UI stays live, scalable and fully interactive.
         left = self.main_left()+int(self.w*.015)
         r = pygame.Rect(left, int(self.h*.055),
                         self.w-left-int(self.w*.025), int(self.h*.405))
 
-        hero = self._home_hero_surface(r.size)
-        if hero:
-            self.screen.blit(hero, r.topleft)
-        else:
-            self.gradient_rect(r, self.t["hero"], self.t["bg"], radius=24)
-            self.text("STREAM. APPS. SERVERS. MORE.", r.x+40, r.y+int(self.h*.065),
-                      self.h*.015, self.t["muted"], True)
-            self.text("PiTV", r.x+40, r.y+int(self.h*.105), self.h*.070, self.t["text"], True)
-            self.text("Chytřejší TV. Všechno na jednom místě.",
-                      r.x+42, r.y+int(self.h*.205), self.h*.020, self.t["muted"])
-            ar = pygame.Rect(r.x+42, r.bottom-int(self.h*.075), int(self.w*.105), int(self.h*.050))
-            self.gradient_rect(ar, self.t["accent2"], self.t["action"], radius=ar.h//2)
-            surf = self.font(ar.h*.27, True).render("Procházet  ›", True, (255,255,255))
-            self.screen.blit(surf, surf.get_rect(center=ar.center))
+        is_light = self.theme_name.endswith("Light")
+        top = (248,250,252) if is_light else (12,22,47)
+        bottom = (232,238,245) if is_light else (18,31,67)
+        self.gradient_rect(r, top, bottom, radius=24)
+
+        # Subtle concentric artwork inspired by the approved mockup.
+        art = pygame.Surface((r.w, r.h), pygame.SRCALPHA)
+        center = (int(r.w*.72), int(r.h*.48))
+        ring_color = (110,125,150,28) if is_light else (120,145,255,26)
+        for radius in (
+            int(r.h*.34), int(r.h*.47), int(r.h*.60),
+            int(r.h*.73), int(r.h*.86),
+        ):
+            pygame.draw.circle(art, ring_color, center, radius, max(1,int(self.h*.002)))
+        glow = (80,120,255,18) if not is_light else (70,105,155,14)
+        pygame.draw.circle(art, glow, center, int(r.h*.30))
+        self.screen.blit(art, r.topleft)
+
+        badge_y = r.y+int(self.h*.060)
+        self.text("STREAM. APPS. SERVERS. MORE.", r.x+40, badge_y,
+                  self.h*.014, self.t["muted"], True)
+        self.text("PiTV", r.x+40, r.y+int(self.h*.098),
+                  self.h*.072, self.t["text"], True)
+        self.text("Your TV. Your Way.", r.x+42, r.y+int(self.h*.195),
+                  self.h*.022, self.t["text"], True)
+        self.text("Streamování, aplikace a domácí server na jednom místě.",
+                  r.x+42, r.y+int(self.h*.238), self.h*.017, self.t["muted"])
+
+        ar = pygame.Rect(r.x+42, r.bottom-int(self.h*.082),
+                         int(self.w*.112), int(self.h*.050))
+        self.gradient_rect(ar, self.t["accent2"], self.t["action"], radius=ar.h//2)
+        surf = self.font(ar.h*.27, True).render("Procházet  ›", True, (255,255,255))
+        self.screen.blit(surf, surf.get_rect(center=ar.center))
+
+        # Live decorative app stack on the right, matching the visual hierarchy
+        # of the approved reference without embedding the reference image.
+        cards = [
+            ((14,165,233),(2,132,199),"K"),
+            ((248,48,58),(185,28,28),"▶"),
+            ((168,85,247),(109,40,217),"◆"),
+        ]
+        cx = r.x+int(r.w*.69)
+        cy = r.y+int(r.h*.25)
+        cw = int(r.w*.17)
+        ch = int(r.h*.43)
+        offsets = [(-int(cw*.28), int(ch*.18)), (int(cw*.18), -int(ch*.05)), (int(cw*.58), int(ch*.20))]
+        for idx, (colors, offset) in enumerate(zip(cards, offsets)):
+            rr = pygame.Rect(cx+offset[0], cy+offset[1], cw, ch)
+            self.gradient_rect(rr, colors[0], colors[1], radius=18)
+            pygame.draw.rect(self.screen, (255,255,255,35) if not is_light else self.t["border"],
+                             rr, 1, border_radius=18)
+            icon = self.font(ch*.30, True).render(colors[2], True, (255,255,255))
+            self.screen.blit(icon, icon.get_rect(center=rr.center))
 
         pygame.draw.rect(self.screen, self.t["border"], r, 1, border_radius=24)
 
@@ -1443,80 +1434,29 @@ class PiTV:
             self.screen.blit(gear, (self.w-int(self.w*.037), int(self.h*.018)))
         return r
 
-    HOME_TILE_CROPS = {
-        # Approved Dark.jpg / Light.jpg reference coordinates, normalized from
-        # the 1536x864 mockups. Only the colored app cards are sampled; PiTV
-        # renders live labels and focus itself.
-        "kodi":       (.2298, .5394, .1094, .1065),
-        "smarttube":  (.3444, .5394, .1094, .1065),
-        "stremio":    (.4629, .5394, .1094, .1065),
-        "plex":       (.5807, .5394, .1094, .1065),
-        "youtube-tv": (.6992, .5394, .1094, .1065),
-        "spotify-tv": (.8164, .5394, .1113, .1065),
-        "homebridge": (.2292, .7361, .1094, .1065),
-        "tailscale":  (.3444, .7361, .1094, .1065),
-        "docker":     (.4635, .7361, .1087, .1065),
-        "atvloadly":  (.5814, .7361, .1094, .1065),
-        "android":    (.6999, .7361, .1094, .1065),
-        "settings":   (.8171, .7361, .1100, .1065),
-    }
-
-    def _home_tile_surface(self, tile_id, size):
-        key = (self.theme_name, tile_id, int(size[0]), int(size[1]))
-        cached = self._home_tile_cache.get(key)
-        if cached is not None:
-            return cached
-
-        crop_def = self.HOME_TILE_CROPS.get(tile_id)
-        path = self._home_reference_path()
-        if crop_def is None or path is None:
-            self._home_tile_cache[key] = False
-            return None
-
-        try:
-            source = pygame.image.load(str(path)).convert()
-            sw, sh = source.get_size()
-            x, y, w, h = crop_def
-            crop = pygame.Rect(
-                int(sw*x), int(sh*y), int(sw*w), int(sh*h)
-            ).clip(source.get_rect())
-            tile = source.subsurface(crop).copy()
-            tile = pygame.transform.smoothscale(tile, (int(size[0]), int(size[1])))
-            tile = tile.convert_alpha()
-            mask = pygame.Surface(tile.get_size(), pygame.SRCALPHA)
-            pygame.draw.rect(mask, (255,255,255,255), mask.get_rect(), border_radius=16)
-            tile.blit(mask, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
-            self._home_tile_cache[key] = tile
-            return tile
-        except Exception:
-            self._home_tile_cache[key] = False
-            return None
-
     def draw_home_tile(self, item, rect, selected):
-        tile_art = self._home_tile_surface(item.get("id",""), rect.size)
+        # Tiles are generated UI, not crops from Dark.jpg / Light.jpg.
+        style = self.HOME_TILE_STYLE.get(
+            item.get("id", ""),
+            (self.t["accent2"], self.t["action"], item.get("name","?")[:1].upper())
+        )
+        top, bottom, icon_text = style
 
         if selected:
-            glow = rect.inflate(10, 10)
+            glow = rect.inflate(12, 12)
             halo = pygame.Surface((glow.w, glow.h), pygame.SRCALPHA)
-            pygame.draw.rect(halo, (*self.t["accent"], 48), halo.get_rect(), border_radius=18)
+            pygame.draw.rect(halo, (*self.t["accent"], 48),
+                             halo.get_rect(), border_radius=20)
             self.screen.blit(halo, glow.topleft)
 
-        if tile_art:
-            self.screen.blit(tile_art, rect.topleft)
-        else:
-            style = self.HOME_TILE_STYLE.get(
-                item.get("id", ""),
-                (self.t["accent2"], self.t["action"], item.get("name","?")[:1].upper())
-            )
-            top, bottom, icon_text = style
-            self.gradient_rect(rect, top, bottom, radius=16)
+        self.gradient_rect(rect, top, bottom, radius=16)
 
-            dark_icon = item.get("id") in ("youtube-tv", "settings")
-            icon_color = (239,35,45) if item.get("id") == "youtube-tv" else (
-                (51,65,85) if dark_icon else (255,255,255)
-            )
-            icon = self.font(rect.h*.36, True).render(str(icon_text), True, icon_color)
-            self.screen.blit(icon, icon.get_rect(center=rect.center))
+        dark_icon = item.get("id") in ("youtube-tv", "settings")
+        icon_color = (239,35,45) if item.get("id") == "youtube-tv" else (
+            (51,65,85) if dark_icon else (255,255,255)
+        )
+        icon = self.font(rect.h*.36, True).render(str(icon_text), True, icon_color)
+        self.screen.blit(icon, icon.get_rect(center=rect.center))
 
         pygame.draw.rect(
             self.screen,
@@ -1526,8 +1466,13 @@ class PiTV:
             border_radius=16,
         )
 
-        label = self.font(self.h*.017, selected).render(item.get("name",""), True, self.t["text"])
-        self.screen.blit(label, (rect.centerx-label.get_width()//2, rect.bottom+int(self.h*.010)))
+        label = self.font(self.h*.017, selected).render(
+            item.get("name",""), True, self.t["text"]
+        )
+        self.screen.blit(
+            label,
+            (rect.centerx-label.get_width()//2, rect.bottom+int(self.h*.010))
+        )
 
     def draw_home(self):
         self.draw_sidebar("home")
