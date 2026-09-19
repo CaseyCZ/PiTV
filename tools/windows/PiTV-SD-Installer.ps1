@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
-$InstallerVersion = "0.23"
+$InstallerVersion = "0.24"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
@@ -746,24 +746,44 @@ $diag
 > Automatický error report z PiTV SD Installeru. Log byl před odesláním zkrácen a všechna nalezená SSID byla skryta.
 "@
 
-        # Long prefilled GitHub URLs can be rejected or truncated by Windows.
-        # Keep the report in a local UTF-8 file + clipboard, and open only the
-        # stable GitHub issue page with a short title parameter.
         $reportPath = Join-Path $LogDir ("pitv-error-report-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".txt")
         [IO.File]::WriteAllText($reportPath, $bodyText, (New-Object Text.UTF8Encoding($false)))
         [Windows.Forms.Clipboard]::SetText($bodyText)
 
+        # Autofill a compact diagnostic into GitHub itself. The complete report
+        # stays in the clipboard/file, while this short body avoids the long-URL
+        # failure seen with full logs.
+        $compactLines = @($lines | Select-Object -Last 14)
+        $compactDiag = $compactLines -join [Environment]::NewLine
+        if ($compactDiag.Length -gt 1400) {
+            $compactDiag = $compactDiag.Substring($compactDiag.Length-1400)
+        }
+
+        $compactBody = @"
+### PiTV SD Installer – rychlá diagnostika
+
+Installer: v$InstallerVersion Alpha / Windows
+
+~~~text
+$compactDiag
+~~~
+
+Kompletní anonymizovaný report je zároveň ve schránce Windows.
+"@
+
         $titleText = "[Alpha] PiTV SD Installer – error report"
-        $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" + [Uri]::EscapeDataString($titleText)
+        $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" +
+            [Uri]::EscapeDataString($titleText) +
+            "&body=" + [Uri]::EscapeDataString($compactBody)
 
         try {
             Start-Process -FilePath $url -ErrorAction Stop
             Log ("Error report uložen: " + $reportPath)
-            Log "Report byl zkopírován do schránky. V GitHubu ho vlož přes Ctrl+V a odešli."
+            Log "GitHub byl otevřen s vyplněnou rychlou diagnostikou. Kompletní report je ve schránce."
             [Windows.Forms.MessageBox]::Show(
-                "Otevřel se nový GitHub issue. Kompletní anonymizovaný report je už ve schránce." +
+                "GitHub issue se otevřel s vyplněným logem." +
                 [Environment]::NewLine + [Environment]::NewLine +
-                "Klikni do pole popisu, dej Ctrl+V a potom Submit new issue.",
+                "Stačí kliknout na Submit new issue. Kompletní delší report je navíc ve schránce Windows.",
                 "ODESLAT CHYBU",
                 [Windows.Forms.MessageBoxButtons]::OK,
                 [Windows.Forms.MessageBoxIcon]::Information
