@@ -989,6 +989,9 @@ class PiTV:
         self.updates_busy = False
         self.external_proc = None
         self.external_kind = None
+        self.external_started_at = 0.0
+        self._focus_probe_at = 0.0
+        self._pitv_focus_samples = 0
         self._relay_echo = {}
 
         self.wifi_networks = []
@@ -2314,8 +2317,7 @@ class PiTV:
                                 stdout=log,
                                 stderr=subprocess.STDOUT,
                             )
-                        self.external_proc = proc
-                        self.external_kind = "linux"
+                        self._register_external(proc, "linux")
                         self.store_busy_id = ""
                         self.set_operation(f"Otevírám {item.get('name','Plex')} v Kodi…")
                         self.show_toast("Kodi nainstaluje Plex přehrávač z Kodi.tv repozitáře", 6)
@@ -2392,7 +2394,7 @@ class PiTV:
                         if problem:
                             finish(f"Google Play: {problem}", False)
                             return
-                        self.external_proc = subprocess.Popen(
+                        proc = subprocess.Popen(
                             ["/usr/local/bin/pitv-waydroid-launch", "--play-store", package],
                             env=env,
                             cwd=str(Path.home()),
@@ -2400,7 +2402,7 @@ class PiTV:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        self.external_kind = "apk"
+                        self._register_external(proc, "apk")
                         self.store_busy_id = ""
                         self.set_operation(f"Otevírám {item.get('name','aplikaci')} v Google Play…")
                         self.show_toast(f"Otevírám {item.get('name','aplikaci')} v Google Play", 5)
@@ -2930,11 +2932,100 @@ class PiTV:
             except Exception:
                 self._relay_echo.pop(key, None)
 
+    def _register_external(self, proc, kind):
+        self.external_proc = proc
+        self.external_kind = kind
+        self.external_started_at = time.monotonic()
+        self._focus_probe_at = 0.0
+        self._pitv_focus_samples = 0
+
+    def _active_toplevels(self):
+        if shutil.which("wlrctl") is None:
+            return ""
+        try:
+            p = subprocess.run(
+                ["wlrctl", "toplevel", "list", "state:active"],
+                env=build_gui_env(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=1.2,
+                check=False,
+            )
+            return (p.stdout or "").strip() if p.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    def _recover_external_focus(self):
+        proc = self.external_proc
+        kind = self.external_kind
+        self.external_proc = None
+        self.external_kind = None
+        self.external_started_at = 0.0
+        self._pitv_focus_samples = 0
+
+        # PiTV is already the compositor's active window, so the external
+        # session has become stale/minimized/hidden. Terminate the stale
+        # process group so it cannot steal future CEC input again.
+        if proc and proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(proc.pid), 15)
+            except Exception:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+
+        if kind == "apk":
+            try:
+                subprocess.Popen(
+                    ["waydroid", "session", "stop"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                pass
+
+        self._relay_echo.clear()
+        self.show_toast("Ovládání PiTV obnoveno", 2.0)
+
+    def _external_focus_watchdog(self):
+        if not self.external_kind:
+            self._pitv_focus_samples = 0
+            return
+
+        now = time.monotonic()
+        # Give a newly launched client time to create/focus its toplevel.
+        if now - self.external_started_at < 3.0:
+            return
+        if now < self._focus_probe_at:
+            return
+        self._focus_probe_at = now + 0.5
+
+        active = self._active_toplevels()
+        pitv_active = False
+        for line in active.splitlines():
+            lower = line.lower()
+            # wlrctl emits "app_id: title". SDL's app_id can vary, but PiTV's
+            # window caption is stable: "PiTV <version>".
+            if re.search(r"(?:^|:\s*)pitv(?:\s|$)", lower):
+                pitv_active = True
+                break
+
+        if pitv_active:
+            self._pitv_focus_samples += 1
+            if self._pitv_focus_samples >= 2:
+                self._recover_external_focus()
+        else:
+            self._pitv_focus_samples = 0
+
     def stop_external(self):
         proc = self.external_proc
         kind = self.external_kind
         self.external_proc = None
         self.external_kind = None
+        self.external_started_at = 0.0
+        self._pitv_focus_samples = 0
         if proc and proc.poll() is None:
             try:
                 os.killpg(os.getpgid(proc.pid), 15)
@@ -2964,6 +3055,8 @@ class PiTV:
             if self.external_proc is proc:
                 self.external_proc = None
                 self.external_kind = None
+                self.external_started_at = 0.0
+                self._pitv_focus_samples = 0
             if rc == 0:
                 self.finish_operation(f"{name} ukončeno", True, 2.0)
             else:
@@ -2989,7 +3082,7 @@ class PiTV:
             log_path.write_text("", encoding="utf-8")
             self.set_operation(f"Spouštím {name}…")
             with log_path.open("a", encoding="utf-8") as log:
-                self.external_proc = subprocess.Popen(
+                proc = subprocess.Popen(
                     ["/bin/bash", "-c", app["command"]],
                     env=env,
                     cwd=str(Path.home()),
@@ -2997,7 +3090,7 @@ class PiTV:
                     stdout=log,
                     stderr=subprocess.STDOUT,
                 )
-            self.external_kind = "linux"
+            self._register_external(proc, "linux")
             self.show_toast(f"Spouštím {name}")
             self._watch_launch(self.external_proc, name, "linux", str(log_path))
         except Exception as e:
@@ -3022,7 +3115,7 @@ class PiTV:
                 return
 
             self.set_operation(f"Spouštím {name}…")
-            self.external_proc = subprocess.Popen(
+            proc = subprocess.Popen(
                 ["/usr/local/bin/pitv-waydroid-launch", package, apk_path],
                 env=env,
                 cwd=str(Path.home()),
@@ -3030,7 +3123,7 @@ class PiTV:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            self.external_kind = "apk"
+            self._register_external(proc, "apk")
             self.show_toast(f"Připravuji {name}…")
             self._watch_launch(self.external_proc, name, "apk")
         except Exception as e:
@@ -3420,7 +3513,7 @@ class PiTV:
                         if problem:
                             self.show_toast(f"Android UI: {problem}", 6)
                             return
-                        self.external_proc = subprocess.Popen(
+                        proc = subprocess.Popen(
                             ["/usr/local/bin/pitv-waydroid-launch", "--full-ui"],
                             env=env,
                             cwd=str(Path.home()),
@@ -3428,7 +3521,7 @@ class PiTV:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        self.external_kind = "apk"
+                        self._register_external(proc, "apk")
                         self.show_toast("Spouštím Android UI")
                         self._watch_launch(self.external_proc, "Android UI", "apk")
                     except Exception as e:
@@ -3560,10 +3653,13 @@ class PiTV:
                 finished_kind = self.external_kind
                 self.external_proc = None
                 self.external_kind = None
+                self.external_started_at = 0.0
+                self._pitv_focus_samples = 0
                 if finished_kind in ("apk", "linux"):
                     self.apps = load_apps()
                     self.refresh_store_async()
 
+            self._external_focus_watchdog()
             self.update_idle_state()
             if self.external_kind:
                 # The external client owns the visible surface. Keep PiTV's
