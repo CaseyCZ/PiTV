@@ -102,12 +102,57 @@ elif action == "waydroid-open-play-store":
 elif action == "waydroid-container-start":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
-    run(["waydroid", "container", "start"], timeout=60)
+    status = subprocess.run(
+        ["waydroid", "status"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=10, check=False,
+    )
+    if not re.search(r"^Container:\s*RUNNING\s*$", status.stdout or "", re.M | re.I):
+        run(["waydroid", "container", "start"], timeout=60)
     try:
         ensure_waydroid_media_bridge()
     except Exception as e:
         out(f"Waydroid běží, ale sdílená složka PiTV Media se nepřipojila: {e}", 3)
     out("Waydroid container spuštěn · PiTV Media připojeno")
+
+elif action == "waydroid-ready":
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    status = subprocess.run(
+        ["waydroid", "status"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=10, check=False,
+    )
+    if not re.search(r"^Session:\s*RUNNING\s*$", status.stdout or "", re.M | re.I):
+        out("Waydroid session ještě neběží", 4)
+    boot = subprocess.run(
+        ["waydroid", "shell", "getprop", "sys.boot_completed"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=10, check=False,
+    )
+    if boot.returncode == 0 and (boot.stdout or "").strip().endswith("1"):
+        out("ready")
+    out("Android framework ještě není připravený", 4)
+
+elif action == "waydroid-app-running":
+    package = str(payload.get("package", "")).strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+        out("Neplatný Android package ID", 2)
+    p = subprocess.run(
+        ["waydroid", "shell", "pidof", package],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=10, check=False,
+    )
+    if p.returncode == 0 and (p.stdout or "").strip():
+        out("running")
+    p = subprocess.run(
+        ["waydroid", "shell", "dumpsys", "window", "windows"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=15, check=False,
+    )
+    if p.returncode == 0 and package in (p.stdout or ""):
+        out("running")
+    out("Android aplikace zatím neběží", 4)
 
 elif action == "waydroid-container-stop":
     if shutil.which("waydroid") is None:
