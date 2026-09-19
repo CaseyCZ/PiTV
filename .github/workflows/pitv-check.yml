@@ -38,6 +38,9 @@ jobs:
           grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-kodi-addon
           grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
           grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
+          grep -q 'waydroid-app-uninstall' system/pitv-helper
+          grep -q 'flatpak-uninstall' system/pitv-helper
+          grep -q 'apt-remove' system/pitv-helper
           grep -q 'pitv-session-run' install.sh
           bash -n scripts/install-waydroid.sh
           bash -n tools/pitv-flasher.sh
@@ -103,6 +106,27 @@ jobs:
               assert q.get_nowait() == pygame.K_HOME
 
           app = PiTV()
+
+          # Regression: a legacy Android Stremio APK must stay removable and
+          # must not be mistaken for today's native Linux Stremio Flatpak just
+          # because both can share the same visible app name.
+          legacy_stremio = {
+              "name": "Stremio",
+              "kind": "apk",
+              "package": "com.stremio.legacy",
+              "apk_path": "/home/pitv/PiTV/APKs/stremio-old.apk",
+          }
+          assert app.app_can_uninstall(legacy_stremio)
+          assert app._store_item_for_app(legacy_stremio) is None
+          native_stremio = {
+              "name": "Stremio",
+              "kind": "linux",
+              "command": "flatpak run com.stremio.Stremio",
+          }
+          native_item = app._store_item_for_app(native_stremio)
+          assert native_item
+          assert native_item["installer"]["type"] == "flatpak"
+          assert app.app_can_uninstall(native_stremio)
 
           # Regression: LEFT inside Appearance must change the selected value,
           # not steal focus to the sidebar. Reproduce the physical-TV report:
