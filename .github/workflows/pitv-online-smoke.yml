@@ -1,0 +1,256 @@
+name: PiTV Online Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pitv-online-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-and-launch:
+    name: Install + launch (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Runner information
+        run: |
+          uname -a
+          dpkg --print-architecture
+          cat /etc/os-release
+
+      - name: Full PiTV install
+        run: sudo ./install.sh
+
+      - name: Verify installed files and permissions
+        run: |
+          test -f /opt/pitv/pitv/pitv.py
+          test -x /usr/local/bin/pitv-session
+          test -x /usr/local/bin/pitv-waydroid-launch
+          test -x /usr/local/libexec/pitv-helper
+          test -x /usr/local/libexec/pitv-self-update
+          test -x /usr/local/libexec/pitv-install-waydroid
+          bash -n /usr/local/libexec/pitv-install-waydroid
+          test -f /etc/pitv/store/catalog.json
+          test -f /etc/pitv/store/server_catalog.json
+          id pitv
+          sudo visudo -cf /etc/sudoers.d/pitv-power
+          dpkg -s python3-pygame labwc wtype cec-utils alsa-utils aapt apktool >/dev/null
+
+      - name: Render all PiTV screens with dummy SDL
+        run: |
+          sudo install -d -o pitv -g pitv -m 0700 /tmp/pitv-smoke
+          sudo -u pitv env             HOME=/home/pitv             XDG_RUNTIME_DIR=/tmp/pitv-smoke             SDL_VIDEODRIVER=dummy             SDL_AUDIODRIVER=dummy             PYTHONPATH=/opt/pitv/pitv             python3 - <<'PY'
+          import pygame
+          from pitv import PiTV
+
+          app = PiTV()
+          pages = [
+              "home", "settings", "appearance", "screensaver", "network",
+              "audio", "cec", "apps", "store", "server_store", "android",
+              "updates", "system", "power", "about",
+          ]
+          for page in pages:
+              app.page = page
+              app.draw()
+              print("render OK:", page, app.screen.get_size())
+
+          # Exercise grid/sidebar navigation added by the audit.
+          app.page = "home"
+          app.selected = 0
+          app.handle_key(pygame.K_LEFT)
+          assert app.sidebar_focus
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert app.page == "store"
+
+          # Playback must suspend PiTV's own idle/screensaver timer.
+          app.external_kind = "linux"
+          app.screensaver_stage = "clock"
+          app.cec_standby_sent = True
+          app.update_idle_state()
+          assert app.screensaver_stage == "off"
+          assert app.cec_standby_sent is False
+          app.external_kind = None
+
+          # On a clean runner Waydroid is absent; Android settings must offer
+          # a one-click install path and open PiTV's confirmation dialog.
+          if not __import__("shutil").which("waydroid"):
+              app.page = "android"
+              app.android_selected = 0
+              app.handle_key(pygame.K_RETURN)
+              assert app.confirm_active
+              assert "Waydroid" in app.confirm_title
+              app.confirm_active = False
+
+          pygame.quit()
+          print("PiTV UI smoke OK")
+          PY
+
+      - name: Start PiTV event loop
+        shell: bash
+        run: |
+          set +e
+          sudo -u pitv env             HOME=/home/pitv             XDG_RUNTIME_DIR=/tmp/pitv-smoke             SDL_VIDEODRIVER=dummy             SDL_AUDIODRIVER=dummy             timeout 5s python3 /opt/pitv/pitv/pitv.py
+          rc=$?
+          set -e
+          if [ "$rc" -ne 124 ] && [ "$rc" -ne 0 ]; then
+            echo "PiTV exited unexpectedly: $rc"
+            exit "$rc"
+          fi
+          echo "PiTV event loop stayed alive"
+
+      - name: Test Store install path with Kodi
+        run: |
+          echo '{"package":"kodi"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper apt-install
+          dpkg-query -W -f='${Status}\n' kodi | grep -q "install ok installed"
+          command -v kodi
+          kodi --version | head -n 2
+
+      - name: Test catalog online update
+        run: |
+          echo '{}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper store-catalog-update
+          python3 -m json.tool /etc/pitv/store/catalog.json >/dev/null
+          python3 -m json.tool /etc/pitv/store/server_catalog.json >/dev/null
+
+      - name: Test PiTV self-update path
+        run: |
+          echo '{}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper pitv-self-update
+          grep -q 'VERSION = "1.3.0"' /opt/pitv/pitv/pitv.py
+
+      - name: Launch PiTV again after self-update
+        shell: bash
+        run: |
+          set +e
+          sudo -u pitv env             HOME=/home/pitv             XDG_RUNTIME_DIR=/tmp/pitv-smoke             SDL_VIDEODRIVER=dummy             SDL_AUDIODRIVER=dummy             timeout 3s python3 /opt/pitv/pitv/pitv.py
+          rc=$?
+          set -e
+          test "$rc" -eq 124 -o "$rc" -eq 0
+
+      - name: Uninstall PiTV cleanly
+        run: |
+          sudo ./uninstall.sh
+          test ! -e /opt/pitv
+          test ! -e /etc/pitv
+          test ! -e /home/pitv/.bash_profile
+          test ! -e /usr/local/bin/pitv-session
+          test ! -e /usr/local/libexec/pitv-helper
+          test -d /home/pitv/.config/pitv
+          test -d /home/pitv/PiTV/APKs
+
+  server-store-arm64:
+    name: Server Store install (ARM64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PiTV
+        run: sudo ./install.sh
+
+      - name: Install Homebridge
+        run: |
+          echo '{"target":"homebridge"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper server-store-install
+          dpkg-query -W -f='${Status}\n' homebridge | grep -q "install ok installed"
+
+      - name: Install Tailscale
+        run: |
+          echo '{"target":"tailscale"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper server-store-install
+          command -v tailscale
+          systemctl is-active tailscaled
+
+      - name: Install Docker
+        run: |
+          echo '{"target":"docker"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper server-store-install
+          command -v docker
+          systemctl is-active docker
+          docker version
+
+      - name: Install and start ATVLoadly
+        run: |
+          echo '{"target":"atvloadly"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper server-store-install
+          docker inspect atvloadly >/dev/null
+          docker ps --filter name=^/atvloadly$ --format '{{.Status}}'
+          sleep 5
+          curl --fail --max-time 10 http://127.0.0.1:5533/ >/dev/null
+
+      - name: Read Server Store status
+        run: |
+          echo '{}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper server-store-status | tee /tmp/server-status.json
+          python3 -m json.tool /tmp/server-status.json
+
+
+  android-store-sources:
+    name: Android Store APK sources (ARM64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install APK inspector
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq aapt
+
+      - name: Download and inspect Android Store APKs
+        env:
+          PYTHONPATH: pitv
+          HOME: /tmp/pitv-store-test
+        run: |
+          mkdir -p "$HOME"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          from apk_backend import inspect_apk
+          from store_backend import download_direct_apk, download_github_apk
+
+          catalog = json.loads(Path("store/catalog.json").read_text(encoding="utf-8"))
+          tested = []
+
+          for item in catalog["apps"]:
+              installer = item.get("installer", {})
+              kind = installer.get("type")
+              if kind == "github_release_apk":
+                  path, version = download_github_apk(item)
+              elif kind == "direct_apk":
+                  path, version = download_direct_apk(item)
+              else:
+                  continue
+
+              meta = inspect_apk(path)
+              expected = installer.get("expected_package", "")
+              print(item["name"], "version", version, "package", meta.get("package"), "file", path)
+              assert Path(path).is_file() and Path(path).stat().st_size > 100000
+              assert meta.get("package"), f"{item['name']}: APK package not detected"
+              if expected:
+                  assert meta["package"] == expected, (
+                      f"{item['name']}: {meta['package']} != {expected}"
+                  )
+              tested.append(item["id"])
+
+          assert "smarttube" in tested
+          assert "stremio" in tested
+
+          play_entries = {
+              x["id"]: x["installer"].get("package")
+              for x in catalog["apps"]
+              if x.get("installer", {}).get("type") == "play_store"
+          }
+          assert play_entries["youtube-tv"] == "com.google.android.youtube.tv"
+          assert play_entries["spotify-tv"] == "com.spotify.tv.android"
+          assert play_entries["plex"] == "com.plexapp.android"
+          print("Android Store source smoke OK")
+          PY
