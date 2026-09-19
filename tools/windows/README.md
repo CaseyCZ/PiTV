@@ -38,7 +38,7 @@ Samotný zápis image nedělá vlastní raw-disk kód. Používá oficiální Ra
 
 ## Stav
 
-Aktuálně jde o **v0.5 beta**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
+Aktuálně jde o **v0.10 alpha**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
 
 Celý fyzický proces — skutečná microSD, první boot, Wi-Fi a automatická instalace na Raspberry Pi 4 — ještě před veřejným releasem ověříme na reálném hardware.
 
