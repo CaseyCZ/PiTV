@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -u
+TARGET="${1:-}"
+APK="${2:-}"
+[ -n "$TARGET" ] || exit 2
+
+cleanup() {
+  waydroid session stop >/dev/null 2>&1 || true
+}
+trap cleanup EXIT TERM INT HUP
+
+sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >/dev/null 2>&1 || true
+waydroid session start >/tmp/pitv-waydroid-session.log 2>&1 &
+SESSION_PID=$!
+
+READY=0
+for _ in $(seq 1 60); do
+  if waydroid status 2>/dev/null | grep -qi 'RUNNING'; then READY=1; break; fi
+  sleep 0.5
+done
+[ "$READY" -eq 1 ] || exit 3
+
+if [ "$TARGET" = "--full-ui" ]; then
+  waydroid show-full-ui
+elif [ "$TARGET" = "--play-store" ]; then
+  PACKAGE="$APK"
+  [ -n "$PACKAGE" ] || exit 6
+  if ! waydroid app list 2>/dev/null | grep -Fq "com.android.vending"; then
+    exit 7
+  fi
+  if ! printf '%s' "{\"package\":\"$PACKAGE\"}" | \
+      sudo -n /usr/local/libexec/pitv-helper waydroid-open-play-store >/dev/null 2>&1; then
+    waydroid app launch com.android.vending || exit 8
+  fi
+else
+  if [ -n "$APK" ] && [ -f "$APK" ]; then
+    if ! waydroid app list 2>/dev/null | grep -Fq "$TARGET"; then
+      waydroid app install "$APK" || exit 4
+    fi
+  fi
+  waydroid app launch "$TARGET" || exit 5
+fi
+
+# Keep wrapper alive so HOME from PiTV can terminate the Android session.
+while kill -0 "$SESSION_PID" 2>/dev/null; do sleep 1; done
