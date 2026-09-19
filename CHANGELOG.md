@@ -2,6 +2,14 @@
 
 All notable PiTV changes are documented here.
 
+## 1.3.1 — 2026-09-19
+
+### Fixed
+- Windows SD Installer no longer requires automatic Wi-Fi detection,
+- Wi-Fi SSID and password can be entered manually,
+- release downloads are reduced to one Windows installer ZIP,
+- Windows launcher automatically uses the latest GitHub Release.
+
 ## 1.3.0 — 2026-09-19
 
 ### Added
