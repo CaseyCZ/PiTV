@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "services": [
+    {
+      "id": "homebridge",
+      "name": "Homebridge",
+      "description": "HomeKit bridge a webové rozhraní pro pluginy a zařízení.",
+      "category": "Smart Home",
+      "icon": "HB",
+      "web_port": 8581,
+      "source_label": "Homebridge official repository"
+    },
+    {
+      "id": "tailscale",
+      "name": "Tailscale",
+      "description": "Bezpečný vzdálený přístup a brána do domácí sítě.",
+      "category": "Network",
+      "icon": "TS",
+      "source_label": "Tailscale official repository"
+    },
+    {
+      "id": "docker",
+      "name": "Docker Engine",
+      "description": "Kontejnerový runtime pro serverové aplikace na pozadí.",
+      "category": "Runtime",
+      "icon": "DK",
+      "source_label": "Docker official repository"
+    },
+    {
+      "id": "atvloadly",
+      "name": "ATVLoadly",
+      "description": "Sideload a automatické obnovování aplikací pro Apple TV.",
+      "category": "Apple TV",
+      "icon": "ATV",
+      "web_port": 5533,
+      "requires": ["docker"],
+      "source_label": "bitxeno/atvloadly"
+    }
+  ]
+}
