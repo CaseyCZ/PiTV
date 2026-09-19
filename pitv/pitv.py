@@ -1585,13 +1585,23 @@ class PiTV:
         idx = (idx + direction) % len(values)
         return values[idx]
 
+    @staticmethod
+    def _step(current, values, direction):
+        """Move through an ordered setting without wrapping min <-> max."""
+        try:
+            idx = values.index(current)
+        except ValueError:
+            idx = min(range(len(values)), key=lambda i: abs(float(values[i]) - float(current)))
+        idx = max(0, min(len(values)-1, idx + direction))
+        return values[idx]
+
     def set_screensaver_value(self, row, direction):
         if row == 0:
             self.cfg["screensaver_enabled"] = not self.cfg.get("screensaver_enabled", True)
         elif row == 1:
             vals = [1, 2, 5, 10, 15, 30, 60]
             cur = int(self.cfg.get("screensaver_after_min", 5))
-            self.cfg["screensaver_after_min"] = self._cycle(cur, vals, direction)
+            self.cfg["screensaver_after_min"] = self._step(cur, vals, direction)
         elif row == 2:
             vals = ["clock", "black"]
             cur = self.cfg.get("screensaver_mode", "clock")
@@ -1599,11 +1609,11 @@ class PiTV:
         elif row == 3:
             vals = [0, 10, 15, 30, 60, 120]
             cur = int(self.cfg.get("screensaver_black_after_min", 15))
-            self.cfg["screensaver_black_after_min"] = self._cycle(cur, vals, direction)
+            self.cfg["screensaver_black_after_min"] = self._step(cur, vals, direction)
         elif row == 4:
             vals = [0, 15, 30, 60, 120, 240]
             cur = int(self.cfg.get("screensaver_cec_standby_after_min", 30))
-            self.cfg["screensaver_cec_standby_after_min"] = self._cycle(cur, vals, direction)
+            self.cfg["screensaver_cec_standby_after_min"] = self._step(cur, vals, direction)
         save_user_config(self.cfg)
         self.mark_activity()
 
@@ -3122,7 +3132,9 @@ class PiTV:
                 return
             items = self.network_items()
             if not items:
+                self.network_selected = 0
                 return
+            self.network_selected = min(self.network_selected, len(items)-1)
             if key == pygame.K_UP:
                 self.network_selected = max(0, self.network_selected-1)
             elif key == pygame.K_DOWN:
@@ -3252,6 +3264,10 @@ class PiTV:
 
         elif self.page == "android":
             rows = self.android_items()
+            if not rows:
+                self.android_selected = 0
+                return
+            self.android_selected = min(self.android_selected, len(rows)-1)
             if key == pygame.K_LEFT:
                 self.focus_sidebar("android")
             elif key == pygame.K_UP:
@@ -3267,17 +3283,33 @@ class PiTV:
                     )
                 elif self.android_selected == 4:
                     self.apps = load_apps()
+                    self.android_selected = min(self.android_selected, len(self.android_items())-1)
                     self.show_toast("APK seznam obnoven")
                 elif self.android_selected == 5 and waydroid_available():
                     try:
+                        env = build_gui_env()
+                        problem = gui_env_error(env)
+                        if problem:
+                            self.show_toast(f"Android UI: {problem}", 6)
+                            return
                         self.external_proc = subprocess.Popen(
                             ["/usr/local/bin/pitv-waydroid-launch", "--full-ui"],
-                            env=os.environ.copy(), start_new_session=True,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            env=env,
+                            cwd=str(Path.home()),
+                            start_new_session=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
                         self.external_kind = "apk"
                         self.show_toast("Spouštím Android UI")
+                        self._watch_launch(self.external_proc, "Android UI", "apk")
                     except Exception as e:
                         self.show_toast(str(e), 5)
+                elif self.android_selected >= 6:
+                    apks = [a for a in self.apps if a.get("kind") == "apk"]
+                    apk_index = self.android_selected - 6
+                    if 0 <= apk_index < len(apks):
+                        self.launch_apk(apks[apk_index])
 
         elif self.page == "updates":
             rows = self.update_items()
@@ -3370,6 +3402,11 @@ class PiTV:
                     self.open_confirm("Vypnout Raspberry Pi",
                                       "Opravdu vypnout celý server?",
                                       lambda: subprocess.Popen(["sudo","-n","/usr/bin/systemctl","poweroff"]))
+
+        elif self.page == "about":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("about")
+                return
 
     def run(self):
         while self.running:
