@@ -335,6 +335,55 @@ def uptime():
 
 
 
+def build_gui_env():
+    """Return a normalized environment for children launched inside labwc."""
+    env = os.environ.copy()
+    runtime = env.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    env["XDG_RUNTIME_DIR"] = runtime
+    env.setdefault("XDG_SESSION_TYPE", "wayland")
+    env.setdefault("XDG_CURRENT_DESKTOP", "labwc")
+    env.setdefault("PULSE_RUNTIME_PATH", str(Path(runtime) / "pulse"))
+
+    display = env.get("WAYLAND_DISPLAY", "")
+    display_path = Path(display) if display.startswith("/") else Path(runtime) / display
+    if not display or not display_path.is_socket():
+        try:
+            sockets = [p for p in sorted(Path(runtime).glob("wayland-*")) if p.is_socket()]
+        except Exception:
+            sockets = []
+        if sockets:
+            env["WAYLAND_DISPLAY"] = sockets[0].name
+
+    if not env.get("DBUS_SESSION_BUS_ADDRESS"):
+        bus = Path(runtime) / "bus"
+        if bus.is_socket():
+            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
+    return env
+
+
+def gui_env_error(env):
+    runtime = env.get("XDG_RUNTIME_DIR", "")
+    display = env.get("WAYLAND_DISPLAY", "")
+    if not runtime:
+        return "XDG_RUNTIME_DIR není nastavený"
+    if not display:
+        return "WAYLAND_DISPLAY není nastavený"
+    socket_path = Path(display) if display.startswith("/") else Path(runtime) / display
+    if not socket_path.is_socket():
+        return f"Wayland socket neexistuje: {socket_path}"
+    return ""
+
+
+def tail_text_file(path, max_chars=500):
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace").strip()
+        if not text:
+            return ""
+        return text[-max_chars:].splitlines()[-1]
+    except Exception:
+        return ""
+
+
 def run_privileged(action, payload=None, timeout=600):
     """Run the tightly scoped PiTV root helper."""
     helper = "/usr/local/libexec/pitv-helper"
@@ -2676,8 +2725,12 @@ class PiTV:
         name = self.WTYPE_KEYS.get(key)
         if name and shutil.which("wtype"):
             try:
-                subprocess.Popen(["wtype", "-k", name], stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
+                subprocess.Popen(
+                    ["wtype", "-k", name],
+                    env=build_gui_env(),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             except Exception:
                 pass
 
@@ -2703,7 +2756,7 @@ class PiTV:
         self.page = "home"
         self.show_toast("PiTV")
 
-    def _watch_launch(self, proc, name, kind):
+    def _watch_launch(self, proc, name, kind, log_path=None):
         def worker():
             # A healthy GUI normally stays alive. Catch immediate launcher
             # failures instead of silently returning to PiTV.
@@ -2718,27 +2771,39 @@ class PiTV:
             if rc == 0:
                 self.finish_operation(f"{name} ukončeno", True, 2.0)
             else:
-                detail = ""
-                if kind == "apk":
-                    try:
-                        detail = Path("/tmp/pitv-waydroid-launch.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1]
-                    except Exception:
-                        detail = ""
+                if log_path:
+                    detail = tail_text_file(log_path)
+                elif kind == "apk":
+                    detail = tail_text_file("/tmp/pitv-waydroid-launch.log")
+                else:
+                    detail = tail_text_file("/tmp/pitv-linux-launch.log")
                 self.finish_operation(detail or f"{name}: chyba spuštění ({rc})", False, 6.0)
         threading.Thread(target=worker, daemon=True).start()
 
     def launch_linux(self, app):
         try:
             name = app.get("name", "Aplikace")
+            env = build_gui_env()
+            problem = gui_env_error(env)
+            if problem:
+                self.finish_operation(f"{name}: {problem}", False, 6.0)
+                return
+
+            log_path = Path("/tmp/pitv-linux-launch.log")
+            log_path.write_text("", encoding="utf-8")
             self.set_operation(f"Spouštím {name}…")
-            self.external_proc = subprocess.Popen(
-                ["/bin/bash", "-lc", app["command"]],
-                env=os.environ.copy(), start_new_session=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
+            with log_path.open("a", encoding="utf-8") as log:
+                self.external_proc = subprocess.Popen(
+                    ["/bin/bash", "-c", app["command"]],
+                    env=env,
+                    cwd=str(Path.home()),
+                    start_new_session=True,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                )
             self.external_kind = "linux"
             self.show_toast(f"Spouštím {name}")
-            self._watch_launch(self.external_proc, name, "linux")
+            self._watch_launch(self.external_proc, name, "linux", str(log_path))
         except Exception as e:
             self.finish_operation(f"Nelze spustit: {e}", False, 5.0)
             self.show_toast(f"Nelze spustit: {e}", 4)
@@ -2754,11 +2819,20 @@ class PiTV:
             return
         try:
             name = app.get("name", "Android aplikace")
+            env = build_gui_env()
+            problem = gui_env_error(env)
+            if problem:
+                self.finish_operation(f"{name}: {problem}", False, 6.0)
+                return
+
             self.set_operation(f"Spouštím {name}…")
             self.external_proc = subprocess.Popen(
                 ["/usr/local/bin/pitv-waydroid-launch", package, apk_path],
-                env=os.environ.copy(), start_new_session=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env=env,
+                cwd=str(Path.home()),
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             self.external_kind = "apk"
             self.show_toast(f"Připravuji {name}…")
