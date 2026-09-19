@@ -38,11 +38,7 @@ jobs:
 
             if ($errors.Count -gt 0) {
               $errors | ForEach-Object {
-                Write-Host ("PARSE ERROR {0}:{1}: {2} | extent=[{3}]" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message, $_.Extent.Text)
-              }
-              Write-Host "Last parser tokens:"
-              $tokens | Select-Object -Last 40 | ForEach-Object {
-                Write-Host ("TOKEN {0} {1}:{2}-{3}:{4} [{5}]" -f $_.Kind,$_.Extent.StartLineNumber,$_.Extent.StartColumnNumber,$_.Extent.EndLineNumber,$_.Extent.EndColumnNumber,$_.Text)
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
               }
               exit 1
             }
@@ -63,7 +59,25 @@ jobs:
           }
           Write-Host "PiTVNativeDisk C# helper compiles"
 
-      - name: Verify Windows raw XZ extraction
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          cmake --build $build --config Release --target PiTV-XZ
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) {
+            throw "PiTV-XZ.exe was not produced."
+          }
+
+          $bin = Join-Path $env:RUNNER_TEMP "PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Add-Content -Path $env:GITHUB_ENV -Value ("PITV_XZ_EXE=" + $bin)
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify raw XZ extraction
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -73,23 +87,20 @@ jobs:
           $src = Join-Path $dir "sample.img"
           $xz = Join-Path $dir "sample.img.xz"
           $out = Join-Path $dir "expanded.img"
-          $err = Join-Path $dir "tar.err"
 
           python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
 
-          $tarArgs = '-xOf "' + $xz + '"'
-          $p = Start-Process -FilePath "$env:SystemRoot\System32\tar.exe" -ArgumentList $tarArgs -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
-          if ($p.ExitCode -ne 0) {
-            Get-Content $err -ErrorAction SilentlyContinue
-            throw "Windows tar/libarchive failed to expand a raw .xz stream."
+          & $env:PITV_XZ_EXE $xz $out
+          if ($LASTEXITCODE -ne 0) {
+            throw "PiTV-XZ failed to expand the test stream."
           }
 
           $a = (Get-FileHash -Algorithm SHA256 $src).Hash
           $b = (Get-FileHash -Algorithm SHA256 $out).Hash
           if ($a -ne $b) {
-            throw "Windows tar raw XZ output is not byte-identical."
+            throw "PiTV-XZ output is not byte-identical."
           }
-          Write-Host "Windows tar raw XZ extraction OK"
+          Write-Host "PiTV-XZ raw XZ extraction OK"
 
       - name: Verify PiTV writer contract
         shell: powershell
@@ -120,7 +131,8 @@ jobs:
             "PhysicalDrive",
             "CACHE HIT",
             "image_download_sha256",
-            "Get-PiTVDeviceSha256"
+            "Get-PiTVDeviceSha256",
+            "PiTV-XZ.exe"
           )) {
             if ($engine -notmatch [regex]::Escape($required)) {
               throw "Image engine is missing contract item $required"
