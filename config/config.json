@@ -1,0 +1,16 @@
+{
+  "theme": "apple_dark",
+  "accent": "ioshub-blue",
+  "tile_scale": 1,
+  "cec_enabled": true,
+  "show_clock": true,
+  "cec_wake_on_start": false,
+  "screensaver_enabled": true,
+  "screensaver_after_min": 5,
+  "screensaver_mode": "clock",
+  "screensaver_black_after_min": 15,
+  "screensaver_cec_standby_after_min": 30,
+  "hdmi_audio_port": "auto",
+  "hidden_apps": [],
+  "version": "1.3"
+}
