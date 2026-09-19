@@ -1,0 +1,78 @@
+name: PiTV Check
+
+on:
+  push:
+    branches: [Master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pitv-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python syntax
+        run: |
+          python3 -m py_compile \
+            pitv/pitv.py \
+            pitv/apk_backend.py \
+            pitv/store_backend.py \
+            pitv/update_backend.py \
+            system/pitv-helper \
+            system/pitv-self-update
+
+      - name: Shell syntax
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n system/pitv-session
+          bash -n system/pitv-waydroid-launch
+          bash -n scripts/install-waydroid.sh
+
+      - name: Store JSON
+        run: |
+          python3 - <<'PY'
+          import json
+          for path in (
+              "store/catalog.json",
+              "store/server_catalog.json",
+              "config/config.json",
+          ):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+              print("OK", path)
+          PY
+
+      - name: Runtime render with Ubuntu Pygame
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pygame
+          PYTHONPATH=pitv SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            python3 - <<'PY'
+          import pygame
+          from pitv import PiTV, VERSION
+
+          app = PiTV()
+          pages = (
+              "home", "settings", "appearance", "screensaver", "network",
+              "audio", "cec", "apps", "store", "server_store", "android",
+              "updates", "system", "power", "about",
+          )
+          for theme in ("apple_dark", "apple_light"):
+              app.cfg["theme"] = theme
+              for page in pages:
+                  app.page = page
+                  app.draw()
+                  print("render OK", theme, page)
+
+          assert len(app.SETTINGS) == 12
+          pygame.quit()
+          print("PiTV runtime render OK", VERSION)
+          PY
