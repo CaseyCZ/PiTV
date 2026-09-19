@@ -129,9 +129,12 @@ CEC_CODE_MAP = {
     0x03: pygame.K_LEFT,
     0x04: pygame.K_RIGHT,
     0x09: pygame.K_HOME,     # Device Root Menu
+    0x0A: pygame.K_HOME,     # Device Setup Menu
     0x0B: pygame.K_HOME,     # Contents Menu
+    0x0C: pygame.K_HOME,     # Favorite Menu
     0x0D: pygame.K_ESCAPE,   # Back
     0x10: pygame.K_HOME,     # Media Top Menu
+    0x11: pygame.K_HOME,     # Media Context Sensitive Menu
     0x2B: pygame.K_RETURN,   # Enter
     0x32: pygame.K_ESCAPE,   # Previous Channel: common Back fallback
     0x41: PITV_KEY_VOLUMEUP,
@@ -3163,10 +3166,17 @@ class PiTV:
 
         if key == pygame.K_HOME:
             self.sidebar_focus = False
-            self.page = "home"; self.selected = 0; return
+            self.page = "home"
+            self.selected = 0
+            self.show_toast("Domů", 1.2)
+            return
 
         if key == pygame.K_ESCAPE:
             if self.page == "home":
+                # At the root there is nowhere further back to go. Move focus
+                # to the navigation rail so Back still produces a useful,
+                # visible result on a TV remote.
+                self.focus_sidebar("home")
                 return
             if self.page == "store":
                 self.page = self.store_return_page
