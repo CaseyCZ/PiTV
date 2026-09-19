@@ -57,7 +57,26 @@ jobs:
           }
           Write-Host "PiTVNativeDisk C# helper compiles"
 
-      - name: Verify Windows raw XZ extraction
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure for PiTV-XZ failed." }
+
+          cmake --build $build --config Release --target PiTV-XZ
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ build failed." }
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) { throw "PiTV-XZ.exe was not produced." }
+
+          $bin = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify PiTV XZ extraction
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -66,20 +85,18 @@ jobs:
           $src = Join-Path $dir "sample.img"
           $xz = Join-Path $dir "sample.img.xz"
           $out = Join-Path $dir "expanded.img"
-          $err = Join-Path $dir "tar.err"
+          $decoder = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
 
           python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to create XZ test fixture." }
 
-          $tarArgs = '-xOf "' + $xz + '"'
-          $p = Start-Process -FilePath "$env:SystemRoot\System32\tar.exe" -ArgumentList $tarArgs -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
-          if ($p.ExitCode -ne 0) {
-            Get-Content $err -ErrorAction SilentlyContinue
-            throw "Windows tar/libarchive failed to expand a raw .xz stream."
-          }
+          & $decoder $xz $out
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ failed to expand the test image." }
+
           if ((Get-FileHash -Algorithm SHA256 $src).Hash -ne (Get-FileHash -Algorithm SHA256 $out).Hash) {
-            throw "Windows tar raw XZ output is not byte-identical."
+            throw "PiTV-XZ output is not byte-identical."
           }
-          Write-Host "Windows tar raw XZ extraction OK"
+          Write-Host "PiTV-XZ raw XZ extraction OK"
 
       - name: Verify PiTV writer contract
         shell: powershell
@@ -107,13 +124,22 @@ jobs:
             "PhysicalDrive",
             "CACHE HIT",
             "image_download_sha256",
-            "Get-PiTVDeviceSha256"
+            "Get-PiTVDeviceSha256",
+            "PiTV-XZ.exe"
           )) {
             if ($engine -notmatch [regex]::Escape($required)) {
               throw "Image engine is missing contract item $required"
             }
           }
           Write-Host "PiTV raw writer/cache contract OK"
+
+      - name: Upload PiTV XZ decoder
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows/PiTV-XZ.exe
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Verify launcher target
         shell: powershell
@@ -132,6 +158,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download PiTV XZ decoder
+        uses: actions/download-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows
+
       - name: Release checks
         shell: bash
         run: |
@@ -145,6 +177,8 @@ jobs:
           pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
           pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
           pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-ImageEngine.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+          test -s tools/windows/PiTV-XZ.exe
+          test -s tools/windows/THIRD-PARTY-NOTICES.txt
           (
             cd vendor/waydroid/noble
             sha256sum -c SHA256SUMS
@@ -161,6 +195,8 @@ jobs:
           cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
           cp tools/windows/PiTV-ImageEngine.ps1 "dist/PiTV-SD-Installer-Windows/"
           cp tools/windows/PiTVNativeDisk.cs "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-XZ.exe "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/THIRD-PARTY-NOTICES.txt "dist/PiTV-SD-Installer-Windows/"
           cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
           cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
           (
