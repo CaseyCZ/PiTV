@@ -450,17 +450,22 @@ function Invoke-ImagerWrite([string]$imager,[string[]]$arguments) {
     }
 }
 
-function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName) {
+function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,[string]$ExpectedIdentity="") {
     $candidate = Get-SafeDisks | Where-Object { $_.Number -eq $Number } | Select-Object -First 1
     if (-not $candidate) { throw "Vybraný disk už není dostupný jako bezpečný výměnný disk." }
     if ([UInt64]$candidate.Size -ne $ExpectedSize -or [string]$candidate.FriendlyName -ne $ExpectedName) {
         throw "Vybraný disk se od posledního načtení změnil. Obnov seznam a vyber kartu znovu."
     }
+
+    $candidateIdentity = if ($candidate.UniqueId) { [string]$candidate.UniqueId } elseif ($candidate.SerialNumber) { [string]$candidate.SerialNumber } else { "" }
+    if ($ExpectedIdentity -and $candidateIdentity -and $candidateIdentity -ne $ExpectedIdentity) {
+        throw "Identita vybraného disku se změnila. Zápis byl z bezpečnostních důvodů zablokován."
+    }
     return $candidate
 }
 
-function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName) {
-    $null = Get-VerifiedSafeDisk $Number $ExpectedSize $ExpectedName
+function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,[string]$ExpectedIdentity="") {
+    $null = Get-VerifiedSafeDisk $Number $ExpectedSize $ExpectedName $ExpectedIdentity
 
     Set-Disk -Number $Number -IsReadOnly $false
     Clear-Disk -Number $Number -RemoveData -Confirm:$false
@@ -765,6 +770,7 @@ function Refresh-Drives {
             Number=$d.Number
             Name=$d.FriendlyName
             Size=[UInt64]$d.Size
+            Identity=(if ($d.UniqueId) { [string]$d.UniqueId } elseif ($d.SerialNumber) { [string]$d.SerialNumber } else { "" })
             Display=("Disk {0} · {1} · {2} · {3}" -f $d.Number,$d.FriendlyName,(Size-Text $d.Size),$d.BusType)
         }
         [void]$disk.Items.Add($o)
@@ -963,7 +969,7 @@ $format.Add_Click({
         $imageBrowse.Enabled = $false
 
         Log ("Formátuji Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
-        $vol = Format-SdDisk $d.Number $d.Size $d.Name
+        $vol = Format-SdDisk $d.Number $d.Size $d.Name $d.Identity
         Log ("HOTOVO. SDCARD " + (Size-Text ([UInt64]$vol.Size)) + " · exFAT")
         Refresh-Drives
 
@@ -1055,7 +1061,7 @@ $create.Add_Click({
         Log "Cílová Wi-Fi pro Raspberry Pi byla potvrzena."
 
         $cloud = New-CloudInit $ssid $password
-        $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name
+        $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
         $target = "\\.\PhysicalDrive" + $d.Number
 
         $args = @(
