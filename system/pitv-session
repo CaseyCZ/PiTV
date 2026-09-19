@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export XDG_SESSION_TYPE=wayland
+export SDL_VIDEODRIVER=wayland
+export XDG_CURRENT_DESKTOP=labwc
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR="$RUNTIME"
+mkdir -p "$RUNTIME" 2>/dev/null || true
+chmod 700 "$RUNTIME" 2>/dev/null || true
+exec dbus-run-session -- labwc
