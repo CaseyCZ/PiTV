@@ -49,8 +49,10 @@ Vlastní image musí být kompatibilní se zvoleným Raspberry Pi a s cloud-init
 - zkontroluje velikost a dostupný SHA-256 stažené image,
 - rozbalí image do dočasného raw `.img`,
 - zapíše image přímo na `\\.\PhysicalDriveN` vlastním PiTV raw writerem,
-- po zápisu přečte stejné bajty zpět z karty a porovná SHA-256,
-- znovu načte boot oddíl a vloží `user-data`, `network-config` a podle potřeby `meta-data`,
+- po zápisu vyžádá od Windows skutečný `FlushFileBuffers`, přečte stejné bajty zpět z karty a porovná SHA-256,
+- počká na stabilní re-enumeraci SD/USB zařízení; při transientní chybě umí provést omezený `diskpart rescan`,
+- znovu načte boot oddíl a vloží `user-data`, `network-config` a podle potřeby `meta-data` s durable flush + read-back kontrolou,
+- finalize fázi při chybě automaticky zopakuje až 3×, takže běžný post-write race už nemá vyžadovat ruční **OPRAVIT / DOPLNIT PiTV**,
 - vyhledá dostupné Wi-Fi sítě a spojí je s uloženými Windows profily,
 - u známé sítě se pokusí načíst uložené heslo; SSID i heslo lze vždy zadat ručně,
 - vytvoří silné náhodné recovery heslo pro `pitvadmin`,
@@ -81,7 +83,7 @@ Při chybě se zapisuje typ výjimky, zpráva, HResult, PowerShell error ID, kat
 
 ## Stav
 
-Aktuálně jde o **v0.21 alpha**.
+Aktuálně jde o **v0.28 alpha**.
 
 GitHub Actions na Windows kontrolují:
 
