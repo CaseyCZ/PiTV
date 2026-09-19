@@ -203,7 +203,6 @@ elif action == "background-status":
     status = {
         "tailscale": svc("tailscaled"),
         "homebridge": svc("homebridge"),
-        "plexmediaserver": svc("plexmediaserver"),
         "docker": svc("docker"),
         "ssh": svc("ssh"),
         "atvloadly": "nenalezen",
@@ -236,9 +235,6 @@ elif action == "background-restart":
     if target == "homebridge":
         run(["systemctl", "restart", "homebridge"], timeout=60)
         out("Homebridge restartován")
-    if target in ("plex", "plexmediaserver"):
-        run(["systemctl", "restart", "plexmediaserver"], timeout=90)
-        out("Plex Media Server restartován")
     if target == "atvloadly":
         if shutil.which("docker") is None:
             out("Docker není nainstalovaný", 2)
@@ -286,16 +282,6 @@ elif action == "server-store-status":
         "state": service_state("tailscaled"),
         "authenticated": bool(ts_ip),
         "ip": ts_ip,
-    }
-
-    plex_installed = subprocess.run(
-        ["dpkg-query", "-W", "-f=${Status}", "plexmediaserver"],
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        text=True, check=False
-    )
-    status["plexmediaserver"] = {
-        "installed": plex_installed.returncode == 0 and "install ok installed" in plex_installed.stdout,
-        "state": service_state("plexmediaserver"),
     }
 
     docker_installed = shutil.which("docker") is not None
@@ -360,27 +346,6 @@ elif action == "server-store-install":
                 pass
         subprocess.run(["systemctl", "enable", "--now", "tailscaled"], check=False)
         out("Tailscale nainstalován · přihlášení dokonči přes položku Tailscale")
-
-    if target == "plexmediaserver":
-        run(["apt-get", "update"], timeout=300, env=env)
-        run(["apt-get", "-y", "install", "curl", "gnupg", "ca-certificates"], timeout=600, env=env)
-        os.makedirs("/etc/apt/keyrings", mode=0o755, exist_ok=True)
-        fd, key_tmp = tempfile.mkstemp(prefix="pitv-plex-", suffix=".key")
-        os.close(fd)
-        try:
-            run(["curl", "-fsSL", "https://downloads.plex.tv/plex-keys/PlexSign.v2.key", "-o", key_tmp], timeout=60)
-            run(["gpg", "--dearmor", "--yes", "--output", "/etc/apt/keyrings/plexmediaserver.v2.gpg", key_tmp], timeout=60)
-        finally:
-            try:
-                os.unlink(key_tmp)
-            except FileNotFoundError:
-                pass
-        with open("/etc/apt/sources.list.d/plex.list", "w", encoding="utf-8") as ph:
-            ph.write("deb [signed-by=/etc/apt/keyrings/plexmediaserver.v2.gpg] https://repo.plex.tv/deb/ public main\n")
-        run(["apt-get", "update"], timeout=300, env=env)
-        run(["apt-get", "-y", "install", "plexmediaserver"], timeout=1200, env=env)
-        subprocess.run(["systemctl", "enable", "--now", "plexmediaserver"], check=False)
-        out("Plex Media Server nainstalován · web na portu 32400")
 
     if target == "docker":
         run(["apt-get", "update"], timeout=300, env=env)
