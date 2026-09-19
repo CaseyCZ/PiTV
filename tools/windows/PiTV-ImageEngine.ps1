@@ -582,7 +582,7 @@ function Install-PiTVCloudInitToBootPartition($d,$cloud) {
             $vol = $null
             try { $vol = $part | Get-Volume -ErrorAction Stop } catch {}
 
-            if ($vol -and (($vol.FileSystem -match '^FAT') -or ($vol.FileSystemLabel -match '^(system-boot|bootfs|boot)) {
+            if ($vol -and (($vol.FileSystem -match '^FAT') -or ($vol.FileSystemLabel -in @('system-boot','bootfs','boot')))) {
                 $bootPart = $part
                 $bootVol = $vol
                 break
