@@ -21,59 +21,106 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Parse PowerShell installer
+      - name: Parse PowerShell installer and engine
         shell: powershell
         run: |
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
+          foreach ($file in @(
             "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
 
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object {
-              Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              exit 1
             }
-            exit 1
+            Write-Host ("PowerShell syntax OK: " + $file)
           }
-
-          Write-Host "PowerShell syntax OK"
 
       - name: Verify live Ubuntu catalog
         shell: powershell
         run: |
           & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
 
-      - name: Verify current Raspberry Pi Imager CLI contract
+      - name: Verify Windows raw XZ extraction
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $headers = @{ "User-Agent" = "PiTV-CI" }
-          $release = Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri "https://api.github.com/repos/raspberrypi/rpi-imager/releases/latest"
-          $tag = [string]$release.tag_name
-          if (-not $tag) { throw "Unable to resolve latest Raspberry Pi Imager release tag." }
+          $dir = Join-Path $env:RUNNER_TEMP "pitv-xz-test"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
 
-          $cliUrl = "https://raw.githubusercontent.com/raspberrypi/rpi-imager/$tag/src/cli.cpp"
-          $cliSource = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Headers $headers -Uri $cliUrl).Content
-          foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig","--sha256")) {
-            if ($cliSource -notmatch [regex]::Escape($required.TrimStart("-"))) {
-              throw "Raspberry Pi Imager $tag source is missing CLI contract item $required"
+          $src = Join-Path $dir "sample.img"
+          $xz = Join-Path $dir "sample.img.xz"
+          $out = Join-Path $dir "expanded.img"
+          $err = Join-Path $dir "tar.err"
+
+          @'
+import lzma
+from pathlib import Path
+data = bytes(range(256)) * 16384
+Path(r"__SRC__").write_bytes(data)
+Path(r"__XZ__").write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))
+'@.Replace("__SRC__", $src).Replace("__XZ__", $xz) | python -
+
+          $p = Start-Process -FilePath "$env:SystemRoot\System32\tar.exe" -ArgumentList ("-xOf \"" + $xz + "\"") -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          if ($p.ExitCode -ne 0) {
+            Get-Content $err -ErrorAction SilentlyContinue
+            throw "Windows tar/libarchive failed to expand a raw .xz stream."
+          }
+
+          $a = (Get-FileHash -Algorithm SHA256 $src).Hash
+          $b = (Get-FileHash -Algorithm SHA256 $out).Hash
+          if ($a -ne $b) {
+            throw "Windows tar raw XZ output is not byte-identical."
+          }
+          Write-Host "Windows tar raw XZ extraction OK"
+
+      - name: Verify PiTV writer contract
+        shell: powershell
+        run: |
+          $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+
+          if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
+            throw "Legacy Raspberry Pi Imager dependency is still present."
+          }
+          if ($installer -notmatch "PiTV-ImageEngine\.ps1") {
+            throw "Installer does not load PiTV-ImageEngine.ps1"
+          }
+
+          foreach ($required in @(
+            "Get-PiTVOnlineImageFile",
+            "Prepare-PiTVRawImage",
+            "Write-PiTVRawImageToDisk",
+            "Install-PiTVCloudInitToBootPartition"
+          )) {
+            if ($installer -notmatch [regex]::Escape($required)) {
+              throw "Installer write flow is missing $required"
             }
           }
 
-          $pitv = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
-          if ($pitv -match '"--disable-telemetry"') {
-            throw "PiTV passes GUI-only --disable-telemetry to Raspberry Pi Imager CLI."
-          }
-          foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig")) {
-            if ($pitv -notmatch [regex]::Escape('"' + $required + '"')) {
-              throw "PiTV write path is missing required argument $required"
+          foreach ($required in @(
+            "PiTVNativeDisk",
+            "PhysicalDrive",
+            "CACHE HIT",
+            "image_download_sha256",
+            "Get-PiTVDeviceSha256"
+          )) {
+            if ($engine -notmatch [regex]::Escape($required)) {
+              throw "Image engine is missing contract item $required"
             }
           }
 
-          Write-Host ("Raspberry Pi Imager contract OK against latest release " + $tag)
+          Write-Host "PiTV raw writer/cache contract OK"
+
       - name: Verify launcher target
         shell: powershell
         run: |
