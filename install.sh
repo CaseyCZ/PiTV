@@ -118,7 +118,9 @@ cp -a system/labwc/. /home/pitv/.config/labwc/
 chown -R pitv:pitv /home/pitv/.config/labwc
 install -m 0644 -o pitv -g pitv system/bash_profile /home/pitv/.bash_profile
 
-# Let PiTV perform only these two privileged TV actions.
+# PiTV privileged boundary: power, the validated root helper, and kernel CEC.
+# cec-ctl monitor mode needs CAP_NET_ADMIN; expose only the fixed cec-ctl binary
+# to the dedicated local pitv account, never a shell.
 cat >/etc/sudoers.d/pitv-power <<'EOF'
 pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/bin/cec-ctl *
 EOF
@@ -135,6 +137,18 @@ EOF
 
 systemctl daemon-reload
 systemctl enable getty@tty1.service
+
+# Older/manual PiTV repair sessions could leave duplicate vc4-kms-v3d overlays.
+# Keep the first vc4-kms-v3d line only; duplicate KMS overlays can confuse HDMI/CEC.
+BOOTCFG=""
+for p in /boot/firmware/config.txt /boot/config.txt; do
+  [ -f "$p" ] && BOOTCFG="$p" && break
+done
+if [ -n "$BOOTCFG" ]; then
+  awk 'BEGIN{seen=0} /^dtoverlay=vc4-kms-v3d([,].*)?$/ {if(seen++) next} {print}' "$BOOTCFG" >"$BOOTCFG.pitv"
+  cat "$BOOTCFG.pitv" >"$BOOTCFG"
+  rm -f "$BOOTCFG.pitv"
+fi
 
 echo
 echo "PiTV je nainstalováno."
