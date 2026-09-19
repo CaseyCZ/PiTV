@@ -108,6 +108,18 @@ jobs:
           app.handle_key(pygame.K_RIGHT)
           assert abs(float(app.cfg["tile_scale"]) - 1.0) < 0.001
 
+          # Regression: if labwc focus has returned to PiTV while an external
+          # process is still flagged, clear the stale external session.
+          app.external_kind = "linux"
+          app.external_proc = None
+          app.external_started_at = time.monotonic() - 5
+          app._active_toplevels = lambda: "python3: PiTV test"
+          app._focus_probe_at = 0
+          app._external_focus_watchdog()
+          app._focus_probe_at = 0
+          app._external_focus_watchdog()
+          assert app.external_kind is None
+
           # Ordered timer settings must stop at their limits, never wrap
           # e.g. 1 minute LEFT -> 60 minutes.
           app.page = "screensaver"
