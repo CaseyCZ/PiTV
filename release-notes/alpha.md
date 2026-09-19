@@ -1,5 +1,10 @@
 # PiTV Alpha
 
+### PiTV 1.4.15 · External app return/focus recovery
+- opravuje stav, kdy se po návratu z Kodi launcher zobrazil, ale nereagoval na ovladač
+- PiTV nyní pomocí wlrctl sleduje skutečně aktivní Wayland okno v labwc
+- pokud se focus vrátí do PiTV, ale externí session zůstane omylem aktivní, PiTV ji automaticky ukončí a obnoví vlastní CEC/input
+- všechny Linux/Waydroid launch cesty používají jednotnou registraci external session
 ### PiTV 1.4.14 · CEC Home / Back
 - doplněny všechny běžné HDMI-CEC menu kódy pro tlačítko Home/domeček (Root, Setup, Contents, Favorite, Media Top, Media Context)
 - Home v Kodi/externí aplikaci se mapuje zpět do PiTV
