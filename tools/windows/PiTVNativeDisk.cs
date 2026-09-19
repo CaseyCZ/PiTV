@@ -89,7 +89,7 @@ public static class PiTVNativeDisk
         return p.TrimEnd('\\');
     }
 
-    public static PiTVVolumeLock LockAndDismount(string volumePath)
+    private static PiTVVolumeLock LockVolumeCore(string volumePath, bool dismount)
     {
         string normalized = NormalizeVolumePath(volumePath);
         SafeFileHandle handle = OpenHandle(normalized, GENERIC_READ | GENERIC_WRITE);
@@ -102,7 +102,7 @@ public static class PiTVNativeDisk
             throw new Win32Exception(error, "FSCTL_LOCK_VOLUME failed for " + normalized);
         }
 
-        if (!DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out returned, IntPtr.Zero))
+        if (dismount && !DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out returned, IntPtr.Zero))
         {
             int error = Marshal.GetLastWin32Error();
             DeviceIoControl(handle, FSCTL_UNLOCK_VOLUME, IntPtr.Zero, 0, IntPtr.Zero, 0, out returned, IntPtr.Zero);
@@ -111,6 +111,20 @@ public static class PiTVNativeDisk
         }
 
         return new PiTVVolumeLock(handle, normalized);
+    }
+
+    public static PiTVVolumeLock LockVolume(string volumePath)
+    {
+        // Locking is sufficient to stop filesystem access during a whole-disk
+        // raw write. Some removable USB/SD readers become temporarily
+        // "not ready" after FSCTL_DISMOUNT_VOLUME, so the installer deliberately
+        // keeps the volume locked without dismounting it.
+        return LockVolumeCore(volumePath, false);
+    }
+
+    public static PiTVVolumeLock LockAndDismount(string volumePath)
+    {
+        return LockVolumeCore(volumePath, true);
     }
 
     public sealed class PiTVVolumeLock : IDisposable
