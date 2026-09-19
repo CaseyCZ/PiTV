@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-v1.3.2-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV version 1.3.0" />
+  <img src="https://img.shields.io/badge/VERSION-v1.3.3-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV version 1.3.0" />
   <img src="https://img.shields.io/badge/STATUS-Beta-FDE68A?style=for-the-badge&labelColor=92400E" alt="PiTV Beta" />
 </p>
 
@@ -50,7 +50,7 @@ PiTV does not require a full desktop such as GNOME. The graphical layer runs on 
 
 The easiest path is **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)**.
 
-On Windows download the single installer package **`PiTV-SD-Installer-Windows-v1.3.2.zip`**, extract it and run **`Start-PiTV-SD-Installer.cmd`**. The launcher checks the latest GitHub Release on every start and runs the current installer.
+On Windows download the single installer package **`PiTV-SD-Installer-Windows-v1.3.3.zip`**, extract it and run **`Start-PiTV-SD-Installer.cmd`**. The launcher checks the latest GitHub Release on every start and runs the current installer.
 
 Linux and macOS use `tools/pitv-flasher.sh` directly from the repository. GitHub automatically adds Source code ZIP/TAR.GZ to each Release.
 
