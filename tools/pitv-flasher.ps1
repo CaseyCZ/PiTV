@@ -4,7 +4,8 @@
 
 [CmdletBinding()]
 param(
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$FormatOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -154,6 +155,23 @@ function Select-SdDisk {
     return $disk
 }
 
+function Format-SdDisk($Disk) {
+    Write-Step "Formátuji SD kartu"
+    Set-Disk -Number $Disk.Number -IsReadOnly $false
+    Clear-Disk -Number $Disk.Number -RemoveData -Confirm:$false
+
+    $state = Get-Disk -Number $Disk.Number
+    if ($state.PartitionStyle -eq "RAW") {
+        Initialize-Disk -Number $Disk.Number -PartitionStyle MBR | Out-Null
+    }
+
+    $part = New-Partition -DiskNumber $Disk.Number -UseMaximumSize -AssignDriveLetter
+    $vol = $part | Format-Volume -FileSystem exFAT -NewFileSystemLabel "SDCARD" -Confirm:$false -Force
+
+    Write-Host ""
+    Write-Host ("HOTOVO: {0}: SDCARD · exFAT · {1} GB" -f $vol.DriveLetter,[Math]::Round($vol.Size / 1GB, 2)) -ForegroundColor Green
+}
+
 function Yaml-Quote([string]$Value) {
     return "'" + ($Value -replace "'", "''") + "'"
 }
@@ -194,12 +212,18 @@ function Get-BootVolume([int]$DiskNumber) {
 Ensure-Admin
 
 Write-Host ""
-Write-Host "PiTV Flasher 0.1 (Windows)" -ForegroundColor Cyan
+Write-Host "PiTV Flasher 0.2 (Windows)" -ForegroundColor Cyan
 Write-Host "Ubuntu Server 24.04 LTS ARM64 + automatická instalace PiTV"
 Write-Host ""
 
 if ($DryRun) {
-    Write-Host "DRY RUN OK"
+    Write-Host ("DRY RUN OK" + $(if ($FormatOnly) { " · FORMAT ONLY" } else { "" }))
+    exit 0
+}
+
+if ($FormatOnly) {
+    $disk = Select-SdDisk
+    Format-SdDisk $disk
     exit 0
 }
 
