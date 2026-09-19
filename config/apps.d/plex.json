@@ -1,0 +1,8 @@
+{
+  "name": "Plex",
+  "subtitle": "Média · Linux · Kodi",
+  "icon": "PLEX",
+  "command": "/usr/local/bin/pitv-kodi-addon run script.plexmod",
+  "requires": "/home/pitv/.kodi/addons/script.plexmod/addon.xml",
+  "kind": "linux"
+}
