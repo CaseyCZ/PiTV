@@ -20,7 +20,7 @@ Běžný uživatel tedy nemusí ručně instalovat Ubuntu, hledat IP adresu Rasp
 
 ## Windows — doporučená cesta
 
-Windows má vlastní malé grafické rozhraní. Hotový balíček je dostupný také v **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)** jako `PiTV-SD-Installer-Windows-v1.3.3.zip`.
+Windows má vlastní malé grafické rozhraní. Hotový balíček je dostupný také v **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/tag/alpha)** jako `PiTV-SD-Installer-Windows.zip`.
 
 1. stáhni nebo naklonuj repozitář PiTV,
 2. otevři `tools/windows/`,
