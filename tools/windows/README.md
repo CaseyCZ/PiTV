@@ -20,7 +20,9 @@ Pokud chceš kartu pouze vrátit do běžného stavu, použij **NAFORMÁTOVAT SD
 - najde podporovaný Ubuntu Server 24.04 LTS ARM64,
 - použije oficiální Raspberry Pi Imager CLI,
 - při chybějícím Imageru se ho pokusí doinstalovat přes `winget`,
-- pokusí se načíst aktuální Wi-Fi profil z Windows; SSID a heslo lze také zadat ručně,
+- vyhledá dostupné Wi-Fi sítě a spojí je s uloženými Windows profily,
+- u známé sítě se pokusí načíst uložené heslo; SSID i heslo lze vždy zadat ručně,
+- heslo lze dočasně zobrazit pro kontrolu před zápisem,
 - připraví cloud-init,
 - vytvoří silné náhodné recovery heslo pro `pitvadmin`,
 - při prvním bootu stáhne `CaseyCZ/PiTV`, spustí `install.sh` a Raspberry restartuje,
@@ -36,7 +38,7 @@ Samotný zápis image nedělá vlastní raw-disk kód. Používá oficiální Ra
 
 ## Stav
 
-Aktuálně jde o **v0.3 beta**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
+Aktuálně jde o **v0.4 beta**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
 
 Celý fyzický proces — skutečná microSD, první boot, Wi-Fi a automatická instalace na Raspberry Pi 4 — ještě před veřejným releasem ověříme na reálném hardware.
 
