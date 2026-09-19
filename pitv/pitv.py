@@ -884,6 +884,7 @@ class PiTV:
         self.updates_busy = False
         self.external_proc = None
         self.external_kind = None
+        self._relay_echo = {}
 
         self.wifi_networks = []
         self.wifi_scanning = False
@@ -2755,6 +2756,23 @@ class PiTV:
         pygame.K_SPACE: "85",       # KEYCODE_MEDIA_PLAY_PAUSE
     }
 
+    def _mark_relay_echo(self, key):
+        # If the foreground app failed to take focus, wtype can send our
+        # synthetic key back to the PiTV SDL window. Never relay that echo
+        # again or one physical CEC press can become a feedback loop.
+        self._relay_echo[key] = time.monotonic() + 0.30
+
+    def _consume_relay_echo(self, key):
+        now = time.monotonic()
+        expired = [k for k, until in self._relay_echo.items() if until < now]
+        for k in expired:
+            self._relay_echo.pop(k, None)
+        until = self._relay_echo.get(key, 0.0)
+        if until >= now:
+            self._relay_echo.pop(key, None)
+            return True
+        return False
+
     def relay_to_external(self, key):
         if self.external_kind == "apk":
             code = self.ANDROID_KEYEVENTS.get(key)
@@ -2773,6 +2791,7 @@ class PiTV:
         name = self.WTYPE_KEYS.get(key)
         if name and shutil.which("wtype"):
             try:
+                self._mark_relay_echo(key)
                 subprocess.Popen(
                     ["wtype", "-k", name],
                     env=build_gui_env(),
@@ -2780,7 +2799,7 @@ class PiTV:
                     stderr=subprocess.DEVNULL,
                 )
             except Exception:
-                pass
+                self._relay_echo.pop(key, None)
 
     def stop_external(self):
         proc = self.external_proc
@@ -3366,6 +3385,8 @@ class PiTV:
                     # remotes. Backspace behaves as Back/Escape, matching the
                     # on-screen keyboard legend and common media-center UX.
                     key = normalize_input_key(event.key)
+                    if self.external_kind == "linux" and self._consume_relay_echo(key):
+                        continue
                     self.handle_key(key)
 
             if self.external_proc is not None and self.external_proc.poll() is not None:
@@ -3377,6 +3398,12 @@ class PiTV:
                     self.refresh_store_async()
 
             self.update_idle_state()
+            if self.external_kind:
+                # The external client owns the visible surface. Keep PiTV's
+                # input/session manager responsive without burning GPU/CPU on
+                # a hidden 30 FPS render loop.
+                self.clock.tick(10)
+                continue
             if self.screensaver_stage != "off":
                 self.draw_screensaver()
             else:
