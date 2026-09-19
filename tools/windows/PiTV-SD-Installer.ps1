@@ -361,7 +361,6 @@ $format.Add_Click({
         if ($answer -ne [Windows.Forms.DialogResult]::Yes) { return }
 
         $format.Enabled = $false
-        $format.Enabled = $false
         $create.Enabled = $false
         $refresh.Enabled = $false
 
@@ -407,6 +406,7 @@ $create.Add_Click({
         )
         if ($answer -ne [Windows.Forms.DialogResult]::Yes) { return }
 
+        $format.Enabled = $false
         $create.Enabled = $false
         $refresh.Enabled = $false
 
