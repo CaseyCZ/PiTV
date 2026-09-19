@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.3 installer =="
+echo "== PiTV v1.4.4 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -26,18 +26,31 @@ apt-get install -y \
   labwc wtype cec-utils \
   dbus-user-session \
   fonts-dejavu-core \
-  iproute2 sudo alsa-utils \
+  iproute2 sudo alsa-utils openssh-server \
   aapt apktool
 
-# PiTV uses HDMI audio. ALSA utilities provide speaker-test.
-# NetworkManager is optional: PiTV will use it only if it is already active.
-apt-get install -y network-manager 2>/dev/null || true
+# PiTV's on-screen Wi-Fi UI uses nmcli. Ubuntu Server boots the cloud-init
+# network through networkd first; after NetworkManager is installed, a later
+# Netplan override deliberately hands the same persistent Netplan definitions
+# to NetworkManager. Netplan supports this renderer switch and merges later
+# YAML files over earlier cloud-init files.
+apt-get install -y network-manager
 
-# Ubuntu Server images can leave both NetworkManager wait-online and
-# systemd-networkd-wait-online enabled. PiTV does not require the legacy
-# networkd wait gate, and on some boots it can block forever even though
-# NetworkManager is already online. Disable only the wait helper; do not
-# disable systemd-networkd itself.
+cat >/etc/netplan/90-pitv-network-manager.yaml <<'EOF'
+network:
+  version: 2
+  renderer: NetworkManager
+EOF
+chmod 0600 /etc/netplan/90-pitv-network-manager.yaml
+systemctl enable --now NetworkManager.service
+netplan generate
+netplan apply
+
+# Remote administration is a supported PiTV recovery path.
+systemctl enable --now ssh.service
+
+# Once NetworkManager owns the configured interfaces, the old networkd
+# wait-online gate must not delay TV startup. Do not disable networkd itself.
 systemctl disable systemd-networkd-wait-online.service >/dev/null 2>&1 || true
 systemctl mask systemd-networkd-wait-online.service >/dev/null 2>&1 || true
 
