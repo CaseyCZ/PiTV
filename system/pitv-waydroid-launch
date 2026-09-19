@@ -4,13 +4,36 @@ TARGET="${1:-}"
 APK="${2:-}"
 [ -n "$TARGET" ] || exit 2
 
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR="$RUNTIME"
+LOG="/tmp/pitv-waydroid-launch.log"
+: >"$LOG"
+
+# Waydroid requires a real Pulse-compatible socket; without it LXC fails while
+# creating mount entries. Try to activate the PiTV user audio stack and fail
+# early with a useful log instead of pretending the Android app is starting.
+if [ ! -S "$RUNTIME/pulse/native" ]; then
+  systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service >>"$LOG" 2>&1 || true
+  for _ in $(seq 1 30); do
+    [ -S "$RUNTIME/pulse/native" ] && break
+    sleep 0.1
+  done
+fi
+if [ ! -S "$RUNTIME/pulse/native" ]; then
+  echo "PiTV: audio socket missing: $RUNTIME/pulse/native" >>"$LOG"
+  exit 9
+fi
+
 cleanup() {
   waydroid session stop >/dev/null 2>&1 || true
 }
 trap cleanup EXIT TERM INT HUP
 
-sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >/dev/null 2>&1 || true
-waydroid session start >/tmp/pitv-waydroid-session.log 2>&1 &
+if ! sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >>"$LOG" 2>&1; then
+  waydroid log >>"$LOG" 2>&1 || true
+  exit 10
+fi
+waydroid session start >>"$LOG" 2>&1 &
 SESSION_PID=$!
 
 READY=0
@@ -18,7 +41,7 @@ for _ in $(seq 1 60); do
   if waydroid status 2>/dev/null | grep -qi 'RUNNING'; then READY=1; break; fi
   sleep 0.5
 done
-[ "$READY" -eq 1 ] || exit 3
+[ "$READY" -eq 1 ] || { waydroid log >>"$LOG" 2>&1 || true; exit 3; }
 
 if [ "$TARGET" = "--full-ui" ]; then
   waydroid show-full-ui
