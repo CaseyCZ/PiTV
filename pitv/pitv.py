@@ -2017,6 +2017,14 @@ class PiTV:
                         if not ok:
                             finish(msg, False)
                             return
+                    if shutil.which("kodi-send") is None:
+                        self.set_operation("Instaluji ovládání Kodi pro Plex…")
+                        ok, msg = run_privileged(
+                            "apt-install", {"package": "kodi-eventclients-kodi-send"}, 1200
+                        )
+                        if not ok:
+                            finish(msg, False)
+                            return
                     try:
                         proc = subprocess.Popen(
                             ["/usr/local/bin/pitv-kodi-addon", "install", addon_id],
