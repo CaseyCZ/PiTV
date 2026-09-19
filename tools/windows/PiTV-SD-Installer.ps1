@@ -75,7 +75,12 @@ function Ensure-Imager {
                 "--accept-package-agreements",
                 "--accept-source-agreements",
                 "--silent"
-            ) -Wait -PassThru
+            ) -PassThru
+            if (-not $p.WaitForExit(120000)) {
+                try { $p.Kill() } catch {}
+                throw "winget instalace překročila časový limit 120 sekund."
+            }
+            $p.Refresh()
             $wingetExit = $p.ExitCode
             $path = Get-ImagerPath
             if ($path) { return $path }
@@ -89,7 +94,7 @@ function Ensure-Imager {
     $installer = Join-Path $env:TEMP ("rpi-imager-" + [guid]::NewGuid().ToString("N") + ".exe")
     try {
         Log "Zkouším přímou instalaci z oficiálního Raspberry Pi serveru..."
-        Invoke-WebRequest -UseBasicParsing -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
+        Invoke-WebRequest -UseBasicParsing -TimeoutSec 120 -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
 
         if (-not (Test-Path $installer) -or (Get-Item $installer).Length -lt 1MB) {
             throw "Stažený instalátor Raspberry Pi Imageru není platný."
@@ -100,7 +105,12 @@ function Ensure-Imager {
             "/SUPPRESSMSGBOXES",
             "/NORESTART",
             "/SP-"
-        ) -Wait -PassThru
+        ) -PassThru
+        if (-not $p.WaitForExit(120000)) {
+            try { $p.Kill() } catch {}
+            throw "Instalace Raspberry Pi Imageru překročila časový limit 120 sekund."
+        }
+        $p.Refresh()
 
         if ($p.ExitCode -ne 0) {
             throw ("Oficiální instalátor skončil s kódem " + $p.ExitCode + ".")
