@@ -122,6 +122,8 @@ Install from:
 
 **Settings → Android / APK → Waydroid + Google Play → Install**
 
+PiTV first uses the official `repo.waydro.id` source. If it is unavailable or package installation fails, PiTV automatically switches to a **fallback snapshot** stored in this repository. The Ubuntu 24.04 / ARM64 snapshot includes the required Waydroid runtime packages, SHA-256 checksums and is refreshed weekly from the official source.
+
 Custom APK files:
 
 ```text
