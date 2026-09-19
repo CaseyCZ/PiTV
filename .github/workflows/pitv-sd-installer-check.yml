@@ -41,6 +41,11 @@ jobs:
 
           Write-Host "PowerShell syntax OK"
 
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
       - name: Verify launcher target
         shell: powershell
         run: |
