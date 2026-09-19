@@ -102,6 +102,27 @@ jobs:
           app.handle_key(pygame.K_RIGHT)
           assert abs(float(app.cfg["tile_scale"]) - 1.0) < 0.001
 
+          # Ordered timer settings must stop at their limits, never wrap
+          # e.g. 1 minute LEFT -> 60 minutes.
+          app.page = "screensaver"
+          app.sub_selected = 1
+          app.cfg["screensaver_after_min"] = 1
+          app.handle_key(pygame.K_LEFT)
+          assert app.cfg["screensaver_after_min"] == 1
+          app.cfg["screensaver_after_min"] = 60
+          app.handle_key(pygame.K_RIGHT)
+          assert app.cfg["screensaver_after_min"] == 60
+
+          app.sub_selected = 3
+          app.cfg["screensaver_black_after_min"] = 0
+          app.handle_key(pygame.K_LEFT)
+          assert app.cfg["screensaver_black_after_min"] == 0
+
+          app.sub_selected = 4
+          app.cfg["screensaver_cec_standby_after_min"] = 0
+          app.handle_key(pygame.K_LEFT)
+          assert app.cfg["screensaver_cec_standby_after_min"] == 0
+
           pages = (
               "home", "settings", "appearance", "screensaver", "network",
               "audio", "cec", "apps", "store", "server_store", "android",
