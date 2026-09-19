@@ -119,6 +119,28 @@ CEC_MAP = {
     "mute": PITV_KEY_MUTE,
 }
 
+# HDMI-CEC UI command operand values from the Linux CEC UAPI.  Keep a numeric
+# fallback because cec-ctl's human-readable labels can vary slightly by
+# v4l-utils version while the wire values are stable.
+CEC_CODE_MAP = {
+    0x00: pygame.K_RETURN,   # Select / OK
+    0x01: pygame.K_UP,
+    0x02: pygame.K_DOWN,
+    0x03: pygame.K_LEFT,
+    0x04: pygame.K_RIGHT,
+    0x09: pygame.K_HOME,     # Device Root Menu
+    0x0B: pygame.K_HOME,     # Contents Menu
+    0x0D: pygame.K_ESCAPE,   # Back
+    0x10: pygame.K_HOME,     # Media Top Menu
+    0x2B: pygame.K_RETURN,   # Enter
+    0x32: pygame.K_ESCAPE,   # Previous Channel: common Back fallback
+    0x41: PITV_KEY_VOLUMEUP,
+    0x42: PITV_KEY_VOLUMEDOWN,
+    0x43: PITV_KEY_MUTE,
+    0x44: pygame.K_SPACE,
+    0x46: pygame.K_SPACE,
+}
+
 
 def normalize_input_key(key):
     """Normalize SDL/Linux media-remote keys to PiTV navigation keys."""
@@ -134,6 +156,7 @@ def normalize_input_key(key):
         "escape": pygame.K_ESCAPE,
         "browser back": pygame.K_ESCAPE,
         "select": pygame.K_RETURN,
+        "ok": pygame.K_RETURN,
         "enter": pygame.K_RETURN,
         "return": pygame.K_RETURN,
         "kp enter": pygame.K_RETURN,
@@ -503,27 +526,38 @@ def cec_available():
 
 
 def cec_send(commands):
-    """Send CEC commands through PiTV's persistent adapter connection.
-
-    Falls back to one-shot cec-client only before the persistent client is ready.
-    """
+    """Send CEC output through the same kernel CEC stack used for input."""
     if not cec_available():
-        return False, "cec-client není nainstalovaný"
+        return False, "cec-ctl nebo CEC adaptér není dostupný"
     if isinstance(commands, str):
         commands = [commands]
 
-    # Kernel cec-ctl owns input. Output actions currently use the proven
-    # libCEC one-shot path; do not route them into CECReader.send(), which is
-    # intentionally input-only.
-    if shutil.which("cec-client") is None:
-        return False, "CEC výstup vyžaduje cec-client"
+    device = None
+    if _CEC_MANAGER is not None and _CEC_MANAGER.device is not None:
+        device = str(_CEC_MANAGER.device)
+    if not device:
+        devices = sorted(Path("/dev").glob("cec*"))
+        if devices:
+            device = str(devices[0])
+    if not device:
+        return False, "CEC adaptér nebyl nalezen"
 
+    modes = {
+        "on 0": "on",
+        "as": "active",
+        "standby 0": "standby",
+        "volup": "volup",
+        "voldown": "voldown",
+        "mute": "mute",
+    }
     outputs = []
     for command in commands:
+        mode = modes.get(str(command).strip().lower())
+        if not mode:
+            return False, f"Nepodporovaný CEC příkaz: {command}"
         try:
             p = subprocess.run(
-                ["cec-client", "-s", "-d", "1"],
-                input=str(command).strip() + "\n",
+                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", device, mode],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
