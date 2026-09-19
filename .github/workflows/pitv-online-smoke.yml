@@ -1,10 +1,6 @@
 name: PiTV Online Smoke
 
 on:
-  push:
-    branches: [Master]
-    paths:
-      - ".github/workflows/pitv-online-smoke.yml"
   workflow_dispatch:
 
 permissions:
