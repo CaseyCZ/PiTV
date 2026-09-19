@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="${1:-run}"
+ADDON="${2:-script.plexmod}"
+
+case "$ADDON" in
+  script.plexmod|script.plex) ;;
+  *) echo "Nepovolený Kodi add-on: $ADDON" >&2; exit 2 ;;
+esac
+
+command -v kodi >/dev/null 2>&1 || { echo "Kodi není nainstalované" >&2; exit 3; }
+command -v kodi-send >/dev/null 2>&1 || { echo "kodi-send není dostupný" >&2; exit 4; }
+
+# Start Kodi in the existing PiTV Wayland session. Keep this wrapper alive for
+# the whole Kodi session so PiTV's App Session Manager can track/recover it.
+kodi >/tmp/pitv-kodi.log 2>&1 &
+KODI_PID=$!
+
+cleanup() {
+  if kill -0 "$KODI_PID" 2>/dev/null; then
+    kodi-send --action="Quit" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup TERM INT
+
+# kodi-send returns successfully only once Kodi's event server is ready.
+READY=0
+for _ in $(seq 1 40); do
+  if kodi-send --action="UpdateAddonRepos" >/dev/null 2>&1; then
+    READY=1
+    break
+  fi
+  kill -0 "$KODI_PID" 2>/dev/null || { wait "$KODI_PID" || true; exit 5; }
+  sleep 0.5
+done
+
+if [ "$READY" -ne 1 ]; then
+  echo "Kodi se nepodařilo připravit pro Plex" >&2
+  cleanup
+  wait "$KODI_PID" || true
+  exit 6
+fi
+
+if [ "$MODE" = "install" ]; then
+  # PM4K is present in the official Kodi add-on repository for Kodi 20/21+.
+  # InstallAddon resolves its Python dependencies through Kodi itself.
+  kodi-send --action="InstallAddon($ADDON)" >/dev/null 2>&1 || true
+  for _ in $(seq 1 180); do
+    if [ -f "$HOME/.kodi/addons/$ADDON/addon.xml" ] || [ -f "/usr/share/kodi/addons/$ADDON/addon.xml" ]; then
+      break
+    fi
+    kill -0 "$KODI_PID" 2>/dev/null || break
+    sleep 1
+  done
+fi
+
+if [ -f "$HOME/.kodi/addons/$ADDON/addon.xml" ] || [ -f "/usr/share/kodi/addons/$ADDON/addon.xml" ]; then
+  kodi-send --action="RunAddon($ADDON)" >/dev/null 2>&1 || true
+else
+  # Keep Kodi visible so the user can complete any repository confirmation
+  # dialog with the TV remote; PiTV will re-check the add-on after Kodi exits.
+  kodi-send --action="ActivateWindow(addonbrowser)" >/dev/null 2>&1 || true
+fi
+
+wait "$KODI_PID"
