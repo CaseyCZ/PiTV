@@ -488,6 +488,9 @@ function Wait-PiTVTargetDiskReadyAfterRawWrite($d,[int]$timeoutSeconds=35) {
         if ($fatFound) {
             $stableSamples++
             if ($stableSamples -ge 2) {
+                # Re-run the original destructive-target identity gate before
+                # touching the filesystem after any PnP re-enumeration.
+                $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
                 Log "STORAGE SETTLE OK: FAT boot oddíl je stabilně viditelný."
                 return
             }
@@ -506,7 +509,7 @@ function Wait-PiTVTargetDiskReadyAfterRawWrite($d,[int]$timeoutSeconds=35) {
 function Write-PiTVBytesDurable([string]$destination,[byte[]]$bytes) {
     $stream = $null
     try {
-        $stream = New-Object IO.FileStream(
+        $stream = [IO.FileStream]::new(
             $destination,
             [IO.FileMode]::Create,
             [IO.FileAccess]::Write,
