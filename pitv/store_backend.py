@@ -87,6 +87,12 @@ def store_state(item):
     if kind in ("github_release_apk", "direct_apk"):
         receipt = read_receipt(item.get("id", ""))
         package = receipt.get("package", "")
+        # A successful PiTV install writes an installation receipt.  Do not
+        # downgrade that state merely because Waydroid is stopped: in that
+        # state `waydroid app list` may return no packages at all, which used
+        # to make Store offer INSTALOVAT again immediately after success.
+        if receipt.get("installed") and package:
+            return "installed"
         if package and package in _waydroid_packages():
             return "installed"
         path = receipt.get("path", "")
