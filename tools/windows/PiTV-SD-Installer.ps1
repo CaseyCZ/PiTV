@@ -17,8 +17,14 @@ function Is-Admin {
 if (-not $SelfTestCatalog -and -not (Is-Admin)) {
     $ps = (Get-Process -Id $PID).Path
     $arg = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $PSCommandPath + '"'
-    Start-Process -FilePath $ps -ArgumentList $arg -Verb RunAs -WindowStyle Hidden
-    exit
+    try {
+        Start-Process -FilePath $ps -ArgumentList $arg -Verb RunAs -WindowStyle Hidden -ErrorAction Stop | Out-Null
+        exit 0
+    }
+    catch {
+        Write-Host "PiTV SD Installer potřebuje oprávnění správce. Požadavek UAC byl zrušen nebo selhal." -ForegroundColor Red
+        exit 5
+    }
 }
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -338,17 +344,48 @@ function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$Expect
 function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,[string]$ExpectedIdentity="") {
     $null = Get-VerifiedSafeDisk $Number $ExpectedSize $ExpectedName $ExpectedIdentity
 
-    Set-Disk -Number $Number -IsReadOnly $false
-    Clear-Disk -Number $Number -RemoveData -Confirm:$false
-    Start-Sleep -Milliseconds 500
+    Set-Disk -Number $Number -IsReadOnly $false -ErrorAction Stop
+    Clear-Disk -Number $Number -RemoveData -Confirm:$false -ErrorAction Stop
 
-    $state = Get-Disk -Number $Number
-    if ($state.PartitionStyle -eq "RAW") {
-        Initialize-Disk -Number $Number -PartitionStyle MBR | Out-Null
+    $rawReady = $false
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        if (Get-Command Invoke-PiTVStorageRefresh -ErrorAction SilentlyContinue) {
+            Invoke-PiTVStorageRefresh $Number -DiskPartRescan:($attempt -eq 8)
+        }
+        try {
+            $state = Get-Disk -Number $Number -ErrorAction Stop
+            if ($state.PartitionStyle -eq "RAW") {
+                $rawReady = $true
+                break
+            }
+        } catch {}
+        [Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 350
+    }
+    if (-not $rawReady) {
+        throw "Windows po vyčištění SD karty nepotvrdil stav RAW."
     }
 
-    $part = New-Partition -DiskNumber $Number -UseMaximumSize -AssignDriveLetter
-    $vol = $part | Format-Volume -FileSystem exFAT -NewFileSystemLabel "SDCARD" -Confirm:$false -Force
+    Initialize-Disk -Number $Number -PartitionStyle MBR -ErrorAction Stop | Out-Null
+
+    $part = $null
+    for ($attempt = 1; $attempt -le 10 -and -not $part; $attempt++) {
+        try {
+            $part = New-Partition -DiskNumber $Number -UseMaximumSize -AssignDriveLetter -ErrorAction Stop
+        }
+        catch {
+            if ($attempt -eq 10) { throw }
+            if (Get-Command Invoke-PiTVStorageRefresh -ErrorAction SilentlyContinue) {
+                Invoke-PiTVStorageRefresh $Number -DiskPartRescan:($attempt -eq 5)
+            }
+            Start-Sleep -Milliseconds (250 * $attempt)
+        }
+    }
+
+    $vol = $part | Format-Volume -FileSystem exFAT -NewFileSystemLabel "SDCARD" -Confirm:$false -Force -ErrorAction Stop
+    if (-not $vol -or $vol.FileSystem -ne "exFAT" -or $vol.FileSystemLabel -ne "SDCARD") {
+        throw "Windows po formátování nepotvrdil exFAT svazek SDCARD."
+    }
     return $vol
 }
 
