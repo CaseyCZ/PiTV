@@ -410,6 +410,36 @@ function Assert-ImagerCliContract([string]$imager) {
     Log "Raspberry Pi Imager CLI kontrakt ověřen."
 }
 
+function Invoke-ImagerWrite([string]$imager,[string[]]$arguments) {
+    $stdout = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".out.log")
+    $stderr = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".err.log")
+
+    try {
+        $argText = ($arguments | ForEach-Object { Q ([string]$_) }) -join " "
+        $process = Start-Process -FilePath $imager -ArgumentList $argText -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+        while (-not $process.WaitForExit(250)) {
+            [Windows.Forms.Application]::DoEvents()
+        }
+
+        $process.WaitForExit()
+        $process.Refresh()
+        $exitCode = [int]$process.ExitCode
+
+        if (Test-Path $stdout) {
+            Get-Content $stdout -ErrorAction SilentlyContinue | ForEach-Object { if ($_){ Log $_ } }
+        }
+        if (Test-Path $stderr) {
+            Get-Content $stderr -ErrorAction SilentlyContinue | ForEach-Object { if ($_){ Log ("IMAGER: " + $_) } }
+        }
+
+        return $exitCode
+    }
+    finally {
+        Remove-Item $stdout,$stderr -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName) {
     $candidate = Get-SafeDisks | Where-Object { $_.Number -eq $Number } | Select-Object -First 1
     if (-not $candidate) { throw "Vybraný disk už není dostupný jako bezpečný výměnný disk." }
