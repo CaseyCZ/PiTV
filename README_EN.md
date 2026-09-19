@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CaseyCZ/PiTV#installation"><img src="https://img.shields.io/badge/PiTV-Install-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Install PiTV" /></a>
+  <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/PiTV-Install-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Install PiTV" /></a>
 </p>
 
 ## About
@@ -42,7 +42,13 @@ The goal is to combine TV apps, Android apps, system settings and background ser
 
 ## Installation
 
-Primary target: **Raspberry Pi 4 + Ubuntu Server 24.04 ARM64**.
+<p>
+  <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/Guide-Full%20installation-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Full PiTV installation guide" /></a>
+</p>
+
+The complete process from an empty microSD card through Raspberry Pi Imager, Wi-Fi and SSH to the first PiTV boot is in **[INSTALL_EN.md](INSTALL_EN.md)**.
+
+Quick install on a prepared **Raspberry Pi 4 + Ubuntu Server 24.04 ARM64**:
 
 ```bash
 git clone https://github.com/CaseyCZ/PiTV.git
