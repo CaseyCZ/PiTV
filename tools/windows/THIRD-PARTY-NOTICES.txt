@@ -1,0 +1,12 @@
+PiTV SD Installer - Third-party notices
+
+XZ Utils / liblzma
+------------------
+PiTV-XZ links against liblzma from XZ Utils 5.8.3.
+liblzma is licensed under the BSD Zero Clause License (0BSD).
+
+Upstream project:
+https://tukaani.org/xz/
+https://github.com/tukaani-project/xz
+
+Copyright (C) The XZ Utils authors and contributors.
