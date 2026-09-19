@@ -16,6 +16,35 @@ def run(args, timeout=600, stdin=None, env=None):
         out(text or f"Chyba ({p.returncode})", p.returncode)
     return text
 
+
+MEDIA_HOST = "/srv/pitv/Media"
+WAYDROID_MEDIA = "/var/lib/waydroid/data/media/0/PiTV-Media"
+
+
+def ensure_waydroid_media_bridge():
+    """Expose PiTV's persistent Media folder inside Android shared storage."""
+    os.makedirs(MEDIA_HOST, mode=0o777, exist_ok=True)
+    os.chmod(MEDIA_HOST, 0o777)
+    os.makedirs(WAYDROID_MEDIA, mode=0o777, exist_ok=True)
+
+    mounted = subprocess.run(
+        ["mountpoint", "-q", WAYDROID_MEDIA],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0
+    if not mounted:
+        p = subprocess.run(
+            ["mount", "--bind", MEDIA_HOST, WAYDROID_MEDIA],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        if p.returncode != 0:
+            raise RuntimeError((p.stdout or "").strip() or "bind mount PiTV Media selhal")
+
 if os.geteuid() != 0:
     out("PiTV helper musí běžet jako root", 1)
 
@@ -74,7 +103,11 @@ elif action == "waydroid-container-start":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
     run(["waydroid", "container", "start"], timeout=60)
-    out("Waydroid container spuštěn")
+    try:
+        ensure_waydroid_media_bridge()
+    except Exception as e:
+        out(f"Waydroid běží, ale sdílená složka PiTV Media se nepřipojila: {e}", 3)
+    out("Waydroid container spuštěn · PiTV Media připojeno")
 
 elif action == "waydroid-container-stop":
     if shutil.which("waydroid") is None:
