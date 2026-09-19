@@ -2,9 +2,14 @@
 set -euo pipefail
 
 DRY_RUN=0
-if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN=1
-fi
+FORMAT_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+    --format-only) FORMAT_ONLY=1 ;;
+    *) fail "Neznámý parametr: $arg" ;;
+  esac
+done
 
 step() {
   printf '\n== %s ==\n' "$1"
@@ -157,6 +162,52 @@ select_device() {
   [[ "$confirm" == "$expected" ]] || fail "Zápis zrušen."
 }
 
+format_sd_card() {
+  step "Formátuji SD kartu"
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    diskutil unmountDisk "$TARGET_DEVICE" >/dev/null 2>&1 || true
+    sudo diskutil eraseDisk ExFAT SDCARD MBRFormat "$TARGET_DEVICE"
+    printf '\nHOTOVO: karta má jeden exFAT oddíl SDCARD.\n'
+    return
+  fi
+
+  need lsblk
+  need wipefs
+  need parted
+
+  while read -r p; do
+    sudo umount "$p" 2>/dev/null || true
+  done < <(lsblk -lnpo NAME "$TARGET_DEVICE" | tail -n +2)
+
+  if ! command -v mkfs.exfat >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then
+      step "Instaluji podporu exFAT"
+      sudo apt-get update
+      sudo apt-get install -y exfatprogs
+    else
+      fail "Chybí mkfs.exfat. Nainstaluj balíček exfatprogs."
+    fi
+  fi
+
+  sudo wipefs -a "$TARGET_DEVICE"
+  sudo parted -s "$TARGET_DEVICE" mklabel msdos
+  sudo parted -s "$TARGET_DEVICE" mkpart primary 1MiB 100%
+  sudo partprobe "$TARGET_DEVICE" 2>/dev/null || true
+  sleep 1
+
+  local part
+  if [[ "$TARGET_DEVICE" =~ [0-9]$ ]]; then
+    part="${TARGET_DEVICE}p1"
+  else
+    part="${TARGET_DEVICE}1"
+  fi
+
+  [[ -b "$part" ]] || fail "Po vytvoření oddílu nebylo nalezeno $part."
+  sudo mkfs.exfat -n SDCARD "$part"
+  printf '\nHOTOVO: karta má jeden exFAT oddíl SDCARD.\n'
+}
+
 yaml_quote() {
   local v="${1//\'/\'\'}"
   printf "'%s'" "$v"
@@ -196,11 +247,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-printf '\nPiTV Flasher 0.1 (Linux / macOS)\n'
+printf '\nPiTV Flasher 0.2 (Linux / macOS)\n'
 printf 'Ubuntu Server 24.04 LTS ARM64 + automatická instalace PiTV\n\n'
 
 if (( DRY_RUN )); then
-  printf 'DRY RUN OK\n'
+  if (( FORMAT_ONLY )); then
+    printf 'DRY RUN OK · FORMAT ONLY\n'
+  else
+    printf 'DRY RUN OK\n'
+  fi
+  exit 0
+fi
+
+if (( FORMAT_ONLY )); then
+  select_device
+  format_sd_card
   exit 0
 fi
 
