@@ -6,6 +6,10 @@ on:
     branches: [Master]
     paths:
       - ".github/workflows/release.yml"
+      - "tools/windows/**"
+      - "tools/pitv-flasher.ps1"
+      - "tools/pitv-flasher.sh"
+      - "release-notes/**"
 
 permissions:
   contents: write
