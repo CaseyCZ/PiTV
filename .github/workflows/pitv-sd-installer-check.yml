@@ -1,19 +1,10 @@
 name: PiTV SD Installer Check
 
 on:
-  push:
-    branches: [Master]
-    paths:
-      - "tools/windows/**"
-      - ".github/workflows/pitv-sd-installer-check.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: pitv-sd-installer-check-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   windows-powershell:
