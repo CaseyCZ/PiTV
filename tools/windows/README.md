@@ -10,6 +10,8 @@ Malé grafické rozhraní pro vytvoření PiTV microSD bez ruční instalace Ubu
 4. vyber microSD,
 5. klikni na **VYTVOŘIT PiTV SD**.
 
+Pokud chceš kartu pouze vrátit do běžného stavu, použij **NAFORMÁTOVAT SD**. Installer smaže staré oddíly a vytvoří jeden exFAT oddíl `SDCARD` přes dostupnou kapacitu.
+
 ## Co udělá automaticky
 
 - nabídne pouze bezpečné výměnné USB / SD / MMC disky,
@@ -33,7 +35,7 @@ Samotný zápis image nedělá vlastní raw-disk kód. Používá oficiální Ra
 
 ## Stav
 
-Aktuálně jde o **v0.1 beta/prototyp**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
+Aktuálně jde o **v0.2 beta**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
 
 Celý fyzický proces — skutečná microSD, první boot, Wi-Fi a automatická instalace na Raspberry Pi 4 — ještě před veřejným releasem ověříme na reálném hardware.
 
