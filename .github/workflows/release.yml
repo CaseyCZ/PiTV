@@ -1,23 +1,104 @@
 name: PiTV Alpha Release
 
 on:
-  workflow_dispatch:
   push:
     branches: [Master]
-    paths:
-      - ".github/workflows/release.yml"
-      - "tools/windows/**"
-      - "release-notes/alpha.md"
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: pitv-alpha-release
+  group: pitv-alpha-pipeline
   cancel-in-progress: true
 
 jobs:
-  validate-windows:
+  pitv-check:
+    name: PiTV Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python syntax
+        run: |
+          python3 -m py_compile \
+            pitv/pitv.py \
+            pitv/apk_backend.py \
+            pitv/store_backend.py \
+            pitv/update_backend.py \
+            system/pitv-helper \
+            system/pitv-self-update
+
+      - name: Shell syntax
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n system/pitv-session
+          bash -n system/pitv-waydroid-launch
+          bash -n scripts/install-waydroid.sh
+          bash -n tools/pitv-flasher.sh
+
+      - name: Flasher dry run
+        shell: bash
+        run: |
+          bash tools/pitv-flasher.sh --dry-run
+          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
+
+      - name: Waydroid fallback snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/waydroid/noble
+          test -s packages.env
+          test -s SHA256SUMS
+          sha256sum -c SHA256SUMS
+          for pkg in *.deb; do
+            dpkg-deb --info "$pkg" >/dev/null
+          done
+
+      - name: Store JSON
+        run: |
+          python3 - <<'PY'
+          import json
+          for path in (
+              "store/catalog.json",
+              "store/server_catalog.json",
+              "config/config.json",
+          ):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+              print("OK", path)
+          PY
+
+      - name: Runtime render with Ubuntu Pygame
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pygame
+          PYTHONPATH=pitv SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            python3 - <<'PY'
+          import pygame
+          from pitv import PiTV, VERSION
+
+          app = PiTV()
+          pages = (
+              "home", "settings", "appearance", "screensaver", "network",
+              "audio", "cec", "apps", "store", "server_store", "android",
+              "updates", "system", "power", "about",
+          )
+          for theme in ("apple_dark", "apple_light"):
+              app.cfg["theme"] = theme
+              for page in pages:
+                  app.page = page
+                  app.draw()
+                  print("render OK", theme, page)
+
+          assert len(app.SETTINGS) == 12
+          pygame.quit()
+          print("PiTV runtime render OK", VERSION)
+          PY
+
+  windows-check:
+    name: PiTV SD Installer Check
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +117,11 @@ jobs:
               [ref]$tokens,
               [ref]$errors
             ) | Out-Null
+
             if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error $_.Message }
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
               exit 1
             }
             Write-Host ("PowerShell syntax OK: " + $file)
@@ -54,6 +138,9 @@ jobs:
           Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
           if (-not ("PiTVNativeDisk" -as [type])) {
             throw "PiTVNativeDisk.cs did not compile."
+          }
+          if (-not ([PiTVNativeDisk].GetMethod("LockAndDismount"))) {
+            throw "PiTVNativeDisk LockAndDismount helper is missing."
           }
           Write-Host "PiTVNativeDisk C# helper compiles"
 
@@ -103,6 +190,7 @@ jobs:
         run: |
           $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
           $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
 
           if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
             throw "Legacy Raspberry Pi Imager dependency is still present."
@@ -125,13 +213,25 @@ jobs:
             "CACHE HIT",
             "image_download_sha256",
             "Get-PiTVDeviceSha256",
-            "PiTV-XZ.exe"
+            "PiTV-XZ.exe",
+            "LockAndDismount"
           )) {
             if ($engine -notmatch [regex]::Escape($required)) {
               throw "Image engine is missing contract item $required"
             }
           }
-          Write-Host "PiTV raw writer/cache contract OK"
+
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/volume-lock contract OK"
 
       - name: Upload PiTV XZ decoder
         uses: actions/upload-artifact@v4
@@ -151,8 +251,14 @@ jobs:
           Write-Host "Launcher target OK"
 
   release:
-    needs: validate-windows
+    name: Publish Alpha
+    needs:
+      - pitv-check
+      - windows-check
+    if: ${{ needs.pitv-check.result == 'success' && needs.windows-check.result == 'success' }}
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -168,22 +274,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m py_compile pitv/*.py
-          bash -n install.sh
-          bash -n uninstall.sh
-          bash -n scripts/install-waydroid.sh
-          bash -n tools/pitv-flasher.sh
-          bash tools/pitv-flasher.sh --dry-run
-          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
-          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
-          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-ImageEngine.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
           test -s tools/windows/PiTV-XZ.exe
           test -s tools/windows/THIRD-PARTY-NOTICES.txt
-          (
-            cd vendor/waydroid/noble
-            sha256sum -c SHA256SUMS
-            for pkg in *.deb; do dpkg-deb --info "$pkg" >/dev/null; done
-          )
+
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-ImageEngine.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
 
       - name: Build Windows installer
         shell: bash
