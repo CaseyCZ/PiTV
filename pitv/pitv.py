@@ -108,6 +108,9 @@ CEC_MAP = {
     "back": pygame.K_ESCAPE,
     "root menu": pygame.K_HOME,
     "contents menu": pygame.K_HOME,
+    "top menu": pygame.K_HOME,
+    "home": pygame.K_HOME,
+    "return": pygame.K_ESCAPE,
     "play": pygame.K_SPACE,
     "pause": pygame.K_SPACE,
     "play / pause": pygame.K_SPACE,
@@ -548,6 +551,8 @@ class CECReader(threading.Thread):
         self.event_queue = event_queue
         self.proc = None
         self.write_lock = threading.Lock()
+        self.last_key = None
+        self.last_key_at = 0.0
 
     def is_ready(self):
         return self.proc is not None and self.proc.poll() is None and self.proc.stdin is not None
@@ -597,7 +602,16 @@ class CECReader(threading.Thread):
                 key = low.split("key pressed:", 1)[1].strip()
                 key = key.split("(", 1)[0].strip()
                 if key in CEC_MAP:
-                    self.event_queue.put(CEC_MAP[key])
+                    # Some TVs emit duplicate "key pressed" messages for one
+                    # physical press. Drop only the immediate duplicates; a
+                    # held key still repeats after the debounce window.
+                    now = time.monotonic()
+                    mapped = CEC_MAP[key]
+                    if mapped == self.last_key and (now - self.last_key_at) < 0.18:
+                        continue
+                    self.last_key = mapped
+                    self.last_key_at = now
+                    self.event_queue.put(mapped)
         except Exception:
             pass
 
@@ -692,7 +706,7 @@ class PiTV:
             if self.cfg.get("cec_wake_on_start", False):
                 threading.Thread(target=cec_tv_on, daemon=True).start()
         # Comfortable D-pad style navigation when a physical key is held.
-        pygame.key.set_repeat(350, 90)
+        pygame.key.set_repeat(220, 70)
         self.clock = pygame.time.Clock()
 
     @property
