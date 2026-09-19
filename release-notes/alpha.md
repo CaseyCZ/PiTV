@@ -1,5 +1,9 @@
 # PiTV Alpha
 
+### PiTV 1.4.16 · HDMI audio session fix
+- automatický HDMI výstup už není závislý pouze na pactl; PiTV používá i wpctl fallback
+- installer doplňuje pulseaudio-utils, takže pactl je na nových/aktualizovaných instalacích dostupný
+- oprava cílí na stav, kdy Kodi/PiTV běží pod uživatelem pitv, ale diagnostika spuštěná pod admin vidí pouze vlastní Dummy Output session
 ### PiTV 1.4.15 · External app return/focus recovery
 - opravuje stav, kdy se po návratu z Kodi launcher zobrazil, ale nereagoval na ovladač
 - PiTV nyní pomocí wlrctl sleduje skutečně aktivní Wayland okno v labwc
