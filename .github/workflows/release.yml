@@ -241,7 +241,9 @@ jobs:
           foreach ($required in @(
             "FSCTL_LOCK_VOLUME",
             "FSCTL_DISMOUNT_VOLUME",
-            "LockAndDismount"
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
           )) {
             if ($native -notmatch [regex]::Escape($required)) {
               throw "Native disk helper is missing $required"
