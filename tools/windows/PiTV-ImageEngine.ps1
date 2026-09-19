@@ -185,6 +185,27 @@ function New-PiTVRawImageInfo([string]$path,[bool]$temporary,[string]$cleanupDir
     }
 }
 
+function Format-PiTVProcessExitCode([int]$code) {
+    $hex = ("0x{0:X8}" -f ([uint32]$code))
+    switch ($hex) {
+        "0xC0000135" { return ($code.ToString() + " / " + $hex + " · chybějící DLL") }
+        "0xC0000005" { return ($code.ToString() + " / " + $hex + " · access violation") }
+        default { return ($code.ToString() + " / " + $hex) }
+    }
+}
+
+function Read-PiTVTextSafe([string]$path) {
+    if (-not (Test-Path $path -PathType Leaf)) { return "" }
+    try {
+        $value = Get-Content -LiteralPath $path -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+        if ($null -eq $value) { return "" }
+        return ([string]$value).Trim()
+    }
+    catch {
+        return ""
+    }
+}
+
 function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[Int64]$expectedExtractSize=0) {
     if (-not (Test-Path $source -PathType Leaf)) { throw "Soubor image nebyl nalezen." }
 
@@ -209,14 +230,27 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
         }
 
         $raw = Join-Path $WorkDir ("pitv-raw-" + [guid]::NewGuid().ToString("N") + ".img")
-        $err = Join-Path $WorkDir ("pitv-xz-" + [guid]::NewGuid().ToString("N") + ".err.log")
         try {
             Log "Rozbaluji XZ image pomocí PiTV-XZ..."
             Set-InstallerProgress "Rozbaluji image" 0
 
             $dq = [char]34
             $decoderArgs = $dq + $source + $dq + " " + $dq + $raw + $dq
-            $p = Start-Process -FilePath $decoder -ArgumentList $decoderArgs -PassThru -WindowStyle Hidden -RedirectStandardError $err
+
+            $psi = New-Object Diagnostics.ProcessStartInfo
+            $psi.FileName = $decoder
+            $psi.Arguments = $decoderArgs
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            $psi.RedirectStandardError = $true
+
+            $p = New-Object Diagnostics.Process
+            $p.StartInfo = $psi
+
+            Log ("XZ decoder: " + (Split-Path -Leaf $decoder) + " · vstup " + (Size-Text ([UInt64](Get-Item $source).Length)))
+            if (-not $p.Start()) {
+                throw "PiTV-XZ se nepodařilo spustit."
+            }
 
             while (-not $p.WaitForExit(250)) {
                 [Windows.Forms.Application]::DoEvents()
@@ -226,13 +260,22 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
                         $pct = [Math]::Min(99,[int](($written * 100L) / $expectedExtractSize))
                         Set-InstallerProgress ("Rozbaluji image · " + (Size-Text ([UInt64]$written))) $pct
                     }
+                    else {
+                        Set-InstallerProgress ("Rozbaluji image · " + (Size-Text ([UInt64]$written))) 0
+                    }
                 }
             }
 
-            $p.Refresh()
+            $p.WaitForExit()
+            $detail = [string]$p.StandardError.ReadToEnd()
+            if ($detail) { $detail = $detail.Trim() }
+
             if ($p.ExitCode -ne 0) {
-                $detail = if (Test-Path $err) { (Get-Content $err -Raw -ErrorAction SilentlyContinue).Trim() } else { "" }
-                throw ("Rozbalení XZ selhalo (PiTV-XZ exit " + $p.ExitCode + "). " + $detail)
+                $exitText = Format-PiTVProcessExitCode ([int]$p.ExitCode)
+                $rawSize = if (Test-Path $raw) { [Int64](Get-Item $raw).Length } else { [Int64]0 }
+                Log ("PiTV-XZ selhal · exit " + $exitText + " · vytvořeno " + (Size-Text ([UInt64]$rawSize)))
+                if (-not $detail) { $detail = "Decoder nevrátil žádný text na stderr." }
+                throw ("Rozbalení XZ selhalo (PiTV-XZ exit " + $exitText + "). " + $detail)
             }
 
             if ($expectedExtractSize -gt 0 -and [Int64](Get-Item $raw).Length -ne $expectedExtractSize) {
@@ -244,9 +287,6 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
         catch {
             Remove-Item $raw -Force -ErrorAction SilentlyContinue
             throw
-        }
-        finally {
-            Remove-Item $err -Force -ErrorAction SilentlyContinue
         }
     }
 
