@@ -1008,6 +1008,7 @@ $create.Add_Click({
         Log "Kontroluji Raspberry Pi Imager..."
         $imager = Ensure-Imager
         Log "Raspberry Pi Imager nalezen."
+        Assert-ImagerCliContract $imager
 
         $image = $null
         $imageSource = ""
@@ -1044,11 +1045,11 @@ $create.Add_Click({
         Log "Cílová Wi-Fi pro Raspberry Pi byla potvrzena."
 
         $cloud = New-CloudInit $ssid $password
+        $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name
         $target = "\\.\PhysicalDrive" + $d.Number
 
         $args = @(
             "--cli",
-            "--disable-telemetry",
             "--cloudinit-userdata", $cloud.UserData,
             "--cloudinit-networkconfig", $cloud.Network
         )
@@ -1057,26 +1058,11 @@ $create.Add_Click({
         }
         $args += @([string]$imageSource,$target)
 
-        $outFile = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".log")
-        $argText = ($args | ForEach-Object { Q ([string]$_) }) -join " "
-
         Log ("Zapisuji " + $target + ". Stažení a ověření může několik minut trvat.")
-        $p = Start-Process -FilePath $imager -ArgumentList $argText -PassThru -RedirectStandardOutput $outFile -RedirectStandardError ($outFile + ".err")
-
-        while (-not $p.HasExited) {
-            [Windows.Forms.Application]::DoEvents()
-            Start-Sleep -Milliseconds 250
+        $exitCode = Invoke-ImagerWrite $imager $args
+        if ($exitCode -ne 0) {
+            throw ("Raspberry Pi Imager skončil s kódem " + $exitCode + ". Viz řádky IMAGER výše.")
         }
-
-        if (Test-Path $outFile) {
-            Get-Content $outFile | ForEach-Object { if ($_){ Log $_ } }
-        }
-        if (Test-Path ($outFile + ".err")) {
-            Get-Content ($outFile + ".err") | ForEach-Object { if ($_){ Log $_ } }
-        }
-        Remove-Item $outFile,($outFile + ".err") -Force -ErrorAction SilentlyContinue
-
-        if ($p.ExitCode -ne 0) { throw "Raspberry Pi Imager skončil s kódem " + $p.ExitCode }
 
         [Windows.Forms.Clipboard]::SetText($cloud.Password)
         Log "HOTOVO. PiTV SD je připravená."
@@ -1115,7 +1101,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.12 · Windows"
+    Log "PiTV SD Installer v0.13 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
     Refresh-Drives
