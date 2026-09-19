@@ -3,7 +3,7 @@
 Aktuální průběžná testovací verze PiTV. **Pi 4 je hlavní a doporučený cíl.**
 
 ### Aktuálně
-- PiTV SD Installer pro Windows v0.15
+- PiTV SD Installer pro Windows v0.16
 - výběr Raspberry Pi 3 / 3B+, Pi 4 nebo Pi 5
 - Pi 3 a Pi 5 jsou zatím experimentální Alpha cíle
 - automatické vyhledání Wi-Fi + načtení uloženého hesla
@@ -12,6 +12,7 @@ Aktuální průběžná testovací verze PiTV. **Pi 4 je hlavní a doporučený 
 - trvalá cache stažených image v `%LOCALAPPDATA%\PiTV\images`
 - stejná ověřená image se při dalším zápisu nestahuje znovu
 - vlastní PiTV raw writer — Raspberry Pi Imager už není potřeba
+- vlastní lehký `PiTV-XZ.exe` pro `.img.xz` — žádný Rufus, Raspberry Pi Imager ani externí XZ nástroj
 - podpora `.img`, `.img.xz/.xz` a ZIP s jedním `.img`
 - SHA-256 kontrola image a úplné read-back ověření SD po zápisu
 - bezpečné formátování SD karty
