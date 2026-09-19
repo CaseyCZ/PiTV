@@ -37,8 +37,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
 
 if errorlevel 1 (
   echo.
-  echo Nepodarilo se nacist PiTV Alpha installer.
-  echo Zkus to znovu nebo otevri:
+  echo Online aktualizace PiTV Alpha se nepodarila.
+  if exist "%~dp0PiTV-SD-Installer.ps1" (
+    echo Spoustim lokalni kopii installeru z rozbaleneho balicku.
+    set "PITV_PS1=%~dp0PiTV-SD-Installer.ps1"
+    goto run_installer
+  )
+  echo Lokalni zaloha nebyla nalezena.
   echo https://github.com/%PITV_REPO%/releases/tag/alpha
   echo.
   pause
@@ -46,6 +51,8 @@ if errorlevel 1 (
 )
 
 set /p PITV_PS1=<"%PITV_APP%\installer-path.txt"
+
+:run_installer
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PITV_PS1%"
 set "PITV_EXIT=%ERRORLEVEL%"
 
