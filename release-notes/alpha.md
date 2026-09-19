@@ -1,5 +1,15 @@
 # PiTV Alpha
 
+### PiTV 1.4.21 · Glass UI + seznamové Nastavení
+- Home a Nastavení přepracované podle schváleného mockupu: užší glass sidebar, hlubší navy pozadí, průsvitné panely, jemný sheen, tenké hrany a modrý focus glow
+- hero panel má nové proporce, editoriální pravý blok, page dots a nativní planet/space artwork bez těžkého obrázkového pozadí
+- domovské dlaždice mají jednotnější proporce, sheen a glass focus halo
+- Nastavení je nové třísloupcové TV rozhraní: kategorie, detail a živý preview/help panel
+- Vzhled nabízí Motiv, Barevný akcent, Velikost dlaždic, Rozložení plochy, Popisky ikon, Hustotu obsahu a Hodiny
+- hodnoty se už nepřepínají naslepo šipkami: OK / → otevře viditelný Kodi-style seznam a ✓ označí aktivní volbu
+- stejný seznamový model je použit i pro Spořič obrazovky a HDMI audio výstup
+- zachované jsou funkční PiTV 1.4.20 odinstalace aplikací a dosavadní CEC/media architektura
+
 ### PiTV 1.4.20 · Odinstalace aplikací
 - Nastavení → Aplikace: šipka doprava otevře potvrzení pro bezpečné odinstalování vybrané aplikace
 - Android / APK: nalezené APK lze odinstalovat přímo z TV; PiTV odebere Waydroid package, spravovaný APK soubor i odpovídající Store receipt
