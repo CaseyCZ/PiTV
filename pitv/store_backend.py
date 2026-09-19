@@ -109,6 +109,29 @@ def write_receipt(store_id, **values):
     )
 
 
+def clear_android_receipts(package="", path=""):
+    """Remove PiTV Store receipts that point at an uninstalled Android app."""
+    package = str(package or "").strip()
+    target_path = str(path or "").strip()
+    removed = []
+    if not RECEIPT_DIR.exists():
+        return removed
+    for receipt_path in RECEIPT_DIR.glob("*.json"):
+        data = _read_json(receipt_path, {})
+        if not isinstance(data, dict):
+            continue
+        same_package = package and data.get("package") == package
+        same_path = target_path and str(data.get("path", "")) == target_path
+        if not (same_package or same_path):
+            continue
+        try:
+            receipt_path.unlink()
+            removed.append(receipt_path.stem)
+        except OSError:
+            pass
+    return removed
+
+
 def store_state(item):
     installer = item.get("installer", {})
     kind = installer.get("type")
