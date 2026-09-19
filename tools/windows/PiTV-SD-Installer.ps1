@@ -199,6 +199,32 @@ function Q([string]$s) {
     return '"' + $s.Replace('"','\"') + '"'
 }
 
+function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName) {
+    $candidate = Get-SafeDisks | Where-Object { $_.Number -eq $Number } | Select-Object -First 1
+    if (-not $candidate) { throw "Vybraný disk už není dostupný jako bezpečný výměnný disk." }
+    if ([UInt64]$candidate.Size -ne $ExpectedSize -or [string]$candidate.FriendlyName -ne $ExpectedName) {
+        throw "Vybraný disk se od posledního načtení změnil. Obnov seznam a vyber kartu znovu."
+    }
+    return $candidate
+}
+
+function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName) {
+    $null = Get-VerifiedSafeDisk $Number $ExpectedSize $ExpectedName
+
+    Set-Disk -Number $Number -IsReadOnly $false
+    Clear-Disk -Number $Number -RemoveData -Confirm:$false
+    Start-Sleep -Milliseconds 500
+
+    $state = Get-Disk -Number $Number
+    if ($state.PartitionStyle -eq "RAW") {
+        Initialize-Disk -Number $Number -PartitionStyle MBR | Out-Null
+    }
+
+    $part = New-Partition -DiskNumber $Number -UseMaximumSize -AssignDriveLetter
+    $vol = $part | Format-Volume -FileSystem exFAT -NewFileSystemLabel "SDCARD" -Confirm:$false -Force
+    return $vol
+}
+
 $form = New-Object Windows.Forms.Form
 $form.Text = "PiTV SD Installer"
 $form.Size = New-Object Drawing.Size(720,590)
@@ -276,10 +302,20 @@ $log.BackColor = [Drawing.Color]::FromArgb(11,18,32)
 $log.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
 $form.Controls.Add($log)
 
+$format = New-Object Windows.Forms.Button
+$format.Text = "NAFORMÁTOVAT SD"
+$format.Location = New-Object Drawing.Point(32,490)
+$format.Size = New-Object Drawing.Size(198,48)
+$format.BackColor = [Drawing.Color]::FromArgb(23,32,51)
+$format.ForeColor = [Drawing.Color]::White
+$format.FlatStyle = "Flat"
+$format.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
+$form.Controls.Add($format)
+
 $create = New-Object Windows.Forms.Button
 $create.Text = "VYTVOŘIT PiTV SD"
-$create.Location = New-Object Drawing.Point(32,490)
-$create.Size = New-Object Drawing.Size(628,48)
+$create.Location = New-Object Drawing.Point(240,490)
+$create.Size = New-Object Drawing.Size(420,48)
 $create.BackColor = [Drawing.Color]::FromArgb(2,132,199)
 $create.ForeColor = [Drawing.Color]::White
 $create.FlatStyle = "Flat"
@@ -310,6 +346,52 @@ function Refresh-Drives {
 }
 
 $refresh.Add_Click({ Refresh-Drives })
+
+$format.Add_Click({
+    try {
+        if (-not $disk.SelectedItem) { throw "Vyber microSD kartu." }
+        $d = $disk.SelectedItem
+
+        $answer = [Windows.Forms.MessageBox]::Show(
+            ("Disk {0} · {1} · {2} bude KOMPLETNĚ SMAZÁN a vytvoří se jeden exFAT oddíl SDCARD. Pokračovat?" -f $d.Number,$d.Name,(Size-Text $d.Size)),
+            "Naformátovat SD kartu",
+            [Windows.Forms.MessageBoxButtons]::YesNo,
+            [Windows.Forms.MessageBoxIcon]::Warning
+        )
+        if ($answer -ne [Windows.Forms.DialogResult]::Yes) { return }
+
+        $format.Enabled = $false
+        $format.Enabled = $false
+        $create.Enabled = $false
+        $refresh.Enabled = $false
+
+        Log ("Formátuji Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
+        $vol = Format-SdDisk $d.Number $d.Size $d.Name
+        Log ("HOTOVO. SDCARD " + (Size-Text ([UInt64]$vol.Size)) + " · exFAT")
+        Refresh-Drives
+
+        [Windows.Forms.MessageBox]::Show(
+            "SD karta byla obnovena na jeden exFAT oddíl SDCARD přes celou dostupnou kapacitu.",
+            "PiTV SD Installer",
+            [Windows.Forms.MessageBoxButtons]::OK,
+            [Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
+    }
+    catch {
+        Log ("CHYBA: " + $_.Exception.Message)
+        [Windows.Forms.MessageBox]::Show(
+            $_.Exception.Message,
+            "PiTV SD Installer",
+            [Windows.Forms.MessageBoxButtons]::OK,
+            [Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+    }
+    finally {
+        $format.Enabled = $true
+        $create.Enabled = $true
+        $refresh.Enabled = $true
+    }
+})
 
 $create.Add_Click({
     $cloud = $null
@@ -403,13 +485,14 @@ $create.Add_Click({
         if ($cloud -and $cloud.Dir) {
             Remove-Item $cloud.Dir -Recurse -Force -ErrorAction SilentlyContinue
         }
+        $format.Enabled = $true
         $create.Enabled = $true
         $refresh.Enabled = $true
     }
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.1 · Windows"
+    Log "PiTV SD Installer v0.2 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Refresh-Drives
     try {
