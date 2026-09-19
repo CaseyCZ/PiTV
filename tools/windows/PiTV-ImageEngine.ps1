@@ -661,7 +661,8 @@ function Write-PiTVRawImageToDisk($raw,$d) {
             Set-InstallerProgress ("Zapisuji systém na SD kartu · " + $pct + " %") $pct
         }
 
-        try { $dest.Flush($true) } catch { $dest.Flush() }
+        [PiTVNativeDisk]::Flush($dest)
+        Log "RAW FLUSH OK: Windows potvrdil FlushFileBuffers na PhysicalDrive."
         $source.Dispose()
         $source = $null
 
