@@ -3,19 +3,24 @@
 Aktuální průběžná testovací verze PiTV. **Pi 4 je hlavní a doporučený cíl.**
 
 ### Aktuálně
-- PiTV SD Installer pro Windows
+- PiTV SD Installer pro Windows v0.15
 - výběr Raspberry Pi 3 / 3B+, Pi 4 nebo Pi 5
 - Pi 3 a Pi 5 jsou zatím experimentální Alpha cíle
 - automatické vyhledání Wi-Fi + načtení uloženého hesla
 - zobrazení hesla před zápisem
-- automatická instalace Raspberry Pi Imageru, pokud chybí
 - online Ubuntu Server 24.04 ARM64 nebo vlastní kompatibilní image
+- trvalá cache stažených image v `%LOCALAPPDATA%\PiTV\images`
+- stejná ověřená image se při dalším zápisu nestahuje znovu
+- vlastní PiTV raw writer — Raspberry Pi Imager už není potřeba
+- podpora `.img`, `.img.xz/.xz` a ZIP s jedním `.img`
+- SHA-256 kontrola image a úplné read-back ověření SD po zápisu
 - bezpečné formátování SD karty
 - kontrola identity cílového disku před destruktivní operací
-- diagnostika + ODESLAT CHYBU
-- automatická instalace Ubuntu Server + PiTV
+- viditelný progress jednotlivých fází
+- rozšířená diagnostika + ODESLAT CHYBU
+- automatické vložení cloud-init, Wi-Fi a instalace PiTV
 
 ### Instalace
-Stáhni **PiTV-SD-Installer-Windows.zip**, rozbal ho a spusť `Start-PiTV-SD-Installer.cmd`.
+Stáhni **PiTV-SD-Installer-Windows.zip**, rozbal **celý ZIP** a spusť `Start-PiTV-SD-Installer.cmd`.
 
 > Alpha se průběžně aktualizuje. Stejný release a stejný soubor vždy obsahují aktuální testovací verzi.
