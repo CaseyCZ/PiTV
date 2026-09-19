@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.3.3"
+VERSION = "1.4.0"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -644,6 +644,11 @@ class PiTV:
         self.external_proc = None
         self.external_kind = None
 
+        # Reference artwork used by the TV home hero. The source repo keeps the
+        # full Dark/Light design references; install.sh copies them next to
+        # pitv.py on the device. CI can still load them from the repo root.
+        self._home_hero_cache = {}
+
         self.wifi_networks = []
         self.wifi_scanning = False
         self.update_count = None
@@ -811,11 +816,28 @@ class PiTV:
             self.text(label, rr.x+int(rr.h*.75), rr.y+int(rr.h*.25), rr.h*.25,
                       self.t["text"] if selected else self.t["muted"], selected)
 
-        divider_y = y0 + len(items)*row_h + int(self.h*.012)
+        divider_y = y0 + len(items)*row_h + int(self.h*.008)
         pygame.draw.line(self.screen, self.t["border"],
                          (rect.x+int(w*.08), divider_y),
                          (rect.right-int(w*.08), divider_y), 1)
-        self.text("PiTV  "+VERSION, x, rect.bottom-int(self.h*.055), self.h*.014, self.t["muted"])
+
+        self.text("Média & nástroje", x, divider_y+int(self.h*.020),
+                  self.h*.014, self.t["muted"], True)
+        quick = [
+            ("▦", "Kodi"),
+            ("▶", "SmartTube"),
+            ("◆", "Stremio"),
+            ("❯", "Plex"),
+            ("•••", "Další aplikace"),
+        ]
+        qy = divider_y + int(self.h*.055)
+        qh = int(self.h*.049)
+        for icon, label in quick:
+            self.text(icon, x, qy+int(qh*.12), qh*.31, self.t["muted"], True)
+            self.text(label, x+int(qh*.72), qy+int(qh*.16), qh*.24, self.t["muted"])
+            qy += qh
+
+        self.text("PiTV  "+VERSION, x, rect.bottom-int(self.h*.045), self.h*.013, self.t["muted"])
 
     def draw_hero(self, title, subtitle, badge="PiTV", action=""):
         r = pygame.Rect(self.main_left()+int(self.w*.015), int(self.h*.055),
@@ -1247,49 +1269,199 @@ class PiTV:
         save_user_config(self.cfg)
         self.mark_activity()
 
+    HOME_TILE_STYLE = {
+        "kodi":       ((14,165,233), (2,132,199), "K"),
+        "smarttube":  ((248,48,58), (185,28,28), "▶"),
+        "stremio":    ((168,85,247), (109,40,217), "◆"),
+        "plex":       ((48,48,48), (15,15,15), "❯"),
+        "youtube-tv": ((250,250,250), (226,232,240), "▶"),
+        "spotify-tv": ((34,197,94), (22,163,74), "●"),
+        "homebridge": ((126,34,206), (88,28,135), "⌂"),
+        "tailscale":  ((64,64,72), (25,25,30), "•••"),
+        "docker":     ((14,165,233), (3,105,161), "▥"),
+        "atvloadly":  ((56,189,248), (2,132,199), "⬇"),
+        "android":    ((74,222,70), (22,163,74), "A"),
+        "settings":   ((226,232,240), (148,163,184), "⚙"),
+    }
+
+    def _installed_app_for_store(self, store_item):
+        package = (store_item.get("installer") or {}).get("package", "")
+        name = store_item.get("name", "")
+        for app in self.apps:
+            if package and app.get("package") == package:
+                return app
+            if name and app.get("name", "").lower() == name.lower():
+                return app
+        return None
+
     def home_items(self):
-        hidden = set(self.cfg.get("hidden_apps", []))
-        items = [{"name": a["name"], "subtitle": a.get("subtitle","Aplikace"),
-                  "icon": a.get("icon","▶"), "kind":"app", "app":a}
-                 for a in self.apps if a.get("name") not in hidden]
-        items.append({"name":"Nastavení", "subtitle":"PiTV a systém", "icon":"⚙", "kind":"settings"})
-        return items
+        items = []
+
+        # First row mirrors the approved mockup and remains useful before apps
+        # are installed: OK opens the matching Store item.
+        for store_item in self.store_catalog[:6]:
+            app = self._installed_app_for_store(store_item)
+            items.append({
+                "id": store_item.get("id", ""),
+                "name": store_item.get("name", "Aplikace"),
+                "kind": "app" if app else "store",
+                "app": app,
+                "store_item": store_item,
+            })
+
+        # Keep six featured slots stable even if a future catalog is smaller.
+        while len(items) < 6:
+            items.append({
+                "id": "store",
+                "name": "PiTV Store",
+                "kind": "store-root",
+            })
+
+        for service in self.server_store_catalog[:4]:
+            items.append({
+                "id": service.get("id", ""),
+                "name": "Docker" if service.get("id") == "docker" else service.get("name", "Server"),
+                "kind": "server",
+                "server_item": service,
+            })
+
+        items.append({"id": "android", "name": "Android / APK", "kind": "android"})
+        items.append({"id": "settings", "name": "Nastavení", "kind": "settings"})
+        return items[:12]
+
+    def _home_reference_path(self):
+        theme = {"dark": "apple_dark", "light": "apple_light"}.get(
+            self.cfg.get("theme", "apple_dark"), self.cfg.get("theme", "apple_dark"))
+        name = "Light.jpg" if theme == "apple_light" else "Dark.jpg"
+        here = Path(__file__).resolve().parent
+        for candidate in (here / name, here.parent / name):
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _home_hero_surface(self, size):
+        key = (self.theme_name, int(size[0]), int(size[1]))
+        cached = self._home_hero_cache.get(key)
+        if cached is not None:
+            return cached
+
+        path = self._home_reference_path()
+        if path is None:
+            self._home_hero_cache[key] = False
+            return None
+
+        try:
+            source = pygame.image.load(str(path)).convert()
+            sw, sh = source.get_size()
+            # Crop exactly the hero area from the approved 16:9 reference.
+            crop = pygame.Rect(
+                int(sw * .228),
+                int(sh * .092),
+                int(sw * .714),
+                int(sh * .392),
+            ).clip(source.get_rect())
+            hero = source.subsurface(crop).copy()
+            hero = pygame.transform.smoothscale(hero, (int(size[0]), int(size[1])))
+
+            mask = pygame.Surface(hero.get_size(), pygame.SRCALPHA)
+            pygame.draw.rect(mask, (255,255,255,255), mask.get_rect(), border_radius=24)
+            hero = hero.convert_alpha()
+            hero.blit(mask, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
+            self._home_hero_cache[key] = hero
+            return hero
+        except Exception:
+            self._home_hero_cache[key] = False
+            return None
+
+    def draw_home_hero(self):
+        left = self.main_left()+int(self.w*.015)
+        r = pygame.Rect(left, int(self.h*.055),
+                        self.w-left-int(self.w*.025), int(self.h*.405))
+
+        hero = self._home_hero_surface(r.size)
+        if hero:
+            self.screen.blit(hero, r.topleft)
+        else:
+            self.gradient_rect(r, self.t["hero"], self.t["bg"], radius=24)
+            self.text("STREAM. APPS. SERVERS. MORE.", r.x+40, r.y+int(self.h*.065),
+                      self.h*.015, self.t["muted"], True)
+            self.text("PiTV", r.x+40, r.y+int(self.h*.105), self.h*.070, self.t["text"], True)
+            self.text("Chytřejší TV. Všechno na jednom místě.",
+                      r.x+42, r.y+int(self.h*.205), self.h*.020, self.t["muted"])
+            ar = pygame.Rect(r.x+42, r.bottom-int(self.h*.075), int(self.w*.105), int(self.h*.050))
+            self.gradient_rect(ar, self.t["accent2"], self.t["action"], radius=ar.h//2)
+            surf = self.font(ar.h*.27, True).render("Procházet  ›", True, (255,255,255))
+            self.screen.blit(surf, surf.get_rect(center=ar.center))
+
+        pygame.draw.rect(self.screen, self.t["border"], r, 1, border_radius=24)
+
+        if self.cfg.get("show_clock", True):
+            clock = self.font(self.h*.022, True).render(time.strftime("%H:%M"), True, self.t["text"])
+            self.screen.blit(clock, (self.w-clock.get_width()-int(self.w*.060), int(self.h*.020)))
+            gear = self.font(self.h*.023, True).render("⚙", True, self.t["muted"])
+            self.screen.blit(gear, (self.w-int(self.w*.037), int(self.h*.018)))
+        return r
+
+    def draw_home_tile(self, item, rect, selected):
+        style = self.HOME_TILE_STYLE.get(
+            item.get("id", ""),
+            (self.t["accent2"], self.t["action"], item.get("name","?")[:1].upper())
+        )
+        top, bottom, icon_text = style
+
+        if selected:
+            glow = rect.inflate(10, 10)
+            halo = pygame.Surface((glow.w, glow.h), pygame.SRCALPHA)
+            pygame.draw.rect(halo, (*self.t["accent"], 42), halo.get_rect(), border_radius=18)
+            self.screen.blit(halo, glow.topleft)
+
+        self.gradient_rect(rect, top, bottom, radius=16)
+        pygame.draw.rect(
+            self.screen,
+            self.t["accent"] if selected else self.t["border"],
+            rect,
+            3 if selected else 1,
+            border_radius=16,
+        )
+
+        dark_icon = item.get("id") in ("youtube-tv", "settings")
+        icon_color = (239, 35, 45) if item.get("id") == "youtube-tv" else (
+            (51,65,85) if dark_icon else (255,255,255)
+        )
+        icon = self.font(rect.h*.36, True).render(str(icon_text), True, icon_color)
+        self.screen.blit(icon, icon.get_rect(center=rect.center))
+
+        label = self.font(self.h*.017, selected).render(item.get("name",""), True, self.t["text"])
+        self.screen.blit(label, (rect.centerx-label.get_width()//2, rect.bottom+int(self.h*.010)))
 
     def draw_home(self):
         self.draw_sidebar("home")
         items = self.home_items()
-        hero = self.draw_hero(
-            "PiTV",
-            "Aplikace, média a server na jednom místě.",
-            "TV · RASPBERRY PI",
-            "Procházet",
-        )
+        hero = self.draw_home_hero()
 
-        if self.cfg.get("show_clock", True):
-            clock = self.font(self.h*.026, True).render(time.strftime("%H:%M"), True, self.t["text"])
-            self.screen.blit(clock, (hero.right-clock.get_width()-26, hero.y+22))
-
-        x = self.main_left()+int(self.w*.018)
-        y = hero.bottom+int(self.h*.025)
-        self.text("Aplikace", x, y, self.h*.024, self.t["text"], True)
-        y += int(self.h*.045)
-
-        cols = 5 if self.w >= 1500 else 4
-        gap = int(self.w*.012)
-        area_w = self.w-x-int(self.w*.035)
+        x = self.main_left()+int(self.w*.015)
+        area_w = self.w-x-int(self.w*.025)
+        cols = 6
+        gap = int(self.w*.009)
         tile_w = int((area_w-(cols-1)*gap)/cols)
-        tile_h = int(self.h*.145*float(self.cfg.get("tile_scale",1.0)))
+        tile_h = int(self.h*.100*float(self.cfg.get("tile_scale",1.0)))
 
-        for i, item in enumerate(items):
-            row, col = divmod(i, cols)
-            rr = pygame.Rect(x+col*(tile_w+gap), y+row*(tile_h+int(self.h*.055)), tile_w, tile_h)
-            self.glass_panel(rr, i == self.selected, 232, 18)
-            icon_box = pygame.Rect(rr.x+16, rr.y+14, int(rr.h*.42), int(rr.h*.42))
-            self.gradient_rect(icon_box, self.t["accent2"], self.t["action"], radius=12)
-            icon = self.font(icon_box.h*.35, True).render(str(item.get("icon","▶")), True, (255,255,255))
-            self.screen.blit(icon, icon.get_rect(center=icon_box.center))
-            self.text(item["name"], rr.x+16, rr.bottom-int(rr.h*.37), rr.h*.16, self.t["text"], True)
-            self.text(item.get("subtitle",""), rr.x+16, rr.bottom-int(rr.h*.18), rr.h*.105, self.t["muted"])
+        first_title_y = hero.bottom+int(self.h*.018)
+        self.text("Doporučené aplikace", x, first_title_y, self.h*.020, self.t["text"], True)
+        first_y = first_title_y+int(self.h*.035)
+
+        for i, item in enumerate(items[:6]):
+            rr = pygame.Rect(x+i*(tile_w+gap), first_y, tile_w, tile_h)
+            self.draw_home_tile(item, rr, i == self.selected)
+
+        second_title_y = first_y+tile_h+int(self.h*.050)
+        self.text("Nástroje & služby", x, second_title_y, self.h*.020, self.t["text"], True)
+        second_y = second_title_y+int(self.h*.035)
+
+        for j, item in enumerate(items[6:12]):
+            i = j+6
+            rr = pygame.Rect(x+j*(tile_w+gap), second_y, tile_w, tile_h)
+            self.draw_home_tile(item, rr, i == self.selected)
 
     SETTINGS = [
         ("Vzhled", "Motiv, dlaždice a hodiny"),
@@ -2213,7 +2385,12 @@ class PiTV:
 
     def handle_home(self, key):
         items = self.home_items()
-        cols = 5 if self.w >= 1500 else 4
+        cols = 6
+        if not items:
+            return
+
+        self.selected = min(self.selected, len(items)-1)
+
         if key == pygame.K_LEFT:
             if self.selected % cols == 0:
                 self.focus_sidebar("home")
@@ -2227,10 +2404,32 @@ class PiTV:
             self.selected = min(len(items)-1, self.selected+cols)
         elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
             item = items[self.selected]
-            if item["kind"] == "settings":
-                self.page = "settings"; self.settings_selected = 0
-            else:
+            kind = item.get("kind")
+
+            if kind == "app" and item.get("app"):
                 self.launch(item["app"])
+            elif kind in ("store", "store-root"):
+                self.page = "store"
+                self.store_return_page = "home"
+                sid = item.get("id", "")
+                self.store_selected = next(
+                    (i for i, x in enumerate(self.store_catalog) if x.get("id") == sid), 0
+                )
+                self.refresh_store_async()
+            elif kind == "server":
+                self.page = "server_store"
+                self.server_store_return_page = "home"
+                sid = item.get("id", "")
+                self.server_store_selected = next(
+                    (i for i, x in enumerate(self.server_store_catalog) if x.get("id") == sid), 0
+                )
+                self.refresh_server_store_async()
+            elif kind == "android":
+                self.page = "android"
+                self.android_selected = 0
+            elif kind == "settings":
+                self.page = "settings"
+                self.settings_selected = 0
 
     def handle_key(self, key):
         # Modal input has priority.
