@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.12 installer =="
+echo "== PiTV v1.4.13 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
