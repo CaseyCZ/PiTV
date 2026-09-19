@@ -1,5 +1,10 @@
 # PiTV Alpha
 
+### PiTV 1.4.14 · CEC Home / Back
+- doplněny všechny běžné HDMI-CEC menu kódy pro tlačítko Home/domeček (Root, Setup, Contents, Favorite, Media Top, Media Context)
+- Home v Kodi/externí aplikaci se mapuje zpět do PiTV
+- Back na hlavní stránce PiTV už není neviditelný no-op; přesune focus do levého menu
+- Home na hlavní stránce resetuje výběr a zobrazí krátké potvrzení Domů
 ### PiTV 1.4.13 · HDMI audio default
 - PiTV při startu vybere dostupný HDMI PipeWire/Pulse sink jako výchozí pro Kodi, Stremio a Waydroid
 - změna HDMI audio portu v Nastavení se okamžitě promítne do výchozího Pulse sinku
