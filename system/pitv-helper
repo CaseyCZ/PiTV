@@ -125,6 +125,22 @@ elif action == "apt-install":
     run(["apt-get", "-y", "install", package], timeout=1200, env=env)
     out(f"{package} nainstalováno")
 
+elif action == "flatpak-install":
+    app_id = str(payload.get("app_id", "")).strip()
+    allowed = {"com.stremio.Stremio"}
+    if app_id not in allowed:
+        out("Flatpak aplikace není povolena v PiTV Store", 2)
+    if shutil.which("flatpak") is None:
+        env = os.environ.copy()
+        env["DEBIAN_FRONTEND"] = "noninteractive"
+        run(["apt-get", "update"], timeout=300, env=env)
+        run(["apt-get", "-y", "install", "flatpak"], timeout=1200, env=env)
+    subprocess.run(["flatpak", "remote-add", "--system", "--if-not-exists", "flathub",
+                    "https://flathub.org/repo/flathub.flatpakrepo"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    run(["flatpak", "install", "--system", "-y", "--noninteractive", "flathub", app_id], timeout=1800)
+    out(f"{app_id} nainstalováno")
+
 elif action == "pitv-self-update":
     updater = "/usr/local/libexec/pitv-self-update"
     if not os.path.isfile(updater):
