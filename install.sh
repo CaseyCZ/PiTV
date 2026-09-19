@@ -132,7 +132,9 @@ case "$MODE" in
     exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --standby
     ;;
   active)
-    PA="$(/usr/bin/cec-ctl -d "$DEV" -s -x 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+    PA="$(/usr/bin/cec-ctl -d "$DEV" 2>/dev/null |
+      sed -n 's/^[[:space:]]*Physical Address[[:space:]]*:[[:space:]]*//p' |
+      head -n1 | tr -d '[:space:]')"
     [[ "$PA" =~ ^[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]$ ]] || exit 4
     exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --active-source "phys-addr=$PA"
     ;;
