@@ -36,7 +36,6 @@ DEFAULT_CONFIG = {
     "theme": "apple_dark",
     "accent": "blue",
     "tile_scale": 1.0,
-    "accent": "blue",
     "show_tile_labels": True,
     "home_layout": "default",
     "content_density": "normal",
@@ -1087,6 +1086,12 @@ class PiTV:
         self.confirm_yes = False
         self.confirm_callback = None
 
+        self.choice_active = False
+        self.choice_title = ""
+        self.choice_options = []
+        self.choice_selected = 0
+        self.choice_callback = None
+
         self.toast = ""
         self.toast_until = 0.0
         # Persistent global activity indicator for long-running TV operations.
@@ -1675,6 +1680,85 @@ class PiTV:
             self.confirm_callback = None
             if yes and cb:
                 cb()
+
+    def open_choice(self, title, options, current, callback):
+        """Open a Kodi-style visible list of values for a TV setting."""
+        options = list(options or [])
+        if not options:
+            return
+        self.choice_active = True
+        self.choice_title = str(title)
+        self.choice_options = options
+        self.choice_selected = next(
+            (i for i, (_, value) in enumerate(options) if value == current), 0
+        )
+        self.choice_callback = callback
+        self.mark_activity()
+
+    def draw_choice(self):
+        overlay = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 122 if not self.theme_name.endswith("Light") else 72))
+        self.screen.blit(overlay, (0, 0))
+
+        count = max(1, len(self.choice_options))
+        row_h = int(self.h*.061)
+        box_h = int(self.h*.095) + count*row_h + int(self.h*.045)
+        box_h = min(box_h, int(self.h*.72))
+        box_w = int(self.w*.330)
+        box = pygame.Rect(0, 0, box_w, box_h)
+        box.center = (int(self.w*.620), int(self.h*.555))
+        self.glass_panel(box, False, 218, 22)
+
+        self.text(self.choice_title, box.x+24, box.y+20,
+                  self.h*.024, self.t["text"], True)
+        y0 = box.y+int(self.h*.070)
+        visible = max(1, int((box.bottom-y0-int(self.h*.025))/row_h))
+        start = max(0, min(
+            self.choice_selected-visible//2,
+            max(0, len(self.choice_options)-visible),
+        ))
+
+        for local_i, (label, value) in enumerate(self.choice_options[start:start+visible]):
+            i = start+local_i
+            rr = pygame.Rect(box.x+18, y0+local_i*row_h,
+                             box.w-36, int(row_h*.84))
+            selected = i == self.choice_selected
+            self.glass_panel(rr, selected, 185, 12)
+            self.text(str(label), rr.x+18, rr.y+int(rr.h*.24),
+                      rr.h*.29, self.t["text"], selected)
+            if selected:
+                check = self.font(rr.h*.30, True).render("✓", True, self.t["accent"])
+                self.screen.blit(
+                    check,
+                    (rr.right-check.get_width()-18,
+                     rr.y+(rr.h-check.get_height())//2),
+                )
+
+        self.text("↑/↓ vybere • OK potvrdit • Back zrušit",
+                  box.x+22, box.bottom-int(self.h*.035),
+                  self.h*.014, self.t["muted"])
+
+    def handle_choice_key(self, key):
+        if key == pygame.K_ESCAPE:
+            self.choice_active = False
+            self.choice_callback = None
+            return
+        if key == pygame.K_UP:
+            self.choice_selected = max(0, self.choice_selected-1)
+        elif key == pygame.K_DOWN:
+            self.choice_selected = min(
+                max(0, len(self.choice_options)-1), self.choice_selected+1
+            )
+        elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            if not self.choice_options:
+                self.choice_active = False
+                return
+            _, value = self.choice_options[self.choice_selected]
+            callback = self.choice_callback
+            self.choice_active = False
+            self.choice_callback = None
+            if callback:
+                callback(value)
 
     def scan_wifi_async(self):
         if self.wifi_scanning:
@@ -3151,6 +3235,8 @@ class PiTV:
             self.draw_keyboard()
         if self.confirm_active:
             self.draw_confirm()
+        if self.choice_active:
+            self.draw_choice()
 
         pygame.display.flip()
 
@@ -3445,6 +3531,10 @@ class PiTV:
 
     def handle_key(self, key):
         # Modal input has priority.
+        if self.choice_active:
+            self.mark_activity()
+            self.handle_choice_key(key)
+            return
         if self.keyboard_active:
             self.mark_activity()
             self.handle_keyboard_key(key)
