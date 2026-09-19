@@ -5,9 +5,16 @@ if [ "$(id -un)" != "pitv" ]; then
   echo "Waydroid TV aplikace musí běžet v session uživatele pitv." >&2
   exit 12
 fi
+
 export HOME=/home/pitv
 export USER=pitv
 export LOGNAME=pitv
+
+MODE="outer"
+if [ "${1:-}" = "--cage-client" ]; then
+  MODE="client"
+  shift
+fi
 
 TARGET="${1:-}"
 APK="${2:-}"
@@ -16,12 +23,11 @@ APK="${2:-}"
 RUNTIME="/run/user/$(id -u)"
 export XDG_RUNTIME_DIR="$RUNTIME"
 export XDG_SESSION_TYPE="wayland"
-export XDG_CURRENT_DESKTOP="labwc"
 export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
 
 LOG="/tmp/pitv-waydroid-launch.log"
-: >"$LOG"
+[ "$MODE" = "client" ] || : >"$LOG"
 
 log() {
   printf '%s\n' "PiTV: $*" >>"$LOG"
@@ -31,8 +37,9 @@ valid_package() {
   [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$ ]]
 }
 
-# Only a Wayland socket from the canonical pitv runtime is valid. A shell can
-# inherit WAYLAND_DISPLAY from admin/root even after switching UID.
+# Only use a Wayland socket owned by the canonical pitv runtime. The outer
+# process starts in labwc; when Cage starts the client it replaces
+# WAYLAND_DISPLAY with Cage's nested socket in the same runtime.
 VALID_WAYLAND=""
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then
   if [[ "$WAYLAND_DISPLAY" = "$RUNTIME/"* ]] && [ -S "$WAYLAND_DISPLAY" ]; then
@@ -54,7 +61,6 @@ if [ -z "$VALID_WAYLAND" ]; then
   exit 11
 fi
 export WAYLAND_DISPLAY="$VALID_WAYLAND"
-WAYLAND_SOCKET="$RUNTIME/$WAYLAND_DISPLAY"
 
 if [ ! -S "$RUNTIME/bus" ]; then
   log "PiTV user D-Bus is missing: $RUNTIME/bus"
@@ -74,37 +80,32 @@ if [ ! -S "$RUNTIME/pulse/native" ]; then
   exit 9
 fi
 
-cleanup() {
-  waydroid session stop >/dev/null 2>&1 || true
-}
-trap cleanup EXIT TERM INT HUP
-
-if ! sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >>"$LOG" 2>&1; then
-  waydroid log >>"$LOG" 2>&1 || true
-  exit 10
-fi
-
-waydroid session start >>"$LOG" 2>&1 &
-SESSION_PID=$!
-
-# "Container: RUNNING" is not enough. Wait until the user session is running
-# and Android reports sys.boot_completed=1 before launching any application.
-READY=0
-for _ in $(seq 1 180); do
-  if printf '{}' | sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; then
-    READY=1
-    break
+# Raspberry Pi Waydroid preflight. 16 KiB page-size kernels are known to be
+# unsuitable for this runtime path, and PSI must be available.
+if [ "$(uname -m)" = "aarch64" ]; then
+  PAGE_SIZE="$(getconf PAGESIZE 2>/dev/null || true)"
+  if [ -n "$PAGE_SIZE" ] && [ "$PAGE_SIZE" != "4096" ]; then
+    log "unsupported page size for Waydroid on Raspberry Pi: $PAGE_SIZE (expected 4096)"
+    exit 14
   fi
-  # The session-start client may exit after handing the session to Waydroid;
-  # readiness is authoritative, not the lifetime of this helper process.
-  sleep 0.5
-done
-if [ "$READY" -ne 1 ]; then
-  log "Android framework did not become ready"
-  waydroid status >>"$LOG" 2>&1 || true
-  waydroid log >>"$LOG" 2>&1 || true
-  exit 3
+  if [ ! -d /proc/pressure ]; then
+    log "PSI is unavailable (/proc/pressure missing); enable psi=1 and reboot"
+    exit 15
+  fi
 fi
+
+wait_ready() {
+  local ready=0
+  for _ in $(seq 1 180); do
+    if printf '{}' |
+        sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 0.5
+  done
+  [ "$ready" -eq 1 ]
+}
 
 package_installed() {
   local package="$1"
@@ -117,8 +118,8 @@ launch_package() {
   local package="$1"
   waydroid app launch "$package" >>"$LOG" 2>&1 || return 1
 
-  # Waydroid can return exit code 0 while no window/process is actually
-  # created. Verify the package and retry at the caller if necessary.
+  # Waydroid can return successfully before the Android process/window becomes
+  # observable. Verify the package before reporting launch success.
   for _ in $(seq 1 40); do
     if printf '{"package":"%s"}' "$package" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-running >/dev/null 2>&1; then
@@ -129,12 +130,82 @@ launch_package() {
   return 1
 }
 
+if [ "$MODE" = "outer" ]; then
+  if ! command -v cage >/dev/null 2>&1; then
+    log "Cage kiosk compositor is not installed"
+    exit 16
+  fi
+
+  # A Waydroid session is bound to the Wayland socket that existed when the
+  # session started. Stop any stale labwc-bound session before entering Cage;
+  # otherwise show-full-ui would reuse it instead of binding Android to Cage.
+  waydroid session stop >>"$LOG" 2>&1 || true
+  for _ in $(seq 1 50); do
+    if ! waydroid status 2>/dev/null | grep -Eq '^Session:[[:space:]]*RUNNING'; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  log "starting nested Cage fullscreen session from parent $WAYLAND_DISPLAY"
+
+  # This follows Waydroid's documented kiosk/fullscreen model. Cage detects the
+  # existing labwc Wayland session and opens a nested virtual output. labwc
+  # maximizes that wlroots window via system/labwc/rc.xml.
+  exec cage -d -- "$0" --cage-client "$TARGET" "$APK"
+fi
+
+# From this point we are the single Cage client. Cage has replaced
+# WAYLAND_DISPLAY with its own nested socket, so Waydroid's session manager
+# binds Android to Cage rather than directly to PiTV/labwc.
+export XDG_CURRENT_DESKTOP="cage"
+log "Cage client socket: $WAYLAND_DISPLAY"
+
+UI_PID=""
+cleanup() {
+  waydroid session stop >/dev/null 2>&1 || true
+  if [ -n "$UI_PID" ]; then
+    wait "$UI_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT TERM INT HUP
+
+# Use Waydroid's own documented fullscreen entry point. When no session exists,
+# upstream starts a foreground (background_start=false) user session here.
+waydroid show-full-ui >>"$LOG" 2>&1 &
+UI_PID=$!
+
+if ! wait_ready; then
+  log "Android framework did not become ready inside Cage"
+  waydroid status >>"$LOG" 2>&1 || true
+  waydroid log >>"$LOG" 2>&1 || true
+  exit 3
+fi
+
+# PiTV is a TV appliance, not a desktop multi-window environment. Persisted
+# Waydroid data survives PiTV updates, so force the documented full-UI mode
+# every time rather than inheriting an old multi_windows=true setting.
+if ! waydroid prop set persist.waydroid.multi_windows false >>"$LOG" 2>&1; then
+  log "failed to force persist.waydroid.multi_windows=false"
+  exit 17
+fi
+MULTI="$(waydroid prop get persist.waydroid.multi_windows 2>>"$LOG" || true)"
+log "persist.waydroid.multi_windows=${MULTI:-unknown}"
+
+# The shared PiTV media bind is privileged. At this point the Android container
+# is already running, so the helper only verifies it and attaches the media
+# bridge; it does not choose the Wayland socket.
+if ! sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >>"$LOG" 2>&1; then
+  log "Waydroid is ready but PiTV Media bridge failed"
+  exit 10
+fi
+
 TRACK_PACKAGE=""
 if [ "$TARGET" = "--full-ui" ]; then
-  waydroid show-full-ui >>"$LOG" 2>&1 || {
-    waydroid log >>"$LOG" 2>&1 || true
-    exit 5
-  }
+  # Keep the documented full Android UI alive until PiTV stops this process
+  # group or the Waydroid session exits.
+  wait "$UI_PID"
+  exit $?
 elif [ "$TARGET" = "--play-store" ]; then
   PACKAGE="$APK"
   valid_package "$PACKAGE" || exit 6
@@ -171,10 +242,12 @@ else
   TRACK_PACKAGE="$TARGET"
 fi
 
-# Keep the wrapper alive so PiTV can relay CEC while the foreground Android
-# app/session is alive. Exit naturally after the app is closed.
+# Keep Cage and the upstream Waydroid session alive while the selected Android
+# package is alive. Once the app closes, the trap stops the session and Cage
+# disappears, revealing PiTV again.
 MISSES=0
-while printf '{}' | sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; do
+while printf '{}' |
+    sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; do
   if [ -n "$TRACK_PACKAGE" ]; then
     if printf '{"package":"%s"}' "$TRACK_PACKAGE" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-running >/dev/null 2>&1; then
