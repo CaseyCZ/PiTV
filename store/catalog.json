@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "apps": [
     {
       "id": "kodi",
@@ -79,16 +79,17 @@
     {
       "id": "plex",
       "name": "Plex",
-      "description": "Oficiální Plex aplikace pro Android TV / Google TV.",
+      "description": "Plex přehrávač pro TV přes nativní Linux Kodi a PM4K. Bez Androidu/Waydroidu.",
       "category": "Media",
-      "platform": "android",
+      "platform": "linux",
       "icon": "PLEX",
       "featured": true,
-      "source_label": "Google Play",
-      "requires": "gapps",
+      "source_label": "Kodi.tv · PM4K",
+      "requires": "kodi",
       "installer": {
-        "type": "play_store",
-        "package": "com.plexapp.android"
+        "type": "kodi_addon",
+        "package": "kodi",
+        "addon_id": "script.plexmod"
       }
     }
   ]
