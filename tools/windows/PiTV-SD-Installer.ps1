@@ -13,6 +13,7 @@ New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 $SessionLog = Join-Path $LogDir ("pitv-sd-installer-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
 $script:WifiInternalUpdate = $false
 $script:WifiPasswordSsid = ""
+$script:LocalImagePath = ""
 
 # Keep only the five most recent completed/current sessions.
 Get-ChildItem $LogDir -Filter "pitv-sd-installer-*.log" -File -ErrorAction SilentlyContinue |
@@ -404,11 +405,17 @@ function Add-Label($text,$y) {
 Add-Label "Systém" 116
 $os = New-Object Windows.Forms.ComboBox
 $os.Location = New-Object Drawing.Point(190,112)
-$os.Size = New-Object Drawing.Size(470,32)
+$os.Size = New-Object Drawing.Size(365,32)
 $os.DropDownStyle = "DropDownList"
 [void]$os.Items.Add("Ubuntu Server 24.04 LTS (64-bit) — doporučeno")
 $os.SelectedIndex = 0
 $form.Controls.Add($os)
+
+$imageBrowse = New-Object Windows.Forms.Button
+$imageBrowse.Text = "Vybrat image..."
+$imageBrowse.Location = New-Object Drawing.Point(565,111)
+$imageBrowse.Size = New-Object Drawing.Size(95,32)
+$form.Controls.Add($imageBrowse)
 
 Add-Label "microSD / USB" 164
 $disk = New-Object Windows.Forms.ComboBox
@@ -522,8 +529,36 @@ $create.FlatStyle = "Flat"
 $create.Font = New-Object Drawing.Font("Segoe UI",12,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($create)
 
+function Sanitize-LogText([string]$s) {
+    if ($null -eq $s) { return "" }
+    $out = [string]$s
+
+    $replacements = @(
+        @($env:USERPROFILE, "<USERPROFILE>"),
+        @($env:LOCALAPPDATA, "<LOCALAPPDATA>"),
+        @($env:TEMP, "<TEMP>"),
+        @($env:ProgramFiles, "<PROGRAMFILES>"),
+        @([Environment]::GetFolderPath("ProgramFilesX86"), "<PROGRAMFILES_X86>")
+    )
+
+    foreach ($pair in $replacements) {
+        $from = [string]$pair[0]
+        if ($from) {
+            $out = $out.Replace($from, [string]$pair[1])
+        }
+    }
+
+    if ($script:LocalImagePath) {
+        $dir = Split-Path -Parent $script:LocalImagePath
+        if ($dir) { $out = $out.Replace($dir, "<IMAGE_FOLDER>") }
+    }
+
+    return $out
+}
+
 function Log([string]$s) {
-    $line = (Get-Date -Format "HH:mm:ss") + "  " + $s
+    $safe = Sanitize-LogText $s
+    $line = (Get-Date -Format "HH:mm:ss") + "  " + $safe
     $log.AppendText($line + [Environment]::NewLine)
     $log.SelectionStart = $log.TextLength
     $log.ScrollToCaret()
@@ -693,6 +728,62 @@ function Load-WifiFromWindows {
     }
 }
 
+function Select-LocalImage {
+    $dialog = New-Object Windows.Forms.OpenFileDialog
+    $dialog.Title = "Vyber Raspberry Pi / Ubuntu image"
+    $dialog.Filter = "Podporované image (*.img;*.xz;*.zip)|*.img;*.xz;*.zip|Všechny soubory (*.*)|*.*"
+    $dialog.CheckFileExists = $true
+    $dialog.Multiselect = $false
+
+    if ($dialog.ShowDialog() -ne [Windows.Forms.DialogResult]::OK) { return }
+
+    $file = Get-Item $dialog.FileName
+    if ($file.Length -lt 10MB) {
+        [Windows.Forms.MessageBox]::Show(
+            "Vybraný soubor je podezřele malý pro systémovou image.",
+            "PiTV SD Installer",
+            [Windows.Forms.MessageBoxButtons]::OK,
+            [Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
+        return
+    }
+
+    $script:LocalImagePath = $file.FullName
+    $name = $file.Name
+
+    if ($os.Items.Count -gt 1) {
+        $os.Items.RemoveAt(1)
+    }
+    [void]$os.Items.Add(("Vlastní image — " + $name))
+    $os.SelectedIndex = 1
+
+    Log ("Vlastní image vybrána: " + $name)
+}
+
+function Use-OfficialImage {
+    $script:LocalImagePath = ""
+    if ($os.Items.Count -gt 1) {
+        $os.Items.RemoveAt(1)
+    }
+    $os.SelectedIndex = 0
+    Log "Použití vlastní image bylo zrušeno. Použije se oficiální Ubuntu Server image."
+}
+
+$imageBrowse.Add_Click({
+    if ($script:LocalImagePath) {
+        $choice = [Windows.Forms.MessageBox]::Show(
+            "Je vybraná vlastní image. Chceš vybrat jinou? Tlačítkem Ne se vrátíš k oficiální Ubuntu image.",
+            "PiTV SD Installer",
+            [Windows.Forms.MessageBoxButtons]::YesNoCancel,
+            [Windows.Forms.MessageBoxIcon]::Question
+        )
+        if ($choice -eq [Windows.Forms.DialogResult]::Yes) { Select-LocalImage }
+        elseif ($choice -eq [Windows.Forms.DialogResult]::No) { Use-OfficialImage }
+    } else {
+        Select-LocalImage
+    }
+})
+
 $copyLog.Add_Click({ Copy-CurrentLog })
 $openLogs.Add_Click({ Open-LogFolder })
 $reportLog.Add_Click({ Report-Problem })
@@ -751,6 +842,7 @@ $format.Add_Click({
         $create.Enabled = $false
         $refresh.Enabled = $false
         $wifiLoad.Enabled = $false
+        $imageBrowse.Enabled = $false
 
         Log ("Formátuji Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
         $vol = Format-SdDisk $d.Number $d.Size $d.Name
@@ -781,6 +873,7 @@ $format.Add_Click({
         $create.Enabled = $true
         $refresh.Enabled = $true
         $wifiLoad.Enabled = $true
+        $imageBrowse.Enabled = $true
     }
 })
 
@@ -802,14 +895,31 @@ $create.Add_Click({
         $create.Enabled = $false
         $refresh.Enabled = $false
         $wifiLoad.Enabled = $false
+        $imageBrowse.Enabled = $false
 
         Log "Kontroluji Raspberry Pi Imager..."
         $imager = Ensure-Imager
-        Log ("Imager: " + $imager)
+        Log "Raspberry Pi Imager nalezen."
 
-        Log "Načítám oficiální Ubuntu image..."
-        $image = Get-Ubuntu2404
-        Log ("Vybráno: " + [string](Get-Prop $image "name"))
+        $image = $null
+        $imageSource = ""
+        $imageSha = $null
+
+        if ($script:LocalImagePath) {
+            if (-not (Test-Path $script:LocalImagePath -PathType Leaf)) {
+                throw "Vybraná vlastní image už není dostupná. Vyber soubor znovu."
+            }
+            $imageSource = $script:LocalImagePath
+            Log ("Použita vlastní image: " + (Split-Path -Leaf $script:LocalImagePath))
+        }
+        else {
+            Log "Načítám oficiální Ubuntu image..."
+            $image = Get-Ubuntu2404
+            Log ("Vybráno: " + [string](Get-Prop $image "name"))
+            $imageSource = [string](Get-Prop $image "url")
+            $imageSha = Get-Prop $image "extract_sha256"
+            if (-not $imageSource) { throw "Vybraný Ubuntu záznam neobsahuje URL image." }
+        }
 
         $ssid = $wifiSsid.Text.Trim()
         $password = $wifiPass.Text
@@ -833,13 +943,10 @@ $create.Add_Click({
             "--cloudinit-userdata", $cloud.UserData,
             "--cloudinit-networkconfig", $cloud.Network
         )
-        $imageSha = Get-Prop $image "extract_sha256"
         if ($imageSha) {
             $args += @("--sha256",[string]$imageSha)
         }
-        $imageUrl = Get-Prop $image "url"
-        if (-not $imageUrl) { throw "Vybraný Ubuntu záznam neobsahuje URL image." }
-        $args += @([string]$imageUrl,$target)
+        $args += @([string]$imageSource,$target)
 
         $outFile = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".log")
         $argText = ($args | ForEach-Object { Q ([string]$_) }) -join " "
@@ -894,13 +1001,14 @@ $create.Add_Click({
         $create.Enabled = $true
         $refresh.Enabled = $true
         $wifiLoad.Enabled = $true
+        $imageBrowse.Enabled = $true
     }
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.8 · Windows"
+    Log "PiTV SD Installer v0.9 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
-    Log ("Log soubor: " + $SessionLog)
+    Log "Diagnostika aktivní · ukládá se posledních 5 relací."
     Refresh-Drives
     [void](Load-WifiFromWindows)
 })
