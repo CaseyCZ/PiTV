@@ -411,6 +411,138 @@ function Set-PiTVTargetDiskOnline([int]$number) {
     }
 }
 
+function Invoke-PiTVStorageRefresh([int]$number,[switch]$DiskPartRescan) {
+    try {
+        if (Get-Command Update-HostStorageCache -ErrorAction SilentlyContinue) {
+            Update-HostStorageCache -ErrorAction SilentlyContinue
+        }
+    } catch {}
+
+    try { Update-Disk -Number $number -ErrorAction SilentlyContinue } catch {}
+
+    if ($DiskPartRescan) {
+        $scriptFile = Join-Path $env:TEMP ("pitv-diskpart-" + [guid]::NewGuid().ToString("N") + ".txt")
+        try {
+            [IO.File]::WriteAllText(
+                $scriptFile,
+                "rescan" + [Environment]::NewLine + "exit" + [Environment]::NewLine,
+                [Text.Encoding]::ASCII
+            )
+            $output = & "$env:SystemRoot\System32\diskpart.exe" /s $scriptFile 2>&1
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0) {
+                Log "STORAGE RESCAN: diskpart rescan dokončen."
+            }
+            else {
+                Log ("VAROVÁNÍ: diskpart rescan skončil kódem " + $exitCode + ". " + (($output | Select-Object -Last 1) -join " "))
+            }
+        }
+        catch {
+            Log ("VAROVÁNÍ: diskpart rescan se nepodařil: " + $_.Exception.Message)
+        }
+        finally {
+            Remove-Item $scriptFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Wait-PiTVTargetDiskReadyAfterRawWrite($d,[int]$timeoutSeconds=35) {
+    $deadline = [DateTime]::UtcNow.AddSeconds($timeoutSeconds)
+    $stableSamples = 0
+    $attempt = 0
+
+    Log ("STORAGE SETTLE: čekám na stabilní návrat Disk " + $d.Number + " po raw zápisu.")
+    Set-InstallerProgress "Čekám na Windows po zápisu SD karty" 0
+
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $attempt++
+
+        try {
+            $state = Get-Disk -Number $d.Number -ErrorAction Stop
+            if ($state.IsOffline) {
+                Set-Disk -Number $d.Number -IsOffline $false -ErrorAction Stop
+                Start-Sleep -Milliseconds 500
+            }
+        } catch {}
+
+        # Use diskpart only as a bounded recovery nudge. Normal iterations use
+        # the Storage module so we do not globally rescan on every poll.
+        $useDiskPart = ($attempt -eq 8 -or $attempt -eq 24)
+        Invoke-PiTVStorageRefresh $d.Number -DiskPartRescan:$useDiskPart
+
+        $fatFound = $false
+        try {
+            foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction Stop)) {
+                $vol = $null
+                try { $vol = $part | Get-Volume -ErrorAction Stop } catch {}
+                if ($vol -and (
+                    ([string]$vol.FileSystem -match '^FAT') -or
+                    ([string]$vol.FileSystemLabel -in @('system-boot','bootfs','boot'))
+                )) {
+                    $fatFound = $true
+                    break
+                }
+            }
+        } catch {}
+
+        if ($fatFound) {
+            $stableSamples++
+            if ($stableSamples -ge 2) {
+                Log "STORAGE SETTLE OK: FAT boot oddíl je stabilně viditelný."
+                return
+            }
+        }
+        else {
+            $stableSamples = 0
+        }
+
+        [Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 500
+    }
+
+    throw "Windows po raw zápisu nestabilizoval boot oddíl SD karty v časovém limitu."
+}
+
+function Write-PiTVBytesDurable([string]$destination,[byte[]]$bytes) {
+    $stream = $null
+    try {
+        $stream = New-Object IO.FileStream(
+            $destination,
+            [IO.FileMode]::Create,
+            [IO.FileAccess]::Write,
+            [IO.FileShare]::None,
+            4096,
+            [IO.FileOptions]::WriteThrough
+        )
+        $stream.Write($bytes,0,$bytes.Length)
+        try { $stream.Flush($true) } catch { $stream.Flush() }
+    }
+    finally {
+        if ($stream) { $stream.Dispose() }
+    }
+
+    $readBack = [IO.File]::ReadAllBytes($destination)
+    if ($readBack.Length -ne $bytes.Length) {
+        throw ("Read-back kontrola souboru " + (Split-Path -Leaf $destination) + " selhala: jiná velikost.")
+    }
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $a = [BitConverter]::ToString($sha.ComputeHash($bytes)).Replace("-","")
+        $b = [BitConverter]::ToString($sha.ComputeHash($readBack)).Replace("-","")
+        if ($a -ne $b) {
+            throw ("Read-back kontrola souboru " + (Split-Path -Leaf $destination) + " selhala: SHA-256 nesouhlasí.")
+        }
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Copy-PiTVFileDurable([string]$source,[string]$destination) {
+    Write-PiTVBytesDurable $destination ([IO.File]::ReadAllBytes($source))
+}
+
 function Get-PiTVStreamSha256($stream,[Int64]$length) {
     if ($null -eq $stream) { throw "Ověření nemá otevřený stream zařízení." }
     if (-not $stream.CanRead) { throw "Otevřený stream zařízení nepodporuje čtení." }
@@ -563,9 +695,14 @@ function Write-PiTVRawImageToDisk($raw,$d) {
 
         Set-PiTVTargetDiskOnline $d.Number
     }
+
+    # Do not hand the freshly rewritten card straight to the volume layer.
+    # USB/SD bridges can re-enumerate for several seconds after the raw handle
+    # is closed even though write + read-back verification already succeeded.
+    Wait-PiTVTargetDiskReadyAfterRawWrite $d
 }
 
-function Install-PiTVCloudInitToBootPartition($d,$cloud) {
+function Install-PiTVCloudInitToBootPartitionOnce($d,$cloud) {
     Set-InstallerProgress "Nastavuji Wi-Fi a automatickou instalaci PiTV" 0
     $bootPart = $null
     $bootVol = $null
@@ -679,26 +816,76 @@ function Install-PiTVCloudInitToBootPartition($d,$cloud) {
         throw ("Boot oddíl " + $root + " není po novém připojení čitelný.")
     }
 
-    Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force -ErrorAction Stop
-    Copy-Item -LiteralPath $cloud.Network -Destination (Join-Path $root "network-config") -Force -ErrorAction Stop
+    Copy-PiTVFileDurable $cloud.UserData (Join-Path $root "user-data")
+    Copy-PiTVFileDurable $cloud.Network (Join-Path $root "network-config")
 
     $meta = Join-Path $root "meta-data"
     if (-not (Test-Path $meta)) {
         $utf8 = New-Object Text.UTF8Encoding($false)
         $metaText = "instance-id: pitv" + [Environment]::NewLine + "local-hostname: pitv" + [Environment]::NewLine
-        [IO.File]::WriteAllText($meta,$metaText,$utf8)
+        Write-PiTVBytesDurable $meta ($utf8.GetBytes($metaText))
     }
 
     Log ("Cloud-init zapsán na boot oddíl " + $root)
     Set-InstallerProgress "Wi-Fi a PiTV jsou připravené" 100
 
-    try {
-        & "$env:SystemRoot\System32\mountvol.exe" $root "/p" | Out-Null
+    $ejected = $false
+    for ($attempt = 1; $attempt -le 5 -and -not $ejected; $attempt++) {
+        try {
+            & "$env:SystemRoot\System32\mountvol.exe" $root "/p" | Out-Null
+            $mountExit = $LASTEXITCODE
+            if ($mountExit -eq 0) {
+                $ejected = $true
+                break
+            }
+            Log ("BOOT EJECT: mountvol /p pokus " + $attempt + " skončil kódem " + $mountExit + ".")
+        }
+        catch {
+            Log ("BOOT EJECT: pokus " + $attempt + " selhal: " + $_.Exception.Message)
+        }
+
+        [Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds (300 * $attempt)
+    }
+
+    if ($ejected) {
         Log "Boot oddíl byl bezpečně odpojen. Kartu lze po dokončení vyjmout."
     }
-    catch {
+    else {
+        # Cloud-init is already durably written and read-back verified. Failure
+        # to auto-eject must not turn a valid SD image into a failed install.
         if ($assignedByUs) {
             try { $bootPart | Remove-PartitionAccessPath -AccessPath $root -ErrorAction SilentlyContinue } catch {}
         }
+        Log "VAROVÁNÍ: Windows boot oddíl automaticky neodpojil. Data jsou ověřená; kartu vyjmi až po ukončení installeru."
     }
+}
+
+function Install-PiTVCloudInitToBootPartition($d,$cloud) {
+    $lastError = $null
+
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            if ($attempt -gt 1) {
+                Set-InstallerProgress ("Automaticky opravuji dokončení SD · pokus " + $attempt + "/3") 0
+                Log ("FINALIZE RETRY " + $attempt + "/3: obnovuji Windows storage stav.")
+                Invoke-PiTVStorageRefresh $d.Number -DiskPartRescan
+                Start-Sleep -Milliseconds (1200 * $attempt)
+            }
+
+            Wait-PiTVTargetDiskReadyAfterRawWrite $d 30
+            Install-PiTVCloudInitToBootPartitionOnce $d $cloud
+            return
+        }
+        catch {
+            $lastError = $_.Exception
+            Log ("FINALIZE pokus " + $attempt + "/3 selhal: " + $lastError.Message)
+            if ($attempt -lt 3) {
+                [Windows.Forms.Application]::DoEvents()
+                Start-Sleep -Milliseconds (1200 * $attempt)
+            }
+        }
+    }
+
+    throw ("Dokončení SD karty selhalo i po automatické opravě. " + $lastError.Message)
 }
