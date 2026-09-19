@@ -1,7 +1,7 @@
 # PiTV SD Installer
 
 <p align="center">
-  Připraví microSD kartu pro Raspberry Pi 4 tak, aby se po prvním zapnutí <strong>Ubuntu Server + PiTV nainstalovaly automaticky</strong>.
+  Připraví microSD kartu pro Raspberry Pi 3 / 4 / 5 tak, aby se po prvním zapnutí <strong>Ubuntu Server + PiTV nainstalovaly automaticky</strong>.
 </p>
 
 <p align="center">
@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/macOS-Script-172033?style=for-the-badge&labelColor=111827&logo=apple&logoColor=white" alt="macOS" />
 </p>
 
-> **Stav: beta.** Syntaxe, bezpečnostní kontroly a dry-run jsou testované v CI. Skutečný zápis microSD a první boot ještě ověříme na fyzickém Raspberry Pi 4.
+> **Stav: Alpha.** Windows installer, živý Ubuntu katalog a aktuální Raspberry Pi Imager CLI jsou kontrolované v CI. Fyzický zápis microSD a první boot dál ověřujeme na reálném hardware; Pi 4 je hlavní testovaný cíl.
 
 ## Jak to funguje
 
@@ -28,12 +28,13 @@ Windows má vlastní malé grafické rozhraní.
 2. otevři `tools/windows/`,
 3. spusť **Start-PiTV-SD-Installer.cmd**,
 4. potvrď oprávnění správce,
-5. vyber microSD kartu,
-6. klikni na **VYTVOŘIT PiTV SD**.
+5. vyber model Raspberry Pi — Pi 4 je doporučený,
+6. vyber microSD kartu,
+7. klikni na **VYTVOŘIT PiTV SD**.
 
 Installer se pokusí načíst aktuální Wi-Fi profil z Windows, ale **SSID i heslo lze vždy zadat ručně**. Launcher při každém spuštění zkontroluje nejnovější GitHub Release, takže kvůli běžné aktualizaci není potřeba ručně stahovat nový installer. Pokud Raspberry Pi Imager chybí a je dostupný `winget`, pokusí se ho nainstalovat.
 
-Windows nástroj nabízí pouze výměnné USB / SD / MMC disky, vylučuje systémový a boot disk a před zápisem zobrazí model i kapacitu zvolené karty.
+Windows nástroj nabízí pouze bezpečně vyfiltrované USB / SD / MMC kandidáty, vylučuje systémový a boot disk a před zápisem znovu ověřuje identitu vybrané karty. **Pi 4 je doporučený model; Pi 3 a Pi 5 jsou zatím experimentální Alpha cíle.**
 
 Po dokončení vytvoří náhodné recovery heslo pro účet `pitvadmin` a zkopíruje ho do schránky. Po prvním úspěšném bootu PiTV odstraní z boot oddílu dočasné cloud-init soubory s Wi-Fi nastavením.
 
