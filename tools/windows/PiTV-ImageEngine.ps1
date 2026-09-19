@@ -411,6 +411,41 @@ function Set-PiTVTargetDiskOnline([int]$number) {
     }
 }
 
+function Get-PiTVStreamSha256($stream,[Int64]$length) {
+    if ($null -eq $stream) { throw "Ověření nemá otevřený stream zařízení." }
+    if (-not $stream.CanRead) { throw "Otevřený stream zařízení nepodporuje čtení." }
+    if (-not $stream.CanSeek) { throw "Otevřený stream zařízení nepodporuje návrat na začátek." }
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        [void]$stream.Seek(0,[IO.SeekOrigin]::Begin)
+        $buffer = New-Object byte[] (4MB)
+        [Int64]$remaining = $length
+        [Int64]$done = 0
+
+        while ($remaining -gt 0) {
+            $want = [int][Math]::Min([Int64]$buffer.Length,$remaining)
+            $read = $stream.Read($buffer,0,$want)
+            if ($read -le 0) {
+                throw "Ověření skončilo dřív než na konci image."
+            }
+
+            [void]$sha.TransformBlock($buffer,0,$read,$buffer,0)
+            $remaining -= $read
+            $done += $read
+
+            $pct = [Math]::Min(99,[int](($done * 100L) / $length))
+            Set-InstallerProgress ("Ověřuji zápis · " + $pct + " %") $pct
+        }
+
+        [void]$sha.TransformFinalBlock((New-Object byte[] 0),0,0)
+        return ([BitConverter]::ToString($sha.Hash)).Replace("-","").ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 function Get-PiTVDeviceSha256([string]$target,[Int64]$length) {
     Initialize-PiTVNativeDisk
     $stream = $null
@@ -475,13 +510,20 @@ function Write-PiTVRawImageToDisk($raw,$d) {
         }
 
         try { $dest.Flush($true) } catch { $dest.Flush() }
-        $dest.Dispose()
-        $dest = $null
         $source.Dispose()
         $source = $null
 
+        # Keep the already-open PhysicalDrive handle for verification. Some USB/SD
+        # readers briefly re-enumerate after a partition table is written, so
+        # closing and immediately reopening \\.\PhysicalDriveN can fail even
+        # though the write itself completed successfully.
         Set-InstallerProgress "Ověřuji zápis na SD kartě" 0
-        $deviceSha = Get-PiTVDeviceSha256 $target ([Int64]$raw.Length)
+        Log "VERIFY: čtu zpět přes stejný otevřený PhysicalDrive handle."
+        $deviceSha = Get-PiTVStreamSha256 $dest ([Int64]$raw.Length)
+
+        $dest.Dispose()
+        $dest = $null
+
         if ($deviceSha -ne $raw.Sha256) {
             throw ("Ověření zápisu selhalo. SHA-256 image " + $raw.Sha256 + ", karta " + $deviceSha + ".")
         }
