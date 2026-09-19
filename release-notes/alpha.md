@@ -1,5 +1,13 @@
 # PiTV Alpha
 
+### PiTV 1.4.12 · Full Settings audit
+- Vzhled: levá/pravá šipka spolehlivě mění Motiv, Velikost dlaždic a Hodiny; Back se vrací
+- Spořič: časové hodnoty už nepřetékají z minima na maximum a opačně
+- Aplikace: dlouhý seznam má scroll a focus zůstává viditelný
+- Síť, Android, Store, Server Store a Systém: dynamické seznamy po refreshi ořezávají neplatný výběr
+- Android/APK: nalezené APK lze spustit přes OK; plné Android UI používá validovaný Wayland launch bridge
+- O PiTV: levá šipka může bezpečně otevřít sidebar stejně jako ostatní read-only stránky
+- config.json: motiv, velikost dlaždic, spořič, HDMI port a další hodnoty se při načtení normalizují do podporovaných mezí
 ### PiTV 1.4.11 · Appearance navigation fix
 - opravená levá šipka v Nastavení → Vzhled: Velké → Normální → Malé nyní funguje oběma směry
 - stejný konflikt LEFT byl opraven také u nastavení Spořiče a HDMI audio portu
