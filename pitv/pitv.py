@@ -1832,6 +1832,7 @@ class PiTV:
     ]
 
     def draw_settings(self):
+        self.settings_selected = max(0, min(self.settings_selected, len(self.SETTINGS)-1))
         self.draw_sidebar("settings")
         self.header("Nastavení", "Všechno důležité pro PiTV na jednom místě")
 
@@ -1952,6 +1953,7 @@ class PiTV:
 
     def draw_network(self):
         items = self.network_items()
+        self.network_selected = max(0, min(self.network_selected, max(0, len(items)-1)))
         ips = " · ".join(f"{i}: {ip}" for i, ip in get_ipv4()) or "bez IP"
         subtitle = f"{socket.gethostname()} · {ips}"
         # Keep max 8 rows on TV and scroll around selection.
@@ -2020,6 +2022,7 @@ class PiTV:
 
     def draw_apps_settings(self):
         items = self.app_items()
+        self.apps_selected = max(0, min(self.apps_selected, max(0, len(items)-1)))
         rows = []
         for x in items:
             if x.get("store"):
@@ -2028,8 +2031,13 @@ class PiTV:
                 rows.append((x["name"], "OK"))
             else:
                 rows.append((x["name"], "Na ploše" if x["visible"] else "Skryto"))
-        self.draw_rows("Aplikace", "Store + aplikace dostupné PiTV", rows, self.apps_selected,
-                       "OK = otevřít Store / zobrazit / skrýt")
+
+        visible = 8
+        start = max(0, min(self.apps_selected-visible//2, max(0, len(rows)-visible)))
+        subset = rows[start:start+visible]
+        selected = self.apps_selected-start if subset else 0
+        self.draw_rows("Aplikace", "Store + aplikace dostupné PiTV", subset, selected,
+                       "↑/↓ vybere • OK = Store / zobrazit / skrýt • Back návrat")
 
     STORE_STATE_LABELS = {
         "installed": "Nainstalováno",
@@ -2061,11 +2069,13 @@ class PiTV:
         self.draw_sidebar("store")
         items = self.store_catalog
         if not items:
+            self.store_selected = 0
             self.header("PiTV Store", "Katalog aplikací")
             self.text("Katalog je prázdný", self.main_left()+40, int(self.h*.25), self.h*.025)
             return
 
-        selected_item = items[min(self.store_selected, len(items)-1)]
+        self.store_selected = max(0, min(self.store_selected, len(items)-1))
+        selected_item = items[self.store_selected]
         state = self.store_states.get(selected_item.get("id",""), "checking")
         status = "Instaluji…" if self.store_busy_id == selected_item.get("id") else self.STORE_STATE_LABELS.get(state,state)
         self.draw_hero(
@@ -2357,11 +2367,13 @@ class PiTV:
         self.draw_sidebar("server_store")
         items = self.server_store_catalog
         if not items:
+            self.server_store_selected = 0
             self.header("Server Store", "Služby na pozadí")
             self.text("Katalog je prázdný", self.main_left()+40, int(self.h*.25), self.h*.025)
             return
 
-        selected_item = items[min(self.server_store_selected, len(items)-1)]
+        self.server_store_selected = max(0, min(self.server_store_selected, len(items)-1))
+        selected_item = items[self.server_store_selected]
         status = self.server_store_status_label(selected_item)
         self.draw_hero(
             selected_item.get("name","Služba"),
@@ -2476,6 +2488,7 @@ class PiTV:
 
     def draw_android(self):
         rows = self.android_items()
+        self.android_selected = max(0, min(self.android_selected, max(0, len(rows)-1)))
         visible = 8
         start = max(0, min(self.android_selected-visible//2, max(0, len(rows)-visible)))
         self.draw_rows("Android / APK", "APK inspector · aapt/apktool · Waydroid",
@@ -2679,6 +2692,7 @@ class PiTV:
 
     def draw_system(self):
         rows = self.system_items()
+        self.system_selected = max(0, min(self.system_selected, max(0, len(rows)-1)))
         visible = 8
         start = max(0, min(self.system_selected-visible//2, max(0, len(rows)-visible)))
         self.draw_rows("Systém", "Ubuntu Server / Raspberry Pi",
