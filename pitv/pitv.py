@@ -2020,138 +2020,166 @@ class PiTV:
         return items[:12]
 
     def draw_home_hero(self):
-        # Dark.jpg / Light.jpg are DESIGN REFERENCES ONLY. This hero is drawn
-        # natively so the TV UI stays live, scalable and fully interactive.
-        left = self.main_left()+int(self.w*.015)
-        r = pygame.Rect(left, int(self.h*.055),
-                        self.w-left-int(self.w*.025), int(self.h*.405))
+        left = self.main_left()+int(self.w*.012)
+        right = int(self.w*.014)
+        hero_h = int(self.h*(.385 if self.cfg.get("home_layout") == "default" else .335))
+        r = pygame.Rect(left, int(self.h*.058), self.w-left-right, hero_h)
 
+        # The hero is itself glass, with a darker cinematic layer underneath.
+        self.glass_panel(r, False, 170, 24)
+        inner = r.inflate(-2, -2)
+        hero_layer = pygame.Surface((inner.w, inner.h), pygame.SRCALPHA)
+        strips = 30
         is_light = self.theme_name.endswith("Light")
-        top = (248,250,252) if is_light else (12,22,47)
-        bottom = (232,238,245) if is_light else (18,31,67)
-        self.gradient_rect(r, top, bottom, radius=24)
+        top = (220,235,252) if is_light else (7,23,52)
+        bottom = (242,247,252) if is_light else (3,13,31)
+        for i in range(strips):
+            y0 = round(i*inner.h/strips)
+            y1 = round((i+1)*inner.h/strips)
+            color = self.mix(top, bottom, i/max(1,strips-1))
+            pygame.draw.rect(
+                hero_layer, (*color, 214 if not is_light else 185),
+                pygame.Rect(0,y0,inner.w,max(1,y1-y0)),
+            )
 
-        # Subtle concentric artwork inspired by the approved mockup.
-        art = pygame.Surface((r.w, r.h), pygame.SRCALPHA)
-        center = (int(r.w*.72), int(r.h*.48))
-        ring_color = (110,125,150,28) if is_light else (120,145,255,26)
-        for radius in (
-            int(r.h*.34), int(r.h*.47), int(r.h*.60),
-            int(r.h*.73), int(r.h*.86),
-        ):
-            pygame.draw.circle(art, ring_color, center, radius, max(1,int(self.h*.002)))
-        glow = (80,120,255,18) if not is_light else (70,105,155,14)
-        pygame.draw.circle(art, glow, center, int(r.h*.30))
-        self.screen.blit(art, r.topleft)
+        # Space/planet-inspired artwork built natively: atmospheric arc + city-like lights.
+        art = pygame.Surface((inner.w, inner.h), pygame.SRCALPHA)
+        center = (int(inner.w*.72), int(inner.h*.90))
+        radii = [int(inner.h*x) for x in (1.10, .98, .86, .74)]
+        for i, radius in enumerate(radii):
+            col = (76, 153, 255, max(12, 46-i*9)) if not is_light else (65,120,190,max(8,26-i*5))
+            pygame.draw.circle(art, col, center, radius, max(1,int(self.h*.003)))
+        # Deliberistic "city lights" dots, deterministic and cheap.
+        for n in range(42):
+            px = int(inner.w*(.50 + ((n*37)%47)/100))
+            py = int(inner.h*(.40 + ((n*19)%34)/100))
+            size = 1 + (n % 3 == 0)
+            col = (255,205,116,110 if not is_light else 70)
+            pygame.draw.circle(art, col, (px,py), size)
+        art_glow = pygame.Surface((inner.w, inner.h), pygame.SRCALPHA)
+        pygame.draw.circle(
+            art_glow,
+            (40,135,255,32 if not is_light else 16),
+            (int(inner.w*.80), int(inner.h*.38)),
+            int(inner.h*.52),
+        )
+        hero_layer.blit(art_glow,(0,0))
+        hero_layer.blit(art,(0,0))
+        self.screen.blit(hero_layer, inner.topleft)
 
-        badge_y = r.y+int(self.h*.060)
-        self.text("STREAM. APPS. SERVERS. MORE.", r.x+40, badge_y,
+        tx = r.x+int(self.w*.035)
+        self.text("STREAM. APLIKACE. SERVERY. VÍCE.", tx, r.y+int(self.h*.050),
                   self.h*.014, self.t["muted"], True)
-        self.text("PiTV", r.x+40, r.y+int(self.h*.098),
-                  self.h*.072, self.t["text"], True)
-        self.text("Your TV. Your Way.", r.x+42, r.y+int(self.h*.195),
-                  self.h*.022, self.t["text"], True)
-        self.text("Streamování, aplikace a domácí server na jednom místě.",
-                  r.x+42, r.y+int(self.h*.238), self.h*.017, self.t["muted"])
+        self.text("PiTV", tx, r.y+int(self.h*.082),
+                  self.h*.078, self.t["text"], True)
+        self.text("Streamování, aplikace a domácí", tx+2, r.y+int(self.h*.185),
+                  self.h*.021, self.t["text"])
+        self.text("servery na jednom místě.", tx+2, r.y+int(self.h*.215),
+                  self.h*.021, self.t["text"])
 
-        ar = pygame.Rect(r.x+42, r.bottom-int(self.h*.082),
-                         int(self.w*.112), int(self.h*.050))
-        self.gradient_rect(ar, self.t["accent2"], self.t["action"], radius=ar.h//2)
-        surf = self.font(ar.h*.27, True).render("Procházet  ›", True, (255,255,255))
+        ar = pygame.Rect(tx+2, r.bottom-int(self.h*.075), int(self.w*.118), int(self.h*.052))
+        self.gradient_rect(ar, self.t["accent"], self.t["action"], radius=ar.h//2)
+        pygame.draw.rect(self.screen, (255,255,255,42), ar, 1, border_radius=ar.h//2)
+        surf = self.font(ar.h*.27, True).render("Prozkoumat  ›", True, (255,255,255))
         self.screen.blit(surf, surf.get_rect(center=ar.center))
 
-        # Live decorative app stack on the right, matching the visual hierarchy
-        # of the approved reference without embedding the reference image.
-        cards = [
-            ((14,165,233),(2,132,199),"K"),
-            ((248,48,58),(185,28,28),"▶"),
-            ((168,85,247),(109,40,217),"◆"),
-        ]
-        cx = r.x+int(r.w*.69)
-        cy = r.y+int(r.h*.25)
-        cw = int(r.w*.17)
-        ch = int(r.h*.43)
-        offsets = [(-int(cw*.28), int(ch*.18)), (int(cw*.18), -int(ch*.05)), (int(cw*.58), int(ch*.20))]
-        for idx, (colors, offset) in enumerate(zip(cards, offsets)):
-            rr = pygame.Rect(cx+offset[0], cy+offset[1], cw, ch)
-            self.gradient_rect(rr, colors[0], colors[1], radius=18)
-            pygame.draw.rect(self.screen, (255,255,255,35) if not is_light else self.t["border"],
-                             rr, 1, border_radius=18)
-            icon = self.font(ch*.30, True).render(colors[2], True, (255,255,255))
-            self.screen.blit(icon, icon.get_rect(center=rr.center))
+        # Right-hand editorial words from the visual concept.
+        rx = r.right-int(self.w*.165)
+        ry = r.y+int(self.h*.090)
+        for i, word in enumerate(("ZÁBAVA", "PŘIPOJENÍ", "VLASTNÍ SERVERY", "PODLE VÁS")):
+            self.text(word, rx, ry+i*int(self.h*.034), self.h*.013, self.t["muted"], True)
+        pygame.draw.line(
+            self.screen, self.t["accent"],
+            (rx, ry+int(self.h*.150)), (rx+int(self.w*.032), ry+int(self.h*.150)), 3,
+        )
 
-        pygame.draw.rect(self.screen, self.t["border"], r, 1, border_radius=24)
+        # Page dots anchor the hero visually.
+        dots_y = r.bottom-int(self.h*.018)
+        dots_x = r.centerx-int(self.w*.015)
+        for i in range(5):
+            col = self.t["text"] if i == 0 else self.t["border"]
+            pygame.draw.circle(self.screen, col, (dots_x+i*14, dots_y), 4)
 
         if self.cfg.get("show_clock", True):
-            clock = self.font(self.h*.022, True).render(time.strftime("%H:%M"), True, self.t["text"])
-            self.screen.blit(clock, (self.w-clock.get_width()-int(self.w*.060), int(self.h*.020)))
-            gear = self.font(self.h*.023, True).render("⚙", True, self.t["muted"])
-            self.screen.blit(gear, (self.w-int(self.w*.037), int(self.h*.018)))
+            clock = self.font(self.h*.020, True).render(time.strftime("%H:%M"), True, self.t["text"])
+            self.screen.blit(clock, (self.w-clock.get_width()-int(self.w*.055), int(self.h*.020)))
+            gear_r = pygame.Rect(self.w-int(self.w*.038), int(self.h*.014), int(self.h*.040), int(self.h*.040))
+            self.glass_panel(gear_r, False, 175, 11)
+            gear = self.font(self.h*.020, True).render("⚙", True, self.t["text"])
+            self.screen.blit(gear, gear.get_rect(center=gear_r.center))
         return r
 
     def draw_home_tile(self, item, rect, selected):
-        # Tiles are generated UI, not crops from Dark.jpg / Light.jpg.
         style = self.HOME_TILE_STYLE.get(
             item.get("id", ""),
             (self.t["accent2"], self.t["action"], item.get("name","?")[:1].upper())
         )
         top, bottom, icon_text = style
 
+        # Colored app tile inside a glass focus halo.
         if selected:
-            glow = rect.inflate(12, 12)
+            glow = rect.inflate(14, 14)
             halo = pygame.Surface((glow.w, glow.h), pygame.SRCALPHA)
-            pygame.draw.rect(halo, (*self.t["accent"], 48),
-                             halo.get_rect(), border_radius=20)
+            pygame.draw.rect(halo, (*self.t["accent"], 54),
+                             halo.get_rect(), border_radius=21)
             self.screen.blit(halo, glow.topleft)
 
-        self.gradient_rect(rect, top, bottom, radius=16)
+        self.gradient_rect(rect, top, bottom, radius=17)
+        sheen = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+        pygame.draw.rect(
+            sheen, (255,255,255,20), pygame.Rect(1,1,rect.w-2,max(2,int(rect.h*.46))),
+            border_radius=16,
+        )
+        self.screen.blit(sheen, rect.topleft)
 
         dark_icon = item.get("id") in ("youtube-tv", "settings")
         icon_color = (239,35,45) if item.get("id") == "youtube-tv" else (
             (51,65,85) if dark_icon else (255,255,255)
         )
-        icon = self.font(rect.h*.36, True).render(str(icon_text), True, icon_color)
+        icon = self.font(rect.h*.35, True).render(str(icon_text), True, icon_color)
         self.screen.blit(icon, icon.get_rect(center=rect.center))
-
         pygame.draw.rect(
             self.screen,
-            self.t["accent"] if selected else self.t["border"],
-            rect,
-            3 if selected else 1,
-            border_radius=16,
+            self.t["accent"] if selected else (110,130,160),
+            rect, 3 if selected else 1, border_radius=17,
         )
 
-        label = self.font(self.h*.017, selected).render(
-            item.get("name",""), True, self.t["text"]
-        )
-        self.screen.blit(
-            label,
-            (rect.centerx-label.get_width()//2, rect.bottom+int(self.h*.010))
-        )
+        if self.cfg.get("show_tile_labels", True):
+            label = self.font(self.h*.0165, selected).render(
+                item.get("name",""), True, self.t["text"]
+            )
+            self.screen.blit(
+                label,
+                (rect.centerx-label.get_width()//2, rect.bottom+int(self.h*.009))
+            )
 
     def draw_home(self):
         self.draw_sidebar("home")
         items = self.home_items()
         hero = self.draw_home_hero()
 
-        x = self.main_left()+int(self.w*.015)
-        area_w = self.w-x-int(self.w*.025)
+        x = self.main_left()+int(self.w*.012)
+        area_w = self.w-x-int(self.w*.014)
         cols = 6
-        gap = int(self.w*.009)
+        density = self.cfg.get("content_density", "normal")
+        gap = int(self.w*({"comfortable": .012, "normal": .009, "compact": .007}.get(density,.009)))
         tile_w = int((area_w-(cols-1)*gap)/cols)
-        tile_h = int(self.h*.100*float(self.cfg.get("tile_scale",1.0)))
+        scale = float(self.cfg.get("tile_scale",1.0))
+        tile_h = int(self.h*.104*scale)
 
-        first_title_y = hero.bottom+int(self.h*.018)
+        title_gap = int(self.h*.017)
+        label_space = int(self.h*.033) if self.cfg.get("show_tile_labels", True) else int(self.h*.012)
+        first_title_y = hero.bottom+title_gap
         self.text("Doporučené aplikace", x, first_title_y, self.h*.020, self.t["text"], True)
-        first_y = first_title_y+int(self.h*.035)
+        first_y = first_title_y+int(self.h*.036)
 
         for i, item in enumerate(items[:6]):
             rr = pygame.Rect(x+i*(tile_w+gap), first_y, tile_w, tile_h)
             self.draw_home_tile(item, rr, i == self.selected)
 
-        second_title_y = first_y+tile_h+int(self.h*.050)
-        self.text("Nástroje & služby", x, second_title_y, self.h*.020, self.t["text"], True)
-        second_y = second_title_y+int(self.h*.035)
+        second_title_y = first_y+tile_h+label_space+int(self.h*.020)
+        self.text("Nástroje & utility", x, second_title_y, self.h*.020, self.t["text"], True)
+        second_y = second_title_y+int(self.h*.036)
 
         for j, item in enumerate(items[6:12]):
             i = j+6
@@ -2173,62 +2201,105 @@ class PiTV:
         ("O PiTV", "Verze a informace"),
     ]
 
+    SETTINGS_ICONS = ["✎", "▣", "⌁", "◖", "▱", "▦", "◉", "◆", "↻", "⚙", "◉", "ⓘ"]
+
+    def _draw_settings_categories(self, selected_index):
+        left = self.main_left()+int(self.w*.010)
+        top = int(self.h*.195)
+        width = int(self.w*.205)
+        row_h = int(self.h*.057)
+        for i, (name, _) in enumerate(self.SETTINGS):
+            rr = pygame.Rect(left, top+i*row_h, width, int(row_h*.80))
+            active = i == selected_index
+            self.glass_panel(rr, active, 176, 13)
+            icon = self.SETTINGS_ICONS[i] if i < len(self.SETTINGS_ICONS) else "•"
+            self.text(icon, rr.x+15, rr.y+int(rr.h*.19), rr.h*.32,
+                      self.t["accent"] if active else self.t["muted"], True)
+            self.text(name, rr.x+int(rr.h*.76), rr.y+int(rr.h*.23), rr.h*.27,
+                      self.t["text"] if active else self.t["muted"], active)
+            chevron = self.font(rr.h*.28, True).render("›", True,
+                        self.t["accent"] if active else self.t["muted"])
+            self.screen.blit(chevron, (rr.right-chevron.get_width()-12,
+                                      rr.y+(rr.h-chevron.get_height())//2))
+        return pygame.Rect(left, top, width, row_h*len(self.SETTINGS))
+
     def draw_settings(self):
         self.settings_selected = max(0, min(self.settings_selected, len(self.SETTINGS)-1))
         self.draw_sidebar("settings")
-        self.header("Nastavení", "Všechno důležité pro PiTV na jednom místě")
+        self.header("Nastavení", "Vše důležité pro PiTV na jednom místě")
 
-        left = self.main_left()+int(self.w*.018)
-        top = int(self.h*.165)
-        list_w = int(self.w*.34)
-        panel_w = self.w-left-list_w-int(self.w*.055)
-        row_h = int(self.h*.055)
+        nav = self._draw_settings_categories(self.settings_selected)
+        gap = int(self.w*.012)
+        center_x = nav.right+gap
+        center_w = int(self.w*.300)
+        info_x = center_x+center_w+gap
+        info_w = self.w-info_x-int(self.w*.014)
+        top = int(self.h*.195)
+        panel_h = int(self.h*.690)
 
-        for i, (name, desc) in enumerate(self.SETTINGS):
-            rr = pygame.Rect(left, top+i*row_h, list_w, int(row_h*.82))
-            selected = i == self.settings_selected
-            if selected:
-                self.glass_panel(rr, True, 235, 14)
-            self.text(name, rr.x+18, rr.y+int(rr.h*.22), rr.h*.28,
-                      self.t["text"] if selected else self.t["muted"], selected)
+        center = pygame.Rect(center_x, top, center_w, panel_h)
+        info = pygame.Rect(info_x, top, info_w, panel_h)
+        self.glass_panel(center, False, 174, 21)
+        self.glass_panel(info, False, 165, 21)
 
-        detail = pygame.Rect(left+list_w+int(self.w*.018), top,
-                             panel_w, int(self.h*.64))
-        self.glass_panel(detail, False, 225, 22)
         name, desc = self.SETTINGS[self.settings_selected]
-        self.text(name, detail.x+30, detail.y+28, self.h*.032, self.t["text"], True)
-        self.text(desc, detail.x+30, detail.y+int(self.h*.075), self.h*.019, self.t["muted"])
+        self.text(name, center.x+26, center.y+24, self.h*.030, self.t["text"], True)
+        self.text(desc, center.x+26, center.y+int(self.h*.070), self.h*.016, self.t["muted"])
 
-        if name == "Vzhled":
-            self.text("Téma", detail.x+30, detail.y+int(self.h*.145), self.h*.017, self.t["muted"], True)
-            options = [("PiTV Apple Dark", "Tmavé glass rozhraní"), ("PiTV Apple Light", "Světlé čisté rozhraní")]
-            for j,(label,sub) in enumerate(options):
-                rr = pygame.Rect(detail.x+30, detail.y+int(self.h*(.19+j*.115)),
-                                 detail.w-60, int(self.h*.09))
-                current = (j==0 and self.theme_name.endswith("Dark")) or (j==1 and self.theme_name.endswith("Light"))
-                self.glass_panel(rr, current, 238, 16)
-                self.text(label, rr.x+18, rr.y+14, self.h*.021, self.t["text"], True)
-                self.text(sub, rr.x+18, rr.y+int(self.h*.047), self.h*.015, self.t["muted"])
-        else:
-            bullets = {
-                "Spořič obrazovky": ["Hodiny / černá obrazovka", "CEC standby TV", "PiTV běží dál 24/7"],
-                "Síť": ["Ethernet a Wi‑Fi", "IP adresa a stav", "Připojení ovladačem"],
-                "Zvuk": ["Pouze HDMI", "Hlasitost přes CEC", "Test zvuku"],
-                "HDMI / CEC": ["Zapnout / uspat TV", "Aktivní HDMI vstup", "Ovladač TV"],
-                "Aplikace": ["PiTV Store", "Skrýt / zobrazit aplikace", "Android aplikace"],
-                "Server Store": ["Homebridge", "Tailscale", "Docker", "ATVLoadly"],
-                "Android / APK": ["Waydroid", "APK inspector", "Google Play"],
-                "Aktualizace": ["PiTV", "Store katalogy", "Ubuntu balíčky"],
-                "Systém": ["Teplota", "RAM a disk", "Uptime"],
-                "Napájení": ["Restart", "Vypnutí serveru", "Potvrzení akce"],
-                "O PiTV": ["Verze "+VERSION, "Standalone build", self.theme_name],
-            }.get(name, [desc])
-            yy = detail.y+int(self.h*.145)
-            for b in bullets:
-                self.pill(b, detail.x+30, yy, self.t["accent"])
-                yy += int(self.h*.055)
+        bullets = {
+            "Vzhled": ["Motiv a glass téma", "Barevný akcent", "Velikost a rozložení dlaždic"],
+            "Spořič obrazovky": ["Hodiny / černá obrazovka", "Časovače", "CEC standby TV"],
+            "Síť": ["Ethernet a Wi‑Fi", "IP adresa", "Výběr Wi‑Fi sítě"],
+            "Zvuk": ["HDMI výstup", "CEC hlasitost", "Test zvuku"],
+            "HDMI / CEC": ["TV ovladač", "Aktivní HDMI vstup", "Power / standby"],
+            "Aplikace": ["Zobrazit / skrýt", "Odinstalovat", "PiTV Store"],
+            "Server Store": ["Homebridge", "Tailscale", "Docker", "ATVLoadly"],
+            "Android / APK": ["Waydroid", "APK aplikace", "Google Play"],
+            "Aktualizace": ["PiTV", "Store katalog", "Ubuntu"],
+            "Systém": ["Teplota", "Paměť a disk", "Uptime"],
+            "Napájení": ["Restart", "Vypnutí", "Potvrzení akce"],
+            "O PiTV": ["PiTV "+VERSION, "Ubuntu Server + labwc", self.theme_name],
+        }.get(name, [desc])
+
+        yy = center.y+int(self.h*.135)
+        for bullet in bullets:
+            rr = pygame.Rect(center.x+22, yy, center.w-44, int(self.h*.061))
+            self.glass_panel(rr, False, 154, 12)
+            pygame.draw.circle(self.screen, self.t["accent"], (rr.x+18, rr.centery), 4)
+            self.text(bullet, rr.x+34, rr.y+int(rr.h*.27), rr.h*.25, self.t["text"])
+            yy += int(self.h*.074)
+
+        # Visual help / live preview panel.
+        preview = pygame.Rect(info.x+22, info.y+28, info.w-44, int(self.h*.225))
+        self.glass_panel(preview, False, 145, 18)
+        pw = int((preview.w-34)/2)
+        ph = int((preview.h-34)/2)
+        colors = [
+            ((14,165,233),(2,132,199),"▶"),
+            ((248,48,58),(185,28,28),"▶"),
+            ((168,85,247),(109,40,217),"◆"),
+            ((34,197,94),(22,163,74),"●"),
+        ]
+        for i,(a,b,icon_text) in enumerate(colors):
+            rr = pygame.Rect(preview.x+11+(i%2)*(pw+12),
+                             preview.y+11+(i//2)*(ph+12), pw, ph)
+            self.gradient_rect(rr,a,b,radius=12)
+            icon=self.font(rr.h*.30,True).render(icon_text,True,(255,255,255))
+            self.screen.blit(icon,icon.get_rect(center=rr.center))
+
+        self.text(name, info.x+24, preview.bottom+int(self.h*.028),
+                  self.h*.025, self.t["text"], True)
+        help_lines = {
+            "Vzhled": ["Upravte vzhled PiTV.", "Volby se otevírají jako", "viditelný seznam – stejně jako v Kodi."],
+            "Aplikace": ["Spravujte aplikace přímo z TV.", "Zobrazení, skrytí i bezpečné", "odinstalování na jednom místě."],
+        }.get(name, ["Stiskněte OK pro otevření.", "Back se vrátí o úroveň zpět."])
+        hy = preview.bottom+int(self.h*.072)
+        for line in help_lines:
+            self.text(line, info.x+24, hy, self.h*.016, self.t["muted"])
+            hy += int(self.h*.026)
+
         self.text("↑/↓ vybere • OK otevře • Back návrat",
-                  left, int(self.h*.91), self.h*.016, self.t["muted"])
+                  nav.x, int(self.h*.922), self.h*.014, self.t["muted"])
 
     def draw_rows(self, title, subtitle, rows, selected=0, footer=""):
         self.draw_sidebar("settings")
@@ -2262,17 +2333,117 @@ class PiTV:
         if footer:
             self.text(footer, x, int(self.h*.91), self.h*.016, self.t["muted"])
 
-    def draw_appearance(self):
-        theme = self.theme_name
+    def appearance_rows(self):
         scale = float(self.cfg.get("tile_scale", 1.0))
-        scale_name = "Malé" if scale < .95 else ("Velké" if scale > 1.05 else "Normální")
-        rows = [
-            ("Motiv", theme),
-            ("Velikost dlaždic", scale_name),
-            ("Hodiny na ploše", "Zapnuto" if self.cfg.get("show_clock") else "Vypnuto"),
+        scale_names = {0.85:"Malá", 1.0:"Normální", 1.15:"Velká", 1.30:"Extra velká"}
+        return [
+            ("Motiv", "Tmavý" if self.theme_name.endswith("Dark") else "Světlý"),
+            ("Barevný akcent", {"blue":"Modrý","purple":"Fialový","green":"Zelený"}.get(self.cfg.get("accent"),"Modrý")),
+            ("Velikost dlaždic", scale_names.get(scale, "Normální")),
+            ("Rozložení domovské obrazovky", "Výchozí" if self.cfg.get("home_layout") == "default" else "Kompaktní"),
+            ("Zobrazit popisky ikon", "Zapnuto" if self.cfg.get("show_tile_labels", True) else "Vypnuto"),
+            ("Hustota obsahu", {"comfortable":"Vzdušná","normal":"Normální","compact":"Kompaktní"}.get(self.cfg.get("content_density"),"Normální")),
+            ("Hodiny na ploše", "Zapnuto" if self.cfg.get("show_clock", True) else "Vypnuto"),
         ]
-        self.draw_rows("Vzhled", "Dvě sjednocená PiTV Apple témata", rows, self.sub_selected,
-                       "↑/↓ vybere • ←/→ změní • Back návrat")
+
+    def _save_choice(self, key, value):
+        self.cfg[key] = value
+        save_user_config(self.cfg)
+        self.mark_activity()
+
+    def open_appearance_choice(self, row):
+        choices = {
+            0: ("Motiv", [("Tmavý", "apple_dark"), ("Světlý", "apple_light")], "theme"),
+            1: ("Barevný akcent", [("Modrý","blue"), ("Fialový","purple"), ("Zelený","green")], "accent"),
+            2: ("Velikost dlaždic", [("Malá",.85), ("Normální",1.0), ("Velká",1.15), ("Extra velká",1.30)], "tile_scale"),
+            3: ("Rozložení domovské obrazovky", [("Výchozí","default"), ("Kompaktní","compact")], "home_layout"),
+            4: ("Zobrazit popisky ikon", [("Zapnuto",True), ("Vypnuto",False)], "show_tile_labels"),
+            5: ("Hustota obsahu", [("Vzdušná","comfortable"), ("Normální","normal"), ("Kompaktní","compact")], "content_density"),
+            6: ("Hodiny na ploše", [("Zapnuto",True), ("Vypnuto",False)], "show_clock"),
+        }
+        title, options, key = choices.get(row, choices[0])
+        self.open_choice(
+            title, options, self.cfg.get(key, DEFAULT_CONFIG.get(key)),
+            lambda value, setting=key: self._save_choice(setting, value),
+        )
+
+    def draw_appearance(self):
+        self.draw_sidebar("settings")
+        self.header("Nastavení", "Vše důležité pro PiTV na jednom místě")
+        nav = self._draw_settings_categories(0)
+
+        gap = int(self.w*.012)
+        center_x = nav.right+gap
+        center_w = int(self.w*.300)
+        info_x = center_x+center_w+gap
+        info_w = self.w-info_x-int(self.w*.014)
+        top = int(self.h*.195)
+        panel_h = int(self.h*.690)
+
+        center = pygame.Rect(center_x, top, center_w, panel_h)
+        info = pygame.Rect(info_x, top, info_w, panel_h)
+        self.glass_panel(center, False, 175, 21)
+        self.glass_panel(info, False, 165, 21)
+
+        self.text("✎  Vzhled", center.x+24, center.y+22,
+                  self.h*.030, self.t["text"], True)
+        self.text("Přizpůsobte si vzhled a chování PiTV.",
+                  center.x+26, center.y+int(self.h*.067),
+                  self.h*.0155, self.t["muted"])
+
+        rows = self.appearance_rows()
+        self.sub_selected = max(0,min(self.sub_selected,len(rows)-1))
+        y0 = center.y+int(self.h*.110)
+        row_h = int(self.h*.070)
+        for i,(label,value) in enumerate(rows):
+            rr=pygame.Rect(center.x+16,y0+i*row_h,center.w-32,int(row_h*.83))
+            active=i==self.sub_selected
+            self.glass_panel(rr,active,175,12)
+            self.text(label,rr.x+16,rr.y+int(rr.h*.25),rr.h*.25,
+                      self.t["text"],active)
+            value_surf=self.font(rr.h*.235,False).render(value,True,
+                        self.t["accent"] if active else self.t["muted"])
+            chev=self.font(rr.h*.30,True).render("›",True,
+                        self.t["accent"] if active else self.t["muted"])
+            self.screen.blit(chev,(rr.right-chev.get_width()-10,
+                                  rr.y+(rr.h-chev.get_height())//2))
+            self.screen.blit(value_surf,(rr.right-chev.get_width()-value_surf.get_width()-24,
+                                        rr.y+(rr.h-value_surf.get_height())//2))
+
+        # Live preview mirrors the selected tile size and accent.
+        preview=pygame.Rect(info.x+22,info.y+28,info.w-44,int(self.h*.225))
+        self.glass_panel(preview,False,145,18)
+        size=float(self.cfg.get("tile_scale",1.0))
+        base_w=int(preview.w*.35*min(1.14,size))
+        base_h=int(preview.h*.35*min(1.14,size))
+        colors=[
+            ((14,165,233),(2,132,199),"▶"),
+            ((248,48,58),(185,28,28),"▶"),
+            ((168,85,247),(109,40,217),"◆"),
+            ((34,197,94),(22,163,74),"●"),
+        ]
+        sx=preview.centerx-(base_w*2+10)//2
+        sy=preview.centery-(base_h*2+10)//2
+        for i,(a,b,icon_text) in enumerate(colors):
+            rr=pygame.Rect(sx+(i%2)*(base_w+10),sy+(i//2)*(base_h+10),base_w,base_h)
+            self.gradient_rect(rr,a,b,radius=11)
+            icon=self.font(rr.h*.28,True).render(icon_text,True,(255,255,255))
+            self.screen.blit(icon,icon.get_rect(center=rr.center))
+
+        selected_label=rows[self.sub_selected][0]
+        self.text(selected_label,info.x+24,preview.bottom+int(self.h*.028),
+                  self.h*.025,self.t["text"],True)
+        info_lines=[
+            "Stiskněte OK a zobrazí se všechny",
+            "možnosti v seznamu. Žádné slepé",
+            "přepínání hodnot šipkami.",
+        ]
+        iy=preview.bottom+int(self.h*.075)
+        for line in info_lines:
+            self.text(line,info.x+24,iy,self.h*.0155,self.t["muted"])
+            iy+=int(self.h*.026)
+        self.text("OK = otevřít nabídku • Back = zpět",
+                  center.x, int(self.h*.922), self.h*.014, self.t["muted"])
 
     def draw_screensaver_settings(self):
         enabled = self.cfg.get("screensaver_enabled", True)
