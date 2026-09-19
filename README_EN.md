@@ -40,6 +40,24 @@ The goal is to combine TV apps, Android apps, system settings and background ser
 - 🌡️ system overview — temperature, RAM, disk, uptime, kernel, network and Tailscale
 - 🔄 self-update while preserving user settings
 
+## PiTV SD Installer
+
+<p>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Automatic%20microSD-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
+</p>
+
+The easiest installation path is **PiTV SD Installer**. Connect a microSD card and the tool prepares **Ubuntu Server 24.04 ARM64 + Wi-Fi + zero-touch PiTV first boot**.
+
+- **Windows:** small GUI — select the card and click **CREATE PiTV SD**
+- **Linux / macOS:** one shell script in Terminal
+- image writing is delegated to the official **Raspberry Pi Imager**
+- system/boot disks are excluded and destructive writes require confirmation
+- on first boot the Raspberry Pi downloads PiTV, installs it and reboots automatically
+
+See **[FLASHER.md](FLASHER.md)** for details.
+
+> PiTV SD Installer is currently **beta**. Syntax and safety checks are automated, while full physical microSD + Raspberry Pi 4 validation is still pending.
+
 ## Installation
 
 <p>
