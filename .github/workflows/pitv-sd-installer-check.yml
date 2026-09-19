@@ -62,13 +62,7 @@ jobs:
           $out = Join-Path $dir "expanded.img"
           $err = Join-Path $dir "tar.err"
 
-          @'
-import lzma
-from pathlib import Path
-data = bytes(range(256)) * 16384
-Path(r"__SRC__").write_bytes(data)
-Path(r"__XZ__").write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))
-'@.Replace("__SRC__", $src).Replace("__XZ__", $xz) | python -
+          python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
 
           $p = Start-Process -FilePath "$env:SystemRoot\System32\tar.exe" -ArgumentList ("-xOf \"" + $xz + "\"") -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
           if ($p.ExitCode -ne 0) {
