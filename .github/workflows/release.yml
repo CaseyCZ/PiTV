@@ -46,6 +46,12 @@ jobs:
           grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
           grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
           grep -q 'waydroid-app-uninstall' system/pitv-helper
+          grep -q 'waydroid-keyevent' system/pitv-helper
+          grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
+          grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
+          grep -q 'exec cage -d' system/pitv-waydroid-launch
+          grep -q 'labwc cage wtype' install.sh
+          grep -q 'identifier="wlroots"' system/labwc/rc.xml
           grep -q 'flatpak-uninstall' system/pitv-helper
           grep -q 'apt-remove' system/pitv-helper
           grep -q 'pitv-session-run' install.sh
