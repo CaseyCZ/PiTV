@@ -50,6 +50,15 @@ jobs:
         run: |
           & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
 
+      - name: Compile native raw disk helper
+        shell: powershell
+        run: |
+          Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
+          if (-not ("PiTVNativeDisk" -as [type])) {
+            throw "PiTVNativeDisk.cs did not compile."
+          }
+          Write-Host "PiTVNativeDisk C# helper compiles"
+
       - name: Verify Windows raw XZ extraction
         shell: powershell
         run: |
