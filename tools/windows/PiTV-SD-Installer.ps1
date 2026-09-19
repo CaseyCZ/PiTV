@@ -124,15 +124,20 @@ function Ensure-Imager {
     }
 }
 function Get-SafeDisks {
-    $protected = @()
     try {
-        $protected = Get-Partition | Where-Object { $_.IsBoot -or $_.IsSystem } |
-            Select-Object -ExpandProperty DiskNumber -Unique
-    } catch {}
+        $protected = @(Get-Partition | Where-Object { $_.IsBoot -or $_.IsSystem } |
+            Select-Object -ExpandProperty DiskNumber -Unique)
+        $disks = @(Get-Disk)
+    }
+    catch {
+        throw "Windows neposkytl bezpečné informace o discích. Installer raději zápis zablokoval."
+    }
 
-    return @(Get-Disk | Where-Object {
+    return @($disks | Where-Object {
         $_.Number -ne 0 -and
         $_.Number -notin $protected -and
+        -not $_.IsBoot -and
+        -not $_.IsSystem -and
         $_.OperationalStatus -ne "Offline" -and
         $_.Size -gt 1GB -and
         $_.BusType -in @("USB","SD","MMC")
@@ -153,9 +158,20 @@ function Get-SavedWifiProfiles {
         foreach ($file in (Get-ChildItem $dir -Filter "*.xml" -ErrorAction SilentlyContinue)) {
             try {
                 [xml]$xml = Get-Content $file.FullName -Raw
-                $nameNodes = $xml.GetElementsByTagName("name")
-                if ($nameNodes.Count -lt 1) { continue }
-                $ssid = [string]$nameNodes[0].InnerText
+                $ssid = ""
+                $ssidNodes = $xml.GetElementsByTagName("SSID")
+                if ($ssidNodes.Count -gt 0) {
+                    foreach ($child in $ssidNodes[0].ChildNodes) {
+                        if ($child.LocalName -eq "name") {
+                            $ssid = [string]$child.InnerText
+                            break
+                        }
+                    }
+                }
+                if ([string]::IsNullOrWhiteSpace($ssid)) {
+                    $nameNodes = $xml.GetElementsByTagName("name")
+                    if ($nameNodes.Count -gt 0) { $ssid = [string]$nameNodes[0].InnerText }
+                }
                 if ([string]::IsNullOrWhiteSpace($ssid)) { continue }
 
                 $password = ""
