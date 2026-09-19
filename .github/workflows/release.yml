@@ -1,0 +1,124 @@
+name: PiTV Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [Master]
+    paths:
+      - ".github/workflows/release.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pitv-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("pitv/pitv.py").read_text(encoding="utf-8")
+          m = re.search(r'^VERSION\s*=\s*"([^"]+)"', text, re.M)
+          if not m:
+              raise SystemExit("VERSION not found")
+          print(m.group(1))
+          PY
+          )"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          test -f "release-notes/v$VERSION.md"
+
+      - name: Release checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile pitv/*.py
+          bash -n install.sh
+          bash -n uninstall.sh
+          bash -n scripts/install-waydroid.sh
+          bash -n tools/pitv-flasher.sh
+          bash tools/pitv-flasher.sh --dry-run
+          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+          (
+            cd vendor/waydroid/noble
+            sha256sum -c SHA256SUMS
+            for pkg in *.deb; do dpkg-deb --info "$pkg" >/dev/null; done
+          )
+
+      - name: Build release assets
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p "dist/PiTV-SD-Installer-Windows-v$VERSION"
+
+          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows-v$VERSION/"
+          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows-v$VERSION/"
+          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows-v$VERSION/README.md"
+          cp LICENSE "dist/PiTV-SD-Installer-Windows-v$VERSION/LICENSE"
+
+          (
+            cd dist
+            zip -9 -r "PiTV-SD-Installer-Windows-v$VERSION.zip" "PiTV-SD-Installer-Windows-v$VERSION" >/dev/null
+          )
+
+          cp tools/pitv-flasher.ps1 dist/pitv-flasher.ps1
+          cp tools/pitv-flasher.sh dist/pitv-flasher.sh
+          chmod +x dist/pitv-flasher.sh
+
+          (
+            cd dist
+            sha256sum \
+              "PiTV-SD-Installer-Windows-v$VERSION.zip" \
+              pitv-flasher.ps1 \
+              pitv-flasher.sh \
+              > SHA256SUMS.txt
+          )
+
+          echo "Release assets:"
+          ls -lh dist/
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          NOTES="release-notes/v$VERSION.md"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; updating notes and assets."
+            gh release edit "$TAG" \
+              --title "PiTV v$VERSION Beta" \
+              --notes-file "$NOTES"
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "PiTV v$VERSION Beta" \
+              --notes-file "$NOTES"
+          fi
+
+          gh release upload "$TAG" \
+            "dist/PiTV-SD-Installer-Windows-v$VERSION.zip" \
+            dist/pitv-flasher.ps1 \
+            dist/pitv-flasher.sh \
+            dist/SHA256SUMS.txt \
+            --clobber
+
+          gh release view "$TAG" --json url,tagName,name,isDraft,isPrerelease
