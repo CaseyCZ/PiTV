@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.4 installer =="
+echo "== PiTV v1.4.7 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -110,6 +110,20 @@ install -m 0755 system/pitv-waydroid-launch /usr/local/bin/pitv-waydroid-launch
 install -d -m 0755 /usr/local/libexec
 install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
+cat >/usr/local/libexec/pitv-cec-monitor <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+DEV="${1:-}"
+MODE="${2:-monitor}"
+[[ "$DEV" =~ ^/dev/cec[0-9]+$ ]] || exit 2
+[ -c "$DEV" ] || exit 2
+case "$MODE" in
+  register) exec /usr/bin/cec-ctl -d "$DEV" --playback -o PiTV ;;
+  monitor)  exec /usr/bin/cec-ctl -d "$DEV" --monitor ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod 0755 /usr/local/libexec/pitv-cec-monitor
 install -m 0755 scripts/install-waydroid.sh /usr/local/libexec/pitv-install-waydroid
 
 install -d -o pitv -g pitv /home/pitv/.config/pitv
@@ -122,7 +136,7 @@ install -m 0644 -o pitv -g pitv system/bash_profile /home/pitv/.bash_profile
 # cec-ctl monitor mode needs CAP_NET_ADMIN; expose only the fixed cec-ctl binary
 # to the dedicated local pitv account, never a shell.
 cat >/etc/sudoers.d/pitv-power <<'EOF'
-pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/bin/cec-ctl *
+pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/local/libexec/pitv-cec-monitor *
 EOF
 chmod 0440 /etc/sudoers.d/pitv-power
 
