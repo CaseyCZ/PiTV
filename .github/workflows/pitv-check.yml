@@ -43,6 +43,18 @@ jobs:
           bash tools/pitv-flasher.sh --dry-run
           pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
 
+      - name: Waydroid fallback snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/waydroid/noble
+          test -s packages.env
+          test -s SHA256SUMS
+          sha256sum -c SHA256SUMS
+          for pkg in *.deb; do
+            dpkg-deb --info "$pkg" >/dev/null
+          done
+
       - name: Store JSON
         run: |
           python3 - <<'PY'
