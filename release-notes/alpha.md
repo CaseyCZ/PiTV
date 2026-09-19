@@ -1,5 +1,15 @@
 # PiTV Alpha
 
+### PiTV 1.4.10 · TV runtime incident fixes
+- opravené HDMI-CEC **OK / Zpět**: vlastní parser cec-ctl, split-event i raw fallback
+- vypnutý kernel RC passthrough; PiTV je jediná překladová vrstva pro TV ovladač
+- CEC monitor se po HDMI/CEC resetu automaticky znovu připojí
+- Linux aplikace před startem ověřují XDG_RUNTIME_DIR + WAYLAND_DISPLAY a zapisují chybu do launch logu
+- Waydroid čeká na Session: RUNNING a sys.boot_completed=1, ověřuje package ID i skutečné spuštění aplikace
+- Android TV ovládání používá nativní DPAD_CENTER/BACK keyeventy
+- Plex Player automaticky instaluje kodi-send; Store/CI odpovídá Linux Stremio + Kodi/PM4K architektuře
+- self-update je připnutý na konkrétní commit SHA a kontroluje bezpečnost ZIP cest/velikosti
+- APK Store ověřuje SHA-256 digest GitHub Release assetů; přímé APK vyžaduje SHA-256
 Aktuální průběžná testovací verze PiTV. **Pi 4 je hlavní a doporučený cíl.**
 
 ### Aktuálně
