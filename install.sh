@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.8 installer =="
+echo "== PiTV v1.4.9 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -107,6 +107,7 @@ install -d -m 0755 /etc/pitv/apps.d
 cp -a config/apps.d/. /etc/pitv/apps.d/
 install -m 0755 system/pitv-session /usr/local/bin/pitv-session
 install -m 0755 system/pitv-waydroid-launch /usr/local/bin/pitv-waydroid-launch
+install -m 0755 system/pitv-kodi-addon /usr/local/bin/pitv-kodi-addon
 install -d -m 0755 /usr/local/libexec
 install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
