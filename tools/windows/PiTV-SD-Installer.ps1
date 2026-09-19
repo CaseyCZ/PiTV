@@ -370,7 +370,7 @@ $title.AutoSize = $true
 $form.Controls.Add($title)
 
 $sub = New-Object Windows.Forms.Label
-$sub.Text = "Vyber systém a SD kartu. Zbytek připraví PiTV automaticky."
+$sub.Text = "Vyber Raspberry, systém a kartu. Image PiTV najde online nebo použije uloženou kopii."
 $sub.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
 $sub.Font = New-Object Drawing.Font("Segoe UI",11)
 $sub.Location = New-Object Drawing.Point(31,66)
@@ -1097,7 +1097,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.15 · Windows"
+    Log "PiTV SD Installer v0.16 · Windows"
     Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
     Log ("Trvalá cache image: " + $ImageCacheDir)
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
