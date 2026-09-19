@@ -16,6 +16,7 @@ Aktuální PiTV 1.3 prošlo statickou kontrolou, runtime render testem a komplet
 - opravené probuzení TV po CEC standby,
 - spořič se pozastaví během Kodi/Android foreground aplikace,
 - Waydroid + Google Play lze nainstalovat přímo z PiTV UI,
+- přidaný ARM64 Waydroid fallback snapshot pro případ výpadku `repo.waydro.id`, včetně SHA-256 ověření a automatické týdenní aktualizace,
 - Google Play deep-link pro YouTube/Spotify/Plex používá omezený privilegovaný helper,
 - SmartTube/Stremio APK mají kontrolu očekávaného package ID,
 - zpřísněný APT allowlist,
@@ -54,13 +55,14 @@ Tyto body jsou poslední část před označením Raspberry Pi 4 build jako hard
 
 - **Self-update:** aktuálně důvěřuje mutable GitHub větvi a spouští stažený installer jako root. Pro veřejné release je vhodné přejít na tag/release + checksum/signature.
 - **Branch protection:** `Master` není chráněná. Pro veřejnou distribuci doporučeno vyžadovat PiTV Check před změnou release větve.
-- **Waydroid:** cloud ARM64 runner ověřuje PiTV integraci a APK zdroje, nikoli Android runtime na Raspberry Pi GPU/kernelu.
+- **Waydroid:** instalace balíčků má vlastní fallback mimo `repo.waydro.id`, ale první `waydroid init` stále závisí na dostupnosti Android image zdrojů; cloud ARM64 runner neověřuje Android runtime na Raspberry Pi GPU/kernelu.
 - **CEC:** implementace odpovídá libCEC chování, ale CEC se mezi výrobci TV liší.
 
 ## CI
 
 - `PiTV Check` — rychlá automatická kontrola při push.
 - `PiTV Online Smoke` — ruční plný instalační test.
+- `Waydroid Fallback Mirror` — týdenní obnova ARM64/Noble fallback balíčků z oficiálního Waydroid repozitáře.
 
 
 ## Repo hygiene
