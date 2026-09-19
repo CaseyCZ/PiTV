@@ -407,12 +407,12 @@ $os = New-Object Windows.Forms.ComboBox
 $os.Location = New-Object Drawing.Point(190,112)
 $os.Size = New-Object Drawing.Size(365,32)
 $os.DropDownStyle = "DropDownList"
-[void]$os.Items.Add("Ubuntu Server 24.04 LTS (64-bit) — doporučeno")
+[void]$os.Items.Add("Ubuntu Server 24.04 LTS ARM64 — stáhnout online (doporučeno)")
 $os.SelectedIndex = 0
 $form.Controls.Add($os)
 
 $imageBrowse = New-Object Windows.Forms.Button
-$imageBrowse.Text = "Vybrat image..."
+$imageBrowse.Text = "Vlastní image..."
 $imageBrowse.Location = New-Object Drawing.Point(565,111)
 $imageBrowse.Size = New-Object Drawing.Size(95,32)
 $form.Controls.Add($imageBrowse)
@@ -730,8 +730,8 @@ function Load-WifiFromWindows {
 
 function Select-LocalImage {
     $dialog = New-Object Windows.Forms.OpenFileDialog
-    $dialog.Title = "Vyber Raspberry Pi / Ubuntu image"
-    $dialog.Filter = "Podporované image (*.img;*.xz;*.zip)|*.img;*.xz;*.zip|Všechny soubory (*.*)|*.*"
+    $dialog.Title = "Vyber vlastní Ubuntu Server image"
+    $dialog.Filter = "Ubuntu / Raspberry Pi image (*.img;*.img.xz;*.xz;*.zip)|*.img;*.img.xz;*.xz;*.zip|Všechny soubory (*.*)|*.*"
     $dialog.CheckFileExists = $true
     $dialog.Multiselect = $false
 
@@ -748,13 +748,21 @@ function Select-LocalImage {
         return
     }
 
+    $confirm = [Windows.Forms.MessageBox]::Show(
+        "Vlastní image musí být kompatibilní s Raspberry Pi 4 a cloud-init, aby se automaticky nastavila Wi-Fi a nainstalovalo PiTV. Doporučená je Ubuntu Server 24.04 ARM64. Pokračovat?",
+        "Vlastní Ubuntu image",
+        [Windows.Forms.MessageBoxButtons]::YesNo,
+        [Windows.Forms.MessageBoxIcon]::Information
+    )
+    if ($confirm -ne [Windows.Forms.DialogResult]::Yes) { return }
+
     $script:LocalImagePath = $file.FullName
     $name = $file.Name
 
     if ($os.Items.Count -gt 1) {
         $os.Items.RemoveAt(1)
     }
-    [void]$os.Items.Add(("Vlastní image — " + $name))
+    [void]$os.Items.Add(("Vlastní Ubuntu image — " + $name))
     $os.SelectedIndex = 1
 
     Log ("Vlastní image vybrána: " + $name)
@@ -905,7 +913,8 @@ $create.Add_Click({
         $imageSource = ""
         $imageSha = $null
 
-        if ($script:LocalImagePath) {
+        $useLocalImage = ($os.SelectedIndex -eq 1 -and $script:LocalImagePath)
+        if ($useLocalImage) {
             if (-not (Test-Path $script:LocalImagePath -PathType Leaf)) {
                 throw "Vybraná vlastní image už není dostupná. Vyber soubor znovu."
             }
@@ -913,7 +922,7 @@ $create.Add_Click({
             Log ("Použita vlastní image: " + (Split-Path -Leaf $script:LocalImagePath))
         }
         else {
-            Log "Načítám oficiální Ubuntu image..."
+            Log "Online režim: načítám oficiální Ubuntu Server 24.04 ARM64 image z katalogu..."
             $image = Get-Ubuntu2404
             Log ("Vybráno: " + [string](Get-Prop $image "name"))
             $imageSource = [string](Get-Prop $image "url")
@@ -1006,7 +1015,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.9 · Windows"
+    Log "PiTV SD Installer v0.10 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
     Refresh-Drives
