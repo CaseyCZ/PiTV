@@ -120,6 +120,31 @@ CEC_MAP = {
 }
 
 
+def normalize_input_key(key):
+    """Normalize SDL/Linux media-remote keys to PiTV navigation keys."""
+    if key == pygame.K_BACKSPACE:
+        return pygame.K_ESCAPE
+    try:
+        name = pygame.key.name(key).strip().lower().replace("_", " ").replace("-", " ")
+    except Exception:
+        name = ""
+    aliases = {
+        "ac back": pygame.K_ESCAPE,
+        "back": pygame.K_ESCAPE,
+        "escape": pygame.K_ESCAPE,
+        "browser back": pygame.K_ESCAPE,
+        "select": pygame.K_RETURN,
+        "enter": pygame.K_RETURN,
+        "return": pygame.K_RETURN,
+        "kp enter": pygame.K_RETURN,
+        "keypad enter": pygame.K_RETURN,
+        "home": pygame.K_HOME,
+        "ac home": pygame.K_HOME,
+        "browser home": pygame.K_HOME,
+    }
+    return aliases.get(name, key)
+
+
 def safe_json(path, fallback):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -3077,7 +3102,7 @@ class PiTV:
                     # A USB keyboard is the guaranteed local fallback for TV
                     # remotes. Backspace behaves as Back/Escape, matching the
                     # on-screen keyboard legend and common media-center UX.
-                    key = pygame.K_ESCAPE if event.key == pygame.K_BACKSPACE else event.key
+                    key = normalize_input_key(event.key)
                     self.handle_key(key)
 
             if self.external_proc is not None and self.external_proc.poll() is not None:
