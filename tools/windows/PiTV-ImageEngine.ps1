@@ -203,20 +203,20 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
     }
 
     if ($lower.EndsWith(".xz")) {
-        $tar = Get-Command tar.exe -ErrorAction SilentlyContinue
-        if (-not $tar) {
-            throw "Windows tar.exe nebyl nalezen. PiTV Installer vyžaduje moderní Windows 10/11 s vestavěným tar/libarchive."
+        $decoder = Join-Path $PSScriptRoot "PiTV-XZ.exe"
+        if (-not (Test-Path $decoder -PathType Leaf)) {
+            throw "Chybí PiTV-XZ.exe. Rozbal celý instalační ZIP."
         }
 
         $raw = Join-Path $WorkDir ("pitv-raw-" + [guid]::NewGuid().ToString("N") + ".img")
         $err = Join-Path $WorkDir ("pitv-xz-" + [guid]::NewGuid().ToString("N") + ".err.log")
         try {
-            Log "Rozbaluji XZ image pomocí vestavěného Windows tar/libarchive..."
+            Log "Rozbaluji XZ image pomocí PiTV-XZ..."
             Set-InstallerProgress "Rozbaluji image" 0
 
             $dq = [char]34
-            $tarArgs = "-xOf " + $dq + $source + $dq
-            $p = Start-Process -FilePath $tar.Source -ArgumentList $tarArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $raw -RedirectStandardError $err
+            $decoderArgs = $dq + $source + $dq + " " + $dq + $raw + $dq
+            $p = Start-Process -FilePath $decoder -ArgumentList $decoderArgs -PassThru -WindowStyle Hidden -RedirectStandardError $err
 
             while (-not $p.WaitForExit(250)) {
                 [Windows.Forms.Application]::DoEvents()
@@ -232,7 +232,7 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
             $p.Refresh()
             if ($p.ExitCode -ne 0) {
                 $detail = if (Test-Path $err) { (Get-Content $err -Raw -ErrorAction SilentlyContinue).Trim() } else { "" }
-                throw ("Rozbalení XZ selhalo (tar exit " + $p.ExitCode + "). " + $detail)
+                throw ("Rozbalení XZ selhalo (PiTV-XZ exit " + $p.ExitCode + "). " + $detail)
             }
 
             if ($expectedExtractSize -gt 0 -and [Int64](Get-Item $raw).Length -ne $expectedExtractSize) {
