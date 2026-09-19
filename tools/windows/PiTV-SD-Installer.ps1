@@ -88,26 +88,89 @@ function Size-Text([UInt64]$n) {
     return ("{0:N1} GB" -f ($n / 1GB))
 }
 
-function Get-CurrentWifi {
-    $raw = (& netsh wlan show interfaces) -join [Environment]::NewLine
-    $m = [regex]::Match($raw, "(?im)^\s*SSID\s*:\s*(.+?)\s*$")
-    if (-not $m.Success) { return $null }
-    $ssid = $m.Groups[1].Value.Trim()
-    if (-not $ssid) { return $null }
-
+function Get-SavedWifiProfiles {
     $dir = Join-Path $env:TEMP ("pitv-wifi-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $dir | Out-Null
+    $profiles = @()
     try {
-        & netsh wlan export profile name="$ssid" key=clear folder="$dir" | Out-Null
-        $file = Get-ChildItem $dir -Filter "*.xml" | Select-Object -First 1
-        if (-not $file) { return $null }
-        [xml]$xml = Get-Content $file.FullName -Raw
-        $nodes = $xml.GetElementsByTagName("keyMaterial")
-        if ($nodes.Count -lt 1) { return $null }
-        return [pscustomobject]@{ SSID=$ssid; Password=$nodes[0].InnerText }
+        & netsh wlan export profile key=clear folder="$dir" | Out-Null
+        foreach ($file in (Get-ChildItem $dir -Filter "*.xml" -ErrorAction SilentlyContinue)) {
+            try {
+                [xml]$xml = Get-Content $file.FullName -Raw
+                $nameNodes = $xml.GetElementsByTagName("name")
+                if ($nameNodes.Count -lt 1) { continue }
+                $ssid = [string]$nameNodes[0].InnerText
+                if ([string]::IsNullOrWhiteSpace($ssid)) { continue }
+
+                $password = ""
+                $keyNodes = $xml.GetElementsByTagName("keyMaterial")
+                if ($keyNodes.Count -gt 0) { $password = [string]$keyNodes[0].InnerText }
+
+                $profiles += [pscustomobject]@{
+                    SSID = $ssid.Trim()
+                    Password = $password
+                }
+            } catch {}
+        }
     }
     finally {
         Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    return @($profiles)
+}
+
+function Get-SavedWifiPassword([string]$ssid) {
+    if ([string]::IsNullOrWhiteSpace($ssid)) { return "" }
+    $profile = Get-SavedWifiProfiles | Where-Object { $_.SSID -eq $ssid } | Select-Object -First 1
+    if ($profile) { return [string]$profile.Password }
+    return ""
+}
+
+function Get-NearbyWifiSsids {
+    $raw = (& netsh wlan show networks mode=bssid 2>$null) -join [Environment]::NewLine
+    $items = New-Object System.Collections.Generic.List[string]
+    foreach ($line in ($raw -split "\r?\n")) {
+        $m = [regex]::Match($line, "^\s*SSID\s+\d+\s*:\s*(.*)\s*$", "IgnoreCase")
+        if ($m.Success) {
+            $ssid = $m.Groups[1].Value.Trim()
+            if ($ssid -and -not $items.Contains($ssid)) { [void]$items.Add($ssid) }
+        }
+    }
+    return @($items)
+}
+
+function Get-CurrentWifiSsid {
+    $raw = (& netsh wlan show interfaces 2>$null) -join [Environment]::NewLine
+    $m = [regex]::Match($raw, "(?im)^\s*SSID\s*:\s*(.+?)\s*$")
+    if ($m.Success) { return $m.Groups[1].Value.Trim() }
+    return ""
+}
+
+function Get-WifiChoices {
+    $result = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($ssid in (Get-NearbyWifiSsids)) {
+            if ($ssid -and -not $result.Contains($ssid)) { [void]$result.Add($ssid) }
+        }
+    } catch {}
+
+    try {
+        foreach ($profile in (Get-SavedWifiProfiles)) {
+            if ($profile.SSID -and -not $result.Contains($profile.SSID)) {
+                [void]$result.Add($profile.SSID)
+            }
+        }
+    } catch {}
+
+    return @($result)
+}
+
+function Get-CurrentWifi {
+    $ssid = Get-CurrentWifiSsid
+    if (-not $ssid) { return $null }
+    return [pscustomobject]@{
+        SSID = $ssid
+        Password = (Get-SavedWifiPassword $ssid)
     }
 }
 
@@ -279,13 +342,16 @@ $refresh.Size = New-Object Drawing.Size(95,32)
 $form.Controls.Add($refresh)
 
 Add-Label "Wi-Fi SSID" 212
-$wifiSsid = New-Object Windows.Forms.TextBox
+$wifiSsid = New-Object Windows.Forms.ComboBox
 $wifiSsid.Location = New-Object Drawing.Point(190,208)
 $wifiSsid.Size = New-Object Drawing.Size(365,30)
+$wifiSsid.DropDownStyle = "DropDown"
+$wifiSsid.AutoCompleteMode = "SuggestAppend"
+$wifiSsid.AutoCompleteSource = "ListItems"
 $form.Controls.Add($wifiSsid)
 
 $wifiLoad = New-Object Windows.Forms.Button
-$wifiLoad.Text = "Načíst"
+$wifiLoad.Text = "Vyhledat"
 $wifiLoad.Location = New-Object Drawing.Point(565,207)
 $wifiLoad.Size = New-Object Drawing.Size(95,32)
 $form.Controls.Add($wifiLoad)
@@ -293,9 +359,17 @@ $form.Controls.Add($wifiLoad)
 Add-Label "Wi-Fi heslo" 254
 $wifiPass = New-Object Windows.Forms.TextBox
 $wifiPass.Location = New-Object Drawing.Point(190,250)
-$wifiPass.Size = New-Object Drawing.Size(470,30)
+$wifiPass.Size = New-Object Drawing.Size(280,30)
 $wifiPass.UseSystemPasswordChar = $true
 $form.Controls.Add($wifiPass)
+
+$wifiShow = New-Object Windows.Forms.CheckBox
+$wifiShow.Text = "Zobrazit heslo"
+$wifiShow.Location = New-Object Drawing.Point(486,251)
+$wifiShow.Size = New-Object Drawing.Size(174,28)
+$wifiShow.ForeColor = [Drawing.Color]::White
+$wifiShow.BackColor = $form.BackColor
+$form.Controls.Add($wifiShow)
 
 $wifiStatus = New-Object Windows.Forms.Label
 $wifiStatus.Location = New-Object Drawing.Point(190,284)
@@ -364,27 +438,68 @@ function Refresh-Drives {
     Log ("Nalezeno bezpečných výměnných disků: " + $disk.Items.Count)
 }
 
-function Load-WifiFromWindows {
+function Load-PasswordForSelectedWifi {
+    $ssid = $wifiSsid.Text.Trim()
+    if (-not $ssid) { return $false }
+
     try {
-        $wifiStatus.Text = "Načítám aktuální Wi-Fi z Windows..."
-        [Windows.Forms.Application]::DoEvents()
-        $w = Get-CurrentWifi
-        if ($w -and $w.SSID) {
-            $wifiSsid.Text = $w.SSID
-            if ($w.Password) { $wifiPass.Text = $w.Password }
-            $wifiStatus.Text = "Načteno z Windows · můžeš údaje ručně upravit"
-            Log ("Wi-Fi načtena z Windows: " + $w.SSID)
+        $saved = Get-SavedWifiPassword $ssid
+        if ($saved) {
+            $wifiPass.Text = $saved
+            $wifiStatus.Text = "Uložené heslo bylo načteno z Windows"
+            Log ("Uložené heslo načteno pro Wi-Fi: " + $ssid)
             return $true
         }
-        $wifiStatus.Text = "Automaticky nenalezena · zadej SSID a heslo ručně"
+    } catch {}
+
+    $wifiStatus.Text = "Síť vybrána · heslo zadej ručně"
+    return $false
+}
+
+function Load-WifiFromWindows {
+    try {
+        $wifiStatus.Text = "Vyhledávám Wi-Fi sítě a uložené profily..."
+        [Windows.Forms.Application]::DoEvents()
+
+        $current = Get-CurrentWifiSsid
+        $choices = @(Get-WifiChoices)
+
+        $wifiSsid.Items.Clear()
+        foreach ($ssid in $choices) { [void]$wifiSsid.Items.Add($ssid) }
+
+        if ($current) {
+            $wifiSsid.Text = $current
+        } elseif ($choices.Count -gt 0 -and [string]::IsNullOrWhiteSpace($wifiSsid.Text)) {
+            $wifiSsid.Text = [string]$choices[0]
+        }
+
+        if ($choices.Count -gt 0) {
+            Log ("Nalezeno Wi-Fi sítí/profilů: " + $choices.Count)
+            [void](Load-PasswordForSelectedWifi)
+            if (-not $wifiPass.Text) {
+                $wifiStatus.Text = ("Nalezeno " + $choices.Count + " sítí/profilů · vyber síť a zadej heslo")
+            }
+            return $true
+        }
+
+        $wifiStatus.Text = "Síť nebyla nalezena · SSID a heslo můžeš zadat ručně"
         return $false
     }
     catch {
-        $wifiStatus.Text = "Automaticky nenalezena · zadej SSID a heslo ručně"
-        Log ("Wi-Fi automatika: " + $_.Exception.Message)
+        $wifiStatus.Text = "Vyhledání selhalo · SSID a heslo můžeš zadat ručně"
+        Log ("Wi-Fi vyhledání: " + $_.Exception.Message)
         return $false
     }
 }
+
+$wifiShow.Add_CheckedChanged({
+    $wifiPass.UseSystemPasswordChar = -not $wifiShow.Checked
+})
+
+$wifiSsid.Add_SelectedIndexChanged({
+    $wifiPass.Clear()
+    [void](Load-PasswordForSelectedWifi)
+})
 
 $wifiLoad.Add_Click({ [void](Load-WifiFromWindows) })
 $refresh.Add_Click({ Refresh-Drives })
@@ -541,7 +656,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.3 · Windows"
+    Log "PiTV SD Installer v0.4 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Refresh-Drives
     [void](Load-WifiFromWindows)
