@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <decoration>client</decoration>
+    <gap>0</gap>
+  </core>
+  <theme>
+    <cornerRadius>0</cornerRadius>
+    <keepBorder>no</keepBorder>
+    <maximizedDecoration>none</maximizedDecoration>
+  </theme>
+  <keyboard>
+    <keybind key="W-Home"><action name="Execute" command="wtype -k Home" /></keybind>
+  </keyboard>
+</labwc_config>
