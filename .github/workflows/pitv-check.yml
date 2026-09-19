@@ -35,6 +35,13 @@ jobs:
           bash -n system/pitv-session
           bash -n system/pitv-waydroid-launch
           bash -n scripts/install-waydroid.sh
+          bash -n tools/pitv-flasher.sh
+
+      - name: Flasher dry run
+        shell: bash
+        run: |
+          bash tools/pitv-flasher.sh --dry-run
+          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
 
       - name: Store JSON
         run: |
