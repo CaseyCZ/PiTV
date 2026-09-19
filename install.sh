@@ -33,6 +33,14 @@ apt-get install -y \
 # NetworkManager is optional: PiTV will use it only if it is already active.
 apt-get install -y network-manager 2>/dev/null || true
 
+# Ubuntu Server images can leave both NetworkManager wait-online and
+# systemd-networkd-wait-online enabled. PiTV does not require the legacy
+# networkd wait gate, and on some boots it can block forever even though
+# NetworkManager is already online. Disable only the wait helper; do not
+# disable systemd-networkd itself.
+systemctl disable systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+systemctl mask systemd-networkd-wait-online.service >/dev/null 2>&1 || true
+
 if ! id pitv >/dev/null 2>&1; then
   adduser --disabled-password --gecos "PiTV" pitv
 fi
