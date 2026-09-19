@@ -1,20 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export XDG_SESSION_TYPE=wayland
-export SDL_VIDEODRIVER=wayland
-export XDG_CURRENT_DESKTOP=labwc
-RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-export XDG_RUNTIME_DIR="$RUNTIME"
-mkdir -p "$RUNTIME" 2>/dev/null || true
-chmod 700 "$RUNTIME" 2>/dev/null || true
 
-# Waydroid bind-mounts the host Pulse-compatible socket into Android.
-# Ubuntu Server does not necessarily start the user audio stack until a
-# graphical desktop asks for it, so PiTV brings it up before labwc/Waydroid.
-systemctl --user start pipewire.socket pipewire-pulse.socket wireplumber.service >/dev/null 2>&1 || true
-for _ in $(seq 1 30); do
-  [ -S "$RUNTIME/pulse/native" ] && break
+if [ "$(id -un)" != "pitv" ]; then
+  echo "PiTV TV session musí běžet jako uživatel pitv." >&2
+  exit 2
+fi
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+export SDL_VIDEODRIVER=wayland
+
+# Never inherit an SSH/admin runtime. The TV stack has one canonical user
+# runtime managed by logind/systemd --user.
+RUNTIME="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="$RUNTIME"
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+
+if [ ! -d "$RUNTIME" ]; then
+  echo "PiTV runtime $RUNTIME neexistuje; logind session není připravená." >&2
+  exit 3
+fi
+
+# Use the standard systemd user bus. Do NOT create a second private
+# dbus-run-session: labwc, PipeWire, WirePlumber, portals and TV apps must see
+# the same pitv session.
+systemctl --user start dbus.socket pipewire.socket pipewire-pulse.socket wireplumber.service >/dev/null 2>&1 || true
+
+for _ in $(seq 1 50); do
+  [ -S "$RUNTIME/bus" ] && [ -S "$RUNTIME/pulse/native" ] && break
   sleep 0.1
 done
 
-exec dbus-run-session -- labwc
+[ -S "$RUNTIME/bus" ] || { echo "PiTV user D-Bus není připravený." >&2; exit 4; }
+[ -S "$RUNTIME/pulse/native" ] || { echo "PiTV PipeWire/Pulse není připravený." >&2; exit 5; }
+
+exec labwc
