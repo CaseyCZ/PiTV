@@ -1,5 +1,14 @@
 # PiTV Alpha
 
+### Physical Pi 4 checkpoint · 2026-09-19
+- PiTV 1.4.19 je na fyzickém zařízení potvrzené; `pitv-session-run` a single-user TV session fungují
+- HDMI zvuk je potvrzený přes PipeWire/WirePlumber a Kodi HDMI sink
+- Kodi je po zapnutí obou DRM PRIME voleb plynulé; log potvrzuje `CDVDVideoCodecDRMPRIME` pro H.264
+- otevřený problém: CEC nefungovalo už po bootu před spuštěním Kodi; `/dev/cec0`, logical address 4 i root monitor jsou přitom aktivní
+- ruční CEC `active` úspěšně vyslal ACTIVE_SOURCE na 2.0.0.0; další krok je automatické active po register/reconnect a fyzický test po rebootu
+- samostatný problém: skutečný `kodi.bin` se může odpojit od sledovaného wrapperu a zůstat pod PID 1; plain Kodi instalace na zařízení navíc neměla `kodi-send`
+- úplný diagnostický checkpoint je uložen v `docs/debug-2026-09-19.md`
+
 ### PiTV 1.4.19 · Noble ARM64 update fix
 - odstraněna závislost na balíčku wlrctl, který na použitém Ubuntu 24.04 ARM64 nebyl přes APT dostupný a blokoval self-update
 - návrat ovládání z Kodi/Stremio se nově pozná přímo podle wtype echo do PiTV, takže není potřeba externí focus utility
