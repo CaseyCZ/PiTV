@@ -1,5 +1,9 @@
 # PiTV Alpha
 
+### PiTV 1.4.19 · Noble ARM64 update fix
+- odstraněna závislost na balíčku wlrctl, který na použitém Ubuntu 24.04 ARM64 nebyl přes APT dostupný a blokoval self-update
+- návrat ovládání z Kodi/Stremio se nově pozná přímo podle wtype echo do PiTV, takže není potřeba externí focus utility
+- update z PiTV 1.4.10 už nemusí instalovat wlrctl a může pokračovat přes běžné Noble ARM64 balíčky
 ### PiTV 1.4.18 · Full user/session ownership audit
 - TV runtime má jednoho vlastníka: uživatel pitv; admin zůstává pouze SSH/recovery a root pouze privilegované/system operace
 - labwc, PipeWire, WirePlumber, Kodi, Stremio a Waydroid GUI sdílejí jediný systemd user D-Bus a /run/user/<pitv UID>
@@ -7,7 +11,7 @@
 - všechny GUI child procesy přepisují HOME/USER/LOGNAME/XDG_RUNTIME_DIR/PULSE_RUNTIME_PATH/DBUS na pitv session
 - cizí nebo absolutní WAYLAND_DISPLAY mimo pitv runtime je odmítnut a nahrazen skutečným labwc socketem
 - Kodi a Waydroid wrappery odmítnou spuštění mimo uživatele pitv
-- sudo pitv-session-run <příkaz> poskytuje z SSH správný kontext TV session pro wpctl, wlrctl a další diagnostiku
+- sudo pitv-session-run <příkaz> poskytuje z SSH správný kontext TV session pro wpctl a další diagnostiku
 - serverové služby Homebridge/Tailscale/Docker/ATVLoadly zůstávají správně systémové/root; APT/Flatpak instalace jsou systémové, ale TV aplikace se spouštějí jako pitv
 ### PiTV 1.4.17 · Session isolation audit
 - TV GUI, Kodi, Stremio, Waydroid a PipeWire jsou sjednocené pod uživatelem pitv
@@ -22,7 +26,7 @@
 - oprava cílí na stav, kdy Kodi/PiTV běží pod uživatelem pitv, ale diagnostika spuštěná pod admin vidí pouze vlastní Dummy Output session
 ### PiTV 1.4.15 · External app return/focus recovery
 - opravuje stav, kdy se po návratu z Kodi launcher zobrazil, ale nereagoval na ovladač
-- PiTV nyní pomocí wlrctl sleduje skutečně aktivní Wayland okno v labwc
+- návrat z externí Linux aplikace se detekuje přímo přes wtype echo bez dalšího Wayland nástroje
 - pokud se focus vrátí do PiTV, ale externí session zůstane omylem aktivní, PiTV ji automaticky ukončí a obnoví vlastní CEC/input
 - všechny Linux/Waydroid launch cesty používají jednotnou registraci external session
 ### PiTV 1.4.14 · CEC Home / Back
