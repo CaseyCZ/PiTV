@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$(id -un)" != "pitv" ]; then
+  echo "Kodi/Plex musí běžet v TV session uživatele pitv." >&2
+  exit 10
+fi
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+
 MODE="${1:-run}"
 ADDON="${2:-script.plexmod}"
 
