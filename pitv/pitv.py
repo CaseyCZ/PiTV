@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.8"
+VERSION = "1.4.9"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -1952,6 +1952,14 @@ class PiTV:
             if itype == "flatpak":
                 self.launch_linux({"name": item.get("name","Aplikace"), "command": f"flatpak run {installer.get('app_id','')}"})
                 return
+            if itype == "kodi_addon":
+                addon_id = installer.get("addon_id", "")
+                if addon_id:
+                    self.launch_linux({
+                        "name": item.get("name", "Plex"),
+                        "command": f"/usr/local/bin/pitv-kodi-addon run {addon_id}",
+                    })
+                    return
             app = next((a for a in self.apps if a.get("name","").lower() == item.get("name","").lower()), None)
             if app:
                 self.launch(app)
@@ -1995,6 +2003,34 @@ class PiTV:
                     app_id = installer.get("app_id","")
                     ok, msg = run_privileged("flatpak-install", {"app_id": app_id}, 1800)
                     finish(msg, ok)
+                    return
+
+                if install_type == "kodi_addon":
+                    package = installer.get("package", "kodi")
+                    addon_id = installer.get("addon_id", "")
+                    if not addon_id:
+                        finish("Kodi add-on nemá ID", False)
+                        return
+                    if shutil.which("kodi") is None:
+                        self.set_operation("Instaluji Kodi pro Plex…")
+                        ok, msg = run_privileged("apt-install", {"package": package}, 1200)
+                        if not ok:
+                            finish(msg, False)
+                            return
+                    try:
+                        proc = subprocess.Popen(
+                            ["/usr/local/bin/pitv-kodi-addon", "install", addon_id],
+                            env=os.environ.copy(), start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        )
+                        self.external_proc = proc
+                        self.external_kind = "linux"
+                        self.store_busy_id = ""
+                        self.set_operation(f"Otevírám {item.get('name','Plex')} v Kodi…")
+                        self.show_toast("Kodi nainstaluje Plex přehrávač z Kodi.tv repozitáře", 6)
+                        self._watch_launch(proc, item.get("name","Plex"), "linux")
+                    except Exception as e:
+                        finish(f"Kodi/Plex: {e}", False)
                     return
 
                 if install_type in ("github_release_apk", "direct_apk"):
@@ -3109,7 +3145,7 @@ class PiTV:
                 finished_kind = self.external_kind
                 self.external_proc = None
                 self.external_kind = None
-                if finished_kind == "apk":
+                if finished_kind in ("apk", "linux"):
                     self.apps = load_apps()
                     self.refresh_store_async()
 
