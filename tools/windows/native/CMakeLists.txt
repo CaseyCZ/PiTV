@@ -29,6 +29,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(xz)
 
 add_executable(PiTV-XZ PiTV-XZ.c)
+target_include_directories(PiTV-XZ PRIVATE "${xz_SOURCE_DIR}/src/liblzma/api")
 target_link_libraries(PiTV-XZ PRIVATE liblzma)
 target_compile_definitions(PiTV-XZ PRIVATE LZMA_API_STATIC)
 
