@@ -568,16 +568,23 @@ function Write-PiTVRawImageToDisk($raw,$d) {
 function Install-PiTVCloudInitToBootPartition($d,$cloud) {
     Set-InstallerProgress "Nastavuji Wi-Fi a automatickou instalaci PiTV" 0
     $bootPart = $null
+    $bootVol = $null
 
     for ($attempt = 0; $attempt -lt 20 -and -not $bootPart; $attempt++) {
+        try {
+            if (Get-Command Update-HostStorageCache -ErrorAction SilentlyContinue) {
+                Update-HostStorageCache -ErrorAction SilentlyContinue
+            }
+        } catch {}
         try { Update-Disk -Number $d.Number -ErrorAction SilentlyContinue } catch {}
 
         foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
             $vol = $null
             try { $vol = $part | Get-Volume -ErrorAction Stop } catch {}
 
-            if ($vol -and (($vol.FileSystem -match '^FAT') -or ($vol.FileSystemLabel -match '^(system-boot|bootfs|boot)$'))) {
+            if ($vol -and (($vol.FileSystem -match '^FAT') -or ($vol.FileSystemLabel -match '^(system-boot|bootfs|boot)))) {
                 $bootPart = $part
+                $bootVol = $vol
                 break
             }
         }
@@ -589,12 +596,50 @@ function Install-PiTVCloudInitToBootPartition($d,$cloud) {
         throw "Po zápisu se nepodařilo najít FAT boot oddíl pro cloud-init."
     }
 
+    $partNumber = $bootPart.PartitionNumber
+
+    # The card previously contained another partition layout. After a verified
+    # whole-disk write Windows can still keep the old FAT mount cached under the
+    # same drive letter. Copying cloud-init through that stale mount produces
+    # ERROR_FILE_CORRUPT even though the raw image hash is correct. Force one
+    # clean post-write dismount and then reacquire the freshly written partition.
+    if ($bootPart.DriveLetter) {
+        $staleRoot = ([string]$bootPart.DriveLetter) + ":" + [IO.Path]::DirectorySeparatorChar
+        Log ("BOOT REFRESH: odpojuji starý mount " + $staleRoot + " a znovu načítám FAT oddíl po raw zápisu.")
+        & "$env:SystemRoot\System32\mountvol.exe" $staleRoot "/p" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw ("Windows nedokázal obnovit boot oddíl po zápisu (mountvol exit " + $LASTEXITCODE + ").")
+        }
+
+        Start-Sleep -Milliseconds 1200
+        try {
+            if (Get-Command Update-HostStorageCache -ErrorAction SilentlyContinue) {
+                Update-HostStorageCache -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try { Update-Disk -Number $d.Number -ErrorAction SilentlyContinue } catch {}
+
+        $bootPart = $null
+        for ($attempt = 0; $attempt -lt 20 -and -not $bootPart; $attempt++) {
+            try {
+                $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $partNumber -ErrorAction Stop
+            } catch {
+                $bootPart = $null
+            }
+            if (-not $bootPart) { Start-Sleep -Milliseconds 500 }
+        }
+
+        if (-not $bootPart) {
+            throw "Boot oddíl se po bezpečném odpojení neobjevil zpět ve Windows."
+        }
+    }
+
     $assignedByUs = $false
     if (-not $bootPart.DriveLetter) {
         $bootPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction Stop
         $assignedByUs = $true
-        Start-Sleep -Milliseconds 500
-        $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $bootPart.PartitionNumber
+        Start-Sleep -Milliseconds 800
+        $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $partNumber -ErrorAction Stop
     }
 
     if (-not $bootPart.DriveLetter) {
@@ -602,8 +647,21 @@ function Install-PiTVCloudInitToBootPartition($d,$cloud) {
     }
 
     $root = ([string]$bootPart.DriveLetter) + ":" + [IO.Path]::DirectorySeparatorChar
-    Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force
-    Copy-Item -LiteralPath $cloud.Network -Destination (Join-Path $root "network-config") -Force
+
+    $rootReady = $false
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        if (Test-Path -LiteralPath $root) {
+            $rootReady = $true
+            break
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    if (-not $rootReady) {
+        throw ("Boot oddíl " + $root + " není po připojení čitelný.")
+    }
+
+    Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force -ErrorAction Stop
+    Copy-Item -LiteralPath $cloud.Network -Destination (Join-Path $root "network-config") -Force -ErrorAction Stop
 
     $meta = Join-Path $root "meta-data"
     if (-not (Test-Path $meta)) {
