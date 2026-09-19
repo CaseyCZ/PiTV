@@ -8,12 +8,15 @@ $ErrorActionPreference = "Stop"
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
-New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+$ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
+$WorkDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\work"
+New-Item -ItemType Directory -Path $LogDir,$ImageCacheDir,$WorkDir -Force | Out-Null
 $SessionLog = Join-Path $LogDir ("pitv-sd-installer-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
 $script:WifiInternalUpdate = $false
 $script:WifiPasswordSsid = ""
@@ -38,101 +41,6 @@ if (-not $SelfTestCatalog -and -not (Is-Admin)) {
     exit
 }
 
-function Get-ImagerPath {
-    $pf86 = [Environment]::GetFolderPath("ProgramFilesX86")
-    $paths = @(
-        # Raspberry Pi Imager 2.x
-        (Join-Path $env:ProgramFiles "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
-        (Join-Path $pf86 "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\Raspberry Pi Ltd\Imager\rpi-imager.exe"),
-
-        # Older Raspberry Pi Imager layouts
-        (Join-Path $env:ProgramFiles "Raspberry Pi Imager\rpi-imager.exe"),
-        (Join-Path $pf86 "Raspberry Pi Imager\rpi-imager.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\Raspberry Pi Imager\rpi-imager.exe")
-    )
-    foreach ($p in $paths) {
-        if ($p -and (Test-Path $p)) { return $p }
-    }
-    $cmd = Get-Command rpi-imager.exe -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-    return $null
-}
-
-function Ensure-Imager {
-    $path = Get-ImagerPath
-    if ($path) { return $path }
-
-    $wingetExit = $null
-    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if ($winget) {
-        try {
-            Log "Raspberry Pi Imager nebyl nalezen. Zkouším instalaci přes winget..."
-            $p = Start-Process -FilePath $winget.Source -ArgumentList @(
-                "install",
-                "--id","RaspberryPiFoundation.RaspberryPiImager",
-                "-e",
-                "--accept-package-agreements",
-                "--accept-source-agreements",
-                "--silent"
-            ) -PassThru
-            if (-not $p.WaitForExit(120000)) {
-                try { $p.Kill() } catch {}
-                throw "winget instalace překročila časový limit 120 sekund."
-            }
-            $p.Refresh()
-            $wingetExit = $p.ExitCode
-            $path = Get-ImagerPath
-            if ($path) { return $path }
-            Log ("winget nedokončil použitelnou instalaci (kód " + $p.ExitCode + ").")
-        }
-        catch {
-            Log ("winget instalace selhala: " + $_.Exception.Message)
-        }
-    }
-
-    $installer = Join-Path $env:TEMP ("rpi-imager-" + [guid]::NewGuid().ToString("N") + ".exe")
-    try {
-        Log "Zkouším přímou instalaci z oficiálního Raspberry Pi serveru..."
-        Invoke-WebRequest -UseBasicParsing -TimeoutSec 120 -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
-
-        if (-not (Test-Path $installer) -or (Get-Item $installer).Length -lt 1MB) {
-            throw "Stažený instalátor Raspberry Pi Imageru není platný."
-        }
-
-        $p = Start-Process -FilePath $installer -ArgumentList @(
-            "/VERYSILENT",
-            "/SUPPRESSMSGBOXES",
-            "/NORESTART",
-            "/SP-"
-        ) -PassThru
-        if (-not $p.WaitForExit(120000)) {
-            try { $p.Kill() } catch {}
-            throw "Instalace Raspberry Pi Imageru překročila časový limit 120 sekund."
-        }
-        $p.Refresh()
-
-        if ($p.ExitCode -ne 0) {
-            throw ("Oficiální instalátor skončil s kódem " + $p.ExitCode + ".")
-        }
-
-        Start-Sleep -Milliseconds 500
-        $path = Get-ImagerPath
-        if ($path) { return $path }
-
-        throw "Raspberry Pi Imager se nainstaloval, ale rpi-imager.exe nebyl nalezen."
-    }
-    catch {
-        $detail = $_.Exception.Message
-        if ($null -ne $wingetExit) {
-            $detail += " Winget kód: $wingetExit."
-        }
-        throw ("Automatická instalace Raspberry Pi Imageru selhala. " + $detail)
-    }
-    finally {
-        Remove-Item $installer -Force -ErrorAction SilentlyContinue
-    }
-}
 function Get-SafeDisks {
     try {
         $protected = @(Get-Partition | Where-Object { $_.IsBoot -or $_.IsSystem } |
@@ -408,57 +316,6 @@ wifis:
     return [pscustomobject]@{ Dir=$dir; UserData=$ud; Network=$nw; Password=$adminPass }
 }
 
-function Q([string]$s) {
-    return '"' + $s.Replace('"','\"') + '"'
-}
-
-function Assert-ImagerCliContract([string]$imager) {
-    try {
-        $help = (& $imager --cli --help 2>&1 | Out-String)
-    }
-    catch {
-        throw ("Raspberry Pi Imager CLI nelze ověřit: " + $_.Exception.Message)
-    }
-
-    foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig","--sha256")) {
-        if ($help -notmatch [regex]::Escape($required)) {
-            throw ("Nainstalovaný Raspberry Pi Imager nepodporuje požadovanou CLI volbu " + $required + ".")
-        }
-    }
-
-    Log "Raspberry Pi Imager CLI kontrakt ověřen."
-}
-
-function Invoke-ImagerWrite([string]$imager,[string[]]$arguments) {
-    $stdout = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".out.log")
-    $stderr = Join-Path $env:TEMP ("pitv-imager-" + [guid]::NewGuid().ToString("N") + ".err.log")
-
-    try {
-        $argText = ($arguments | ForEach-Object { Q ([string]$_) }) -join " "
-        $process = Start-Process -FilePath $imager -ArgumentList $argText -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-
-        while (-not $process.WaitForExit(250)) {
-            [Windows.Forms.Application]::DoEvents()
-        }
-
-        $process.WaitForExit()
-        $process.Refresh()
-        $exitCode = [int]$process.ExitCode
-
-        if (Test-Path $stdout) {
-            Get-Content $stdout -ErrorAction SilentlyContinue | ForEach-Object { if ($_){ Log $_ } }
-        }
-        if (Test-Path $stderr) {
-            Get-Content $stderr -ErrorAction SilentlyContinue | ForEach-Object { if ($_){ Log ("IMAGER: " + $_) } }
-        }
-
-        return $exitCode
-    }
-    finally {
-        Remove-Item $stdout,$stderr -Force -ErrorAction SilentlyContinue
-    }
-}
-
 function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,[string]$ExpectedIdentity="") {
     $candidate = Get-SafeDisks | Where-Object { $_.Number -eq $Number } | Select-Object -First 1
     if (-not $candidate) { throw "Vybraný disk už není dostupný jako bezpečný výměnný disk." }
@@ -489,6 +346,12 @@ function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,
     $vol = $part | Format-Volume -FileSystem exFAT -NewFileSystemLabel "SDCARD" -Confirm:$false -Force
     return $vol
 }
+
+$enginePath = Join-Path $PSScriptRoot "PiTV-ImageEngine.ps1"
+if (-not (Test-Path $enginePath -PathType Leaf)) {
+    throw "Chybí PiTV-ImageEngine.ps1. Rozbal celý instalační ZIP, ne jen hlavní skript."
+}
+. $enginePath
 
 $form = New-Object Windows.Forms.Form
 $form.Text = "PiTV SD Installer"
@@ -538,7 +401,7 @@ $os = New-Object Windows.Forms.ComboBox
 $os.Location = New-Object Drawing.Point(205,160)
 $os.Size = New-Object Drawing.Size(455,34)
 $os.DropDownStyle = "DropDownList"
-[void]$os.Items.Add("Ubuntu Server 24.04 LTS ARM64 — stáhnout online (doporučeno)")
+[void]$os.Items.Add("Ubuntu Server 24.04 LTS ARM64 — online / uložená cache (doporučeno)")
 $os.SelectedIndex = 0
 $form.Controls.Add($os)
 
@@ -609,9 +472,24 @@ $info.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
 $info.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($info)
 
+$progressLabel = New-Object Windows.Forms.Label
+$progressLabel.Location = New-Object Drawing.Point(32,414)
+$progressLabel.Size = New-Object Drawing.Size(773,20)
+$progressLabel.ForeColor = [Drawing.Color]::FromArgb(125,211,252)
+$progressLabel.Text = "Připraveno"
+$form.Controls.Add($progressLabel)
+
+$progress = New-Object Windows.Forms.ProgressBar
+$progress.Location = New-Object Drawing.Point(32,438)
+$progress.Size = New-Object Drawing.Size(773,16)
+$progress.Minimum = 0
+$progress.Maximum = 100
+$progress.Value = 0
+$form.Controls.Add($progress)
+
 $log = New-Object Windows.Forms.TextBox
-$log.Location = New-Object Drawing.Point(32,438)
-$log.Size = New-Object Drawing.Size(773,150)
+$log.Location = New-Object Drawing.Point(32,466)
+$log.Size = New-Object Drawing.Size(773,122)
 $log.Multiline = $true
 $log.ReadOnly = $true
 $log.ScrollBars = "Vertical"
@@ -705,6 +583,52 @@ function Log([string]$s) {
     [Windows.Forms.Application]::DoEvents()
 }
 
+
+function Set-InstallerProgress([string]$stage,[int]$percent) {
+    if ($percent -lt 0) { $percent = 0 }
+    if ($percent -gt 100) { $percent = 100 }
+
+    $progressLabel.Text = $stage
+    $progress.Value = $percent
+    [Windows.Forms.Application]::DoEvents()
+}
+
+function Log-ExceptionDetails($record,[string]$context="") {
+    if ($null -eq $record) { return }
+    $prefix = if ($context) { "DETAIL[" + $context + "]" } else { "DETAIL" }
+
+    try {
+        if ($record.Exception) {
+            Log ($prefix + " typ: " + $record.Exception.GetType().FullName)
+            Log ($prefix + " zpráva: " + $record.Exception.Message)
+            Log ($prefix + " HResult: " + $record.Exception.HResult)
+
+            $inner = $record.Exception.InnerException
+            $depth = 0
+            while ($inner -and $depth -lt 5) {
+                $depth++
+                Log ($prefix + " inner " + $depth + ": " + $inner.GetType().FullName + " · " + $inner.Message)
+                $inner = $inner.InnerException
+            }
+        }
+
+        if ($record.FullyQualifiedErrorId) { Log ($prefix + " error id: " + $record.FullyQualifiedErrorId) }
+        if ($record.CategoryInfo) { Log ($prefix + " category: " + [string]$record.CategoryInfo) }
+        if ($record.ScriptStackTrace) { Log ($prefix + " stack: " + ($record.ScriptStackTrace -replace "[\r\n]+"," | ")) }
+
+        if ($record.InvocationInfo) {
+            $inv = $record.InvocationInfo
+            if ($inv.MyCommand) { Log ($prefix + " command: " + [string]$inv.MyCommand) }
+            if ($inv.ScriptLineNumber) { Log ($prefix + " line: " + $inv.ScriptLineNumber + " · column: " + $inv.OffsetInLine) }
+            if ($inv.Line) { Log ($prefix + " source: " + ([string]$inv.Line).Trim()) }
+            if ($inv.PositionMessage) { Log ($prefix + " position: " + ($inv.PositionMessage -replace "[\r\n]+"," | ")) }
+        }
+    }
+    catch {
+        Log ($prefix + " diagnostika výjimky selhala: " + $_.Exception.Message)
+    }
+}
+
 function Copy-CurrentLog {
     try {
         $text = if (Test-Path $SessionLog) { Get-Content $SessionLog -Raw } else { $log.Text }
@@ -751,8 +675,8 @@ function Report-Problem {
         }
 
         $lines = @($raw -split "\r?\n" | Where-Object { $_ })
-        if ($lines.Count -gt 60) {
-            $lines = $lines[($lines.Count-60)..($lines.Count-1)]
+        if ($lines.Count -gt 120) {
+            $lines = $lines[($lines.Count-120)..($lines.Count-1)]
         }
         $diag = $lines -join [Environment]::NewLine
 
@@ -798,6 +722,9 @@ function Refresh-Drives {
     $disk.DisplayMember = "Display"
     if ($disk.Items.Count -eq 1) { $disk.SelectedIndex = 0 }
     Log ("Nalezeno bezpečných výměnných disků: " + $disk.Items.Count)
+    foreach ($item in @($disk.Items)) {
+        Log ("DISK: " + $item.Display)
+    }
 }
 
 function Load-PasswordForSelectedWifi {
@@ -1022,9 +949,8 @@ $format.Add_Click({
     }
     catch {
         Log ("CHYBA: " + $_.Exception.Message)
-        if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
-            Log ("DETAIL: " + ($_.InvocationInfo.PositionMessage -replace "[\r\n]+"," "))
-        }
+        Log-ExceptionDetails $_ "FORMÁTOVÁNÍ"
+        Set-InstallerProgress "Chyba při formátování" 0
         [Windows.Forms.MessageBox]::Show(
             $_.Exception.Message,
             "PiTV SD Installer",
@@ -1044,13 +970,18 @@ $format.Add_Click({
 
 $create.Add_Click({
     $cloud = $null
+    $prepared = $null
     try {
         if (-not $disk.SelectedItem) { throw "Vyber microSD kartu." }
         $d = $disk.SelectedItem
+        $piName = Get-SelectedPiName
+        $piTag = Get-SelectedPiTag
+        $nl = [Environment]::NewLine
 
+        $warningText = $piName + $nl + "Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size) + " bude KOMPLETNĚ PŘEPSÁN." + $nl + $nl + "Pokračovat?"
         $answer = [Windows.Forms.MessageBox]::Show(
-            ("Disk {0} · {1} · {2} bude KOMPLETNĚ SMAZÁN. Pokračovat?" -f $d.Number,$d.Name,(Size-Text $d.Size)),
-            "PiTV SD Installer",
+            $warningText,
+            "Vytvořit PiTV SD",
             [Windows.Forms.MessageBoxButtons]::YesNo,
             [Windows.Forms.MessageBoxIcon]::Warning
         )
@@ -1062,40 +993,17 @@ $create.Add_Click({
         $wifiLoad.Enabled = $false
         $imageBrowse.Enabled = $false
         $piModel.Enabled = $false
+        $os.Enabled = $false
 
-        Log "Kontroluji Raspberry Pi Imager..."
-        $imager = Ensure-Imager
-        Log "Raspberry Pi Imager nalezen."
-        Assert-ImagerCliContract $imager
-
-        $image = $null
-        $imageSource = ""
-        $imageSha = $null
-        $piName = Get-SelectedPiName
-        $piTag = Get-SelectedPiTag
+        Set-InstallerProgress "Kontroluji nastavení" 0
         Log ("Cílový model: " + $piName)
-
-        $useLocalImage = ($os.SelectedIndex -eq 1 -and $script:LocalImagePath)
-        if ($useLocalImage) {
-            if (-not (Test-Path $script:LocalImagePath -PathType Leaf)) {
-                throw "Vybraná vlastní image už není dostupná. Vyber soubor znovu."
-            }
-            $imageSource = $script:LocalImagePath
-            Log ("Použita vlastní image: " + (Split-Path -Leaf $script:LocalImagePath))
-        }
-        else {
-            Log ("Online režim: načítám oficiální Ubuntu Server 24.04 ARM64 pro " + $piName + "...")
-            $image = Get-Ubuntu2404 $piTag
-            Log ("Vybráno z katalogu: " + [string](Get-Prop $image "name"))
-            $imageSource = [string](Get-Prop $image "url")
-            $imageSha = Get-Prop $image "extract_sha256"
-            if (-not $imageSource) { throw "Vybraný Ubuntu záznam neobsahuje URL image." }
-        }
+        Log ("Cílový disk: Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
+        $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
 
         $ssid = $wifiSsid.Text.Trim()
         $password = $wifiPass.Text
         if ([string]::IsNullOrWhiteSpace($ssid)) {
-            throw "Zadej název cílové Wi-Fi (SSID). Můžeš ho napsat ručně nebo použít tlačítko Načíst."
+            throw "Zadej název cílové Wi-Fi (SSID). Můžeš ho napsat ručně nebo použít tlačítko Vyhledat."
         }
         if ([string]::IsNullOrWhiteSpace($password)) {
             throw "Zadej heslo cílové Wi-Fi."
@@ -1106,32 +1014,46 @@ $create.Add_Click({
         Log "Cílová Wi-Fi pro Raspberry Pi byla potvrzena."
 
         $cloud = New-CloudInit $ssid $password
-        $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
-        $target = "\\.\PhysicalDrive" + $d.Number
 
-        $args = @(
-            "--cli",
-            "--cloudinit-userdata", $cloud.UserData,
-            "--cloudinit-networkconfig", $cloud.Network
-        )
-        if ($imageSha) {
-            $args += @("--sha256",[string]$imageSha)
-        }
-        $args += @([string]$imageSource,$target)
+        $imageSource = ""
+        $expectedExtractSha = ""
+        [Int64]$expectedExtractSize = 0
+        $useLocalImage = ($os.SelectedIndex -eq 1 -and $script:LocalImagePath)
 
-        Log ("Zapisuji " + $target + ". Stažení a ověření může několik minut trvat.")
-        $exitCode = Invoke-ImagerWrite $imager $args
-        if ($exitCode -ne 0) {
-            throw ("Raspberry Pi Imager skončil s kódem " + $exitCode + ". Viz řádky IMAGER výše.")
+        if ($useLocalImage) {
+            if (-not (Test-Path $script:LocalImagePath -PathType Leaf)) {
+                throw "Vybraná vlastní image už není dostupná. Vyber soubor znovu."
+            }
+
+            $imageSource = $script:LocalImagePath
+            Log ("RYCHLÝ REŽIM: používám vlastní image " + (Split-Path -Leaf $imageSource) + ". Stahování se přeskočí.")
+            Set-InstallerProgress "Používám vlastní image · bez stahování" 100
         }
+        else {
+            Set-InstallerProgress "Hledám správnou image v online katalogu" 0
+            Log ("Online režim: hledám Ubuntu Server 24.04 ARM64 pro " + $piName + "...")
+
+            $image = Get-Ubuntu2404 $piTag
+            Log ("Katalog: " + [string](Get-Prop $image "name"))
+            $imageSource = Get-PiTVOnlineImageFile $image
+            $expectedExtractSha = Get-PiTVStringProp $image @("extract_sha256")
+            $expectedExtractSize = Get-PiTVInt64Prop $image @("extract_size")
+        }
+
+        $prepared = Prepare-PiTVRawImage $imageSource $expectedExtractSha $expectedExtractSize
+        Write-PiTVRawImageToDisk $prepared $d
+        Install-PiTVCloudInitToBootPartition $d $cloud
 
         [Windows.Forms.Clipboard]::SetText($cloud.Password)
+        Set-InstallerProgress "HOTOVO · PiTV SD je připravena" 100
         Log "HOTOVO. PiTV SD je připravená."
-        Log "Po prvním startu Ubuntu připojí Wi-Fi, stáhne PiTV, nainstaluje ho a restartuje Raspberry."
-        Log ("Záložní účet: pitvadmin · heslo zkopírováno do schránky.")
+        Log "Po prvním startu se Raspberry připojí k Wi-Fi, cloud-init stáhne PiTV, spustí install.sh a zařízení restartuje."
+        Log "Online image zůstává uložená v cache a při příštím vytvoření SD se nebude stahovat znovu."
+        Log "Záložní účet: pitvadmin · heslo bylo zkopírováno do schránky."
 
+        $doneText = "SD karta je připravená pro " + $piName + "." + $nl + $nl + "Můžeš ji vyjmout, vložit do Raspberry Pi a zapnout. Online image zůstala uložená v počítači pro další použití." + $nl + $nl + "Záložní heslo účtu pitvadmin je ve schránce."
         [Windows.Forms.MessageBox]::Show(
-            ("SD karta je připravená. Vlož ji do " + $piName + " a zapni ho. PiTV se nainstaluje samo při prvním startu. Záložní heslo účtu pitvadmin je ve schránce."),
+            $doneText,
             "PiTV SD Installer",
             [Windows.Forms.MessageBoxButtons]::OK,
             [Windows.Forms.MessageBoxIcon]::Information
@@ -1139,33 +1061,47 @@ $create.Add_Click({
     }
     catch {
         Log ("CHYBA: " + $_.Exception.Message)
-        if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
-            Log ("DETAIL: " + ($_.InvocationInfo.PositionMessage -replace "[\r\n]+"," "))
-        }
+        Log-ExceptionDetails $_ "VYTVOŘENÍ SD"
+        Set-InstallerProgress "CHYBA · podrobnosti jsou v logu" 0
+
+        $errorText = $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine + "Podrobnosti byly zapsány do diagnostického logu."
         [Windows.Forms.MessageBox]::Show(
-            $_.Exception.Message,
+            $errorText,
             "PiTV SD Installer",
             [Windows.Forms.MessageBoxButtons]::OK,
             [Windows.Forms.MessageBoxIcon]::Error
         ) | Out-Null
     }
     finally {
+        if ($prepared -and $prepared.Temporary) {
+            if ($prepared.CleanupDir) {
+                Remove-Item $prepared.CleanupDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            elseif ($prepared.Path) {
+                Remove-Item $prepared.Path -Force -ErrorAction SilentlyContinue
+            }
+        }
+
         if ($cloud -and $cloud.Dir) {
             Remove-Item $cloud.Dir -Recurse -Force -ErrorAction SilentlyContinue
         }
+
         $format.Enabled = $true
         $create.Enabled = $true
         $refresh.Enabled = $true
         $wifiLoad.Enabled = $true
         $imageBrowse.Enabled = $true
         $piModel.Enabled = $true
+        $os.Enabled = $true
     }
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.14 · Windows"
-    Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
+    Log "PiTV SD Installer v0.15 · Windows"
+    Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
+    Log ("Trvalá cache image: " + $ImageCacheDir)
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
+    Set-InstallerProgress "Připraveno · vyber systém, kartu a Wi-Fi" 0
     Refresh-Drives
     [void](Load-WifiFromWindows)
 })
