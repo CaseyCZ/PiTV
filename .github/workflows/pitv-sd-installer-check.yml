@@ -1,0 +1,51 @@
+name: PiTV SD Installer Check
+
+on:
+  push:
+    branches: [Master]
+    paths:
+      - "tools/windows/**"
+      - ".github/workflows/pitv-sd-installer-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pitv-sd-installer-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object {
+              Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+            }
+            exit 1
+          }
+
+          Write-Host "PowerShell syntax OK"
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"
