@@ -328,23 +328,389 @@ function Set-PiTVTargetDiskOffline($d) {
     $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
     Set-Disk -Number $d.Number -IsReadOnly $false -ErrorAction Stop
 
+    $locks = New-Object System.Collections.ArrayList
+
     try {
         Set-Disk -Number $d.Number -IsOffline $true -ErrorAction Stop
         Start-Sleep -Milliseconds 500
         Log ("Disk " + $d.Number + " byl odpojen od Windows pro raw zápis.")
-        return $true
+        return [pscustomobject]@{
+            DiskOffline = $true
+            VolumeLocks = @()
+        }
     }
     catch {
-        Log ("INFO: Windows nepovolil přepnutí celého disku Offline (" + $_.Exception.Message + "). Zkouším bezpečně odpojit připojené svazky.")
+        Log ("INFO: Windows nepovolil přepnutí celého disku Offline (" + $_.Exception.Message + "). Zamykám a odpojuji jeho svazky přes Windows FSCTL.")
+
         foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
-            foreach ($access in @($part.AccessPaths)) {
-                if ($access -match '^[A-Za-z]:\\$') {
-                    try { & "$env:SystemRoot\System32\mountvol.exe" $access "/p" | Out-Null } catch {}
+            $accesses = @($part.AccessPaths | Where-Object { $_ })
+            $lockPath = $accesses | Where-Object { $_ -match '^\\\\\?\\Volume\{.+\}\\
+function Set-PiTVTargetDiskOnline([int]$number) {
+    try {
+        $state = Get-Disk -Number $number -ErrorAction Stop
+        if ($state.IsOffline) {
+            Set-Disk -Number $number -IsOffline $false -ErrorAction Stop
+        }
+        Update-Disk -Number $number -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 800
+    }
+    catch {
+        Log ("VAROVÁNÍ: Nepodařilo se automaticky vrátit disk Online: " + $_.Exception.Message)
+    }
+}
+
+function Get-PiTVDeviceSha256([string]$target,[Int64]$length) {
+    Initialize-PiTVNativeDisk
+    $stream = $null
+    $sha = [Security.Cryptography.SHA256]::Create()
+
+    try {
+        $stream = [PiTVNativeDisk]::Open($target,$false)
+        $buffer = New-Object byte[] (4MB)
+        [Int64]$remaining = $length
+        [Int64]$done = 0
+
+        while ($remaining -gt 0) {
+            $want = [int][Math]::Min([Int64]$buffer.Length,$remaining)
+            $read = $stream.Read($buffer,0,$want)
+            if ($read -le 0) { throw "Ověření skončilo dřív než na konci image." }
+
+            [void]$sha.TransformBlock($buffer,0,$read,$buffer,0)
+            $remaining -= $read
+            $done += $read
+
+            $pct = [Math]::Min(99,[int](($done * 100L) / $length))
+            Set-InstallerProgress ("Ověřuji zápis · " + $pct + " %") $pct
+        }
+
+        [void]$sha.TransformFinalBlock((New-Object byte[] 0),0,0)
+        return ([BitConverter]::ToString($sha.Hash)).Replace("-","").ToLowerInvariant()
+    }
+    finally {
+        if ($stream) { $stream.Dispose() }
+        $sha.Dispose()
+    }
+}
+
+function Write-PiTVRawImageToDisk($raw,$d) {
+    Initialize-PiTVNativeDisk
+    $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
+
+    if ([Int64]$raw.Length -gt [Int64]$d.Size) {
+        throw ("Image " + (Size-Text ([UInt64]$raw.Length)) + " je větší než vybraný disk " + (Size-Text ([UInt64]$d.Size)) + ".")
+    }
+
+    $target = "\\.\PhysicalDrive" + $d.Number
+    $source = $null
+    $dest = $null
+    $writeGuard = $null
+
+    try {
+        $writeGuard = Set-PiTVTargetDiskOffline $d
+        Log ("RAW WRITE: " + $raw.Path + " -> " + $target)
+        Set-InstallerProgress "Zapisuji systém na SD kartu" 0
+
+        $source = [IO.File]::Open($raw.Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+        $dest = [PiTVNativeDisk]::Open($target,$true)
+
+        $buffer = New-Object byte[] (4MB)
+        [Int64]$done = 0
+        while (($read = $source.Read($buffer,0,$buffer.Length)) -gt 0) {
+            $dest.Write($buffer,0,$read)
+            $done += $read
+            $pct = [Math]::Min(99,[int](($done * 100L) / [Int64]$raw.Length))
+            Set-InstallerProgress ("Zapisuji systém na SD kartu · " + $pct + " %") $pct
+        }
+
+        try { $dest.Flush($true) } catch { $dest.Flush() }
+        $dest.Dispose()
+        $dest = $null
+        $source.Dispose()
+        $source = $null
+
+        Set-InstallerProgress "Ověřuji zápis na SD kartě" 0
+        $deviceSha = Get-PiTVDeviceSha256 $target ([Int64]$raw.Length)
+        if ($deviceSha -ne $raw.Sha256) {
+            throw ("Ověření zápisu selhalo. SHA-256 image " + $raw.Sha256 + ", karta " + $deviceSha + ".")
+        }
+
+        Log "VERIFY OK: obsah SD karty odpovídá raw image."
+        Set-InstallerProgress "Zápis a ověření jsou hotové" 100
+    }
+    catch {
+        throw ("Raw zápis na " + $target + " selhal: " + $_.Exception.Message)
+    }
+    finally {
+        if ($dest) { $dest.Dispose() }
+        if ($source) { $source.Dispose() }
+
+        if ($writeGuard -and $writeGuard.VolumeLocks) {
+            foreach ($held in @($writeGuard.VolumeLocks)) {
+                try { $held.Dispose() } catch {}
+            }
+        }
+
+        Set-PiTVTargetDiskOnline $d.Number
+    }
+}
+
+function Install-PiTVCloudInitToBootPartition($d,$cloud) {
+    Set-InstallerProgress "Nastavuji Wi-Fi a automatickou instalaci PiTV" 0
+    $bootPart = $null
+
+    for ($attempt = 0; $attempt -lt 20 -and -not $bootPart; $attempt++) {
+        try { Update-Disk -Number $d.Number -ErrorAction SilentlyContinue } catch {}
+
+        foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
+            $vol = $null
+            try { $vol = $part | Get-Volume -ErrorAction Stop } catch {}
+
+            if ($vol -and (($vol.FileSystem -match '^FAT') -or ($vol.FileSystemLabel -match '^(system-boot|bootfs|boot)$'))) {
+                $bootPart = $part
+                break
+            }
+        }
+
+        if (-not $bootPart) { Start-Sleep -Milliseconds 500 }
+    }
+
+    if (-not $bootPart) {
+        throw "Po zápisu se nepodařilo najít FAT boot oddíl pro cloud-init."
+    }
+
+    $assignedByUs = $false
+    if (-not $bootPart.DriveLetter) {
+        $bootPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction Stop
+        $assignedByUs = $true
+        Start-Sleep -Milliseconds 500
+        $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $bootPart.PartitionNumber
+    }
+
+    if (-not $bootPart.DriveLetter) {
+        throw "Boot oddílu se nepodařilo přiřadit písmeno jednotky."
+    }
+
+    $root = ([string]$bootPart.DriveLetter) + ":" + [IO.Path]::DirectorySeparatorChar
+    Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force
+    Copy-Item -LiteralPath $cloud.Network -Destination (Join-Path $root "network-config") -Force
+
+    $meta = Join-Path $root "meta-data"
+    if (-not (Test-Path $meta)) {
+        $utf8 = New-Object Text.UTF8Encoding($false)
+        $metaText = "instance-id: pitv" + [Environment]::NewLine + "local-hostname: pitv" + [Environment]::NewLine
+        [IO.File]::WriteAllText($meta,$metaText,$utf8)
+    }
+
+    Log ("Cloud-init zapsán na boot oddíl " + $root)
+    Set-InstallerProgress "Wi-Fi a PiTV jsou připravené" 100
+
+    try {
+        & "$env:SystemRoot\System32\mountvol.exe" $root "/p" | Out-Null
+        Log "Boot oddíl byl bezpečně odpojen. Kartu lze po dokončení vyjmout."
+    }
+    catch {
+        if ($assignedByUs) {
+            try { $bootPart | Remove-PartitionAccessPath -AccessPath $root -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+}
+ } | Select-Object -First 1
+            if (-not $lockPath) {
+                $lockPath = $accesses | Where-Object { $_ -match '^[A-Za-z]:\\
+function Set-PiTVTargetDiskOnline([int]$number) {
+    try {
+        $state = Get-Disk -Number $number -ErrorAction Stop
+        if ($state.IsOffline) {
+            Set-Disk -Number $number -IsOffline $false -ErrorAction Stop
+        }
+        Update-Disk -Number $number -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 800
+    }
+    catch {
+        Log ("VAROVÁNÍ: Nepodařilo se automaticky vrátit disk Online: " + $_.Exception.Message)
+    }
+}
+
+function Get-PiTVDeviceSha256([string]$target,[Int64]$length) {
+    Initialize-PiTVNativeDisk
+    $stream = $null
+    $sha = [Security.Cryptography.SHA256]::Create()
+
+    try {
+        $stream = [PiTVNativeDisk]::Open($target,$false)
+        $buffer = New-Object byte[] (4MB)
+        [Int64]$remaining = $length
+        [Int64]$done = 0
+
+        while ($remaining -gt 0) {
+            $want = [int][Math]::Min([Int64]$buffer.Length,$remaining)
+            $read = $stream.Read($buffer,0,$want)
+            if ($read -le 0) { throw "Ověření skončilo dřív než na konci image." }
+
+            [void]$sha.TransformBlock($buffer,0,$read,$buffer,0)
+            $remaining -= $read
+            $done += $read
+
+            $pct = [Math]::Min(99,[int](($done * 100L) / $length))
+            Set-InstallerProgress ("Ověřuji zápis · " + $pct + " %") $pct
+        }
+
+        [void]$sha.TransformFinalBlock((New-Object byte[] 0),0,0)
+        return ([BitConverter]::ToString($sha.Hash)).Replace("-","").ToLowerInvariant()
+    }
+    finally {
+        if ($stream) { $stream.Dispose() }
+        $sha.Dispose()
+    }
+}
+
+function Write-PiTVRawImageToDisk($raw,$d) {
+    Initialize-PiTVNativeDisk
+    $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
+
+    if ([Int64]$raw.Length -gt [Int64]$d.Size) {
+        throw ("Image " + (Size-Text ([UInt64]$raw.Length)) + " je větší než vybraný disk " + (Size-Text ([UInt64]$d.Size)) + ".")
+    }
+
+    $target = "\\.\PhysicalDrive" + $d.Number
+    $source = $null
+    $dest = $null
+
+    try {
+        [void](Set-PiTVTargetDiskOffline $d)
+        Log ("RAW WRITE: " + $raw.Path + " -> " + $target)
+        Set-InstallerProgress "Zapisuji systém na SD kartu" 0
+
+        $source = [IO.File]::Open($raw.Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+        $dest = [PiTVNativeDisk]::Open($target,$true)
+
+        $buffer = New-Object byte[] (4MB)
+        [Int64]$done = 0
+        while (($read = $source.Read($buffer,0,$buffer.Length)) -gt 0) {
+            $dest.Write($buffer,0,$read)
+            $done += $read
+            $pct = [Math]::Min(99,[int](($done * 100L) / [Int64]$raw.Length))
+            Set-InstallerProgress ("Zapisuji systém na SD kartu · " + $pct + " %") $pct
+        }
+
+        try { $dest.Flush($true) } catch { $dest.Flush() }
+        $dest.Dispose()
+        $dest = $null
+        $source.Dispose()
+        $source = $null
+
+        Set-InstallerProgress "Ověřuji zápis na SD kartě" 0
+        $deviceSha = Get-PiTVDeviceSha256 $target ([Int64]$raw.Length)
+        if ($deviceSha -ne $raw.Sha256) {
+            throw ("Ověření zápisu selhalo. SHA-256 image " + $raw.Sha256 + ", karta " + $deviceSha + ".")
+        }
+
+        Log "VERIFY OK: obsah SD karty odpovídá raw image."
+        Set-InstallerProgress "Zápis a ověření jsou hotové" 100
+    }
+    catch {
+        throw ("Raw zápis na " + $target + " selhal: " + $_.Exception.Message)
+    }
+    finally {
+        if ($dest) { $dest.Dispose() }
+        if ($source) { $source.Dispose() }
+        Set-PiTVTargetDiskOnline $d.Number
+    }
+}
+
+function Install-PiTVCloudInitToBootPartition($d,$cloud) {
+    Set-InstallerProgress "Nastavuji Wi-Fi a automatickou instalaci PiTV" 0
+    $bootPart = $null
+
+    for ($attempt = 0; $attempt -lt 20 -and -not $bootPart; $attempt++) {
+        try { Update-Disk -Number $d.Number -ErrorAction SilentlyContinue } catch {}
+
+        foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
+            $vol = $null
+            try { $vol = $part | Get-Volume -ErrorAction Stop } catch {}
+
+            if ($vol -and (($vol.FileSystem -match '^FAT') -or ($vol.FileSystemLabel -match '^(system-boot|bootfs|boot)$'))) {
+                $bootPart = $part
+                break
+            }
+        }
+
+        if (-not $bootPart) { Start-Sleep -Milliseconds 500 }
+    }
+
+    if (-not $bootPart) {
+        throw "Po zápisu se nepodařilo najít FAT boot oddíl pro cloud-init."
+    }
+
+    $assignedByUs = $false
+    if (-not $bootPart.DriveLetter) {
+        $bootPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction Stop
+        $assignedByUs = $true
+        Start-Sleep -Milliseconds 500
+        $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $bootPart.PartitionNumber
+    }
+
+    if (-not $bootPart.DriveLetter) {
+        throw "Boot oddílu se nepodařilo přiřadit písmeno jednotky."
+    }
+
+    $root = ([string]$bootPart.DriveLetter) + ":" + [IO.Path]::DirectorySeparatorChar
+    Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force
+    Copy-Item -LiteralPath $cloud.Network -Destination (Join-Path $root "network-config") -Force
+
+    $meta = Join-Path $root "meta-data"
+    if (-not (Test-Path $meta)) {
+        $utf8 = New-Object Text.UTF8Encoding($false)
+        $metaText = "instance-id: pitv" + [Environment]::NewLine + "local-hostname: pitv" + [Environment]::NewLine
+        [IO.File]::WriteAllText($meta,$metaText,$utf8)
+    }
+
+    Log ("Cloud-init zapsán na boot oddíl " + $root)
+    Set-InstallerProgress "Wi-Fi a PiTV jsou připravené" 100
+
+    try {
+        & "$env:SystemRoot\System32\mountvol.exe" $root "/p" | Out-Null
+        Log "Boot oddíl byl bezpečně odpojen. Kartu lze po dokončení vyjmout."
+    }
+    catch {
+        if ($assignedByUs) {
+            try { $bootPart | Remove-PartitionAccessPath -AccessPath $root -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+}
+ } | Select-Object -First 1
+            }
+
+            if (-not $lockPath) {
+                try {
+                    $vol = $part | Get-Volume -ErrorAction Stop
+                    if ($vol.DriveLetter) {
+                        $lockPath = ([string]$vol.DriveLetter) + ":\"
+                    }
+                }
+                catch {}
+            }
+
+            if ($lockPath) {
+                try {
+                    $guard = [PiTVNativeDisk]::LockAndDismount([string]$lockPath)
+                    [void]$locks.Add($guard)
+                    Log ("Svazek " + $guard.Path + " byl uzamčen a odpojen pro raw zápis.")
+                }
+                catch {
+                    foreach ($held in @($locks)) {
+                        try { $held.Dispose() } catch {}
+                    }
+                    throw ("Windows nepovolil bezpečné uzamčení svazku " + $lockPath + ": " + $_.Exception.Message)
                 }
             }
         }
-        Start-Sleep -Milliseconds 500
-        return $false
+
+        Start-Sleep -Milliseconds 300
+        return [pscustomobject]@{
+            DiskOffline = $false
+            VolumeLocks = @($locks)
+        }
     }
 }
 
