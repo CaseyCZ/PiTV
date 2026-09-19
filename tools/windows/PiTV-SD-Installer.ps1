@@ -466,18 +466,23 @@ $form.Controls.Add($wifiStatus)
 
 $info = New-Object Windows.Forms.Label
 $info.Location = New-Object Drawing.Point(32,370)
-$info.Size = New-Object Drawing.Size(773,54)
+$info.Size = New-Object Drawing.Size(773,34)
 $info.Text = "BEZPEČNOST: systémový disk se nikdy nenabízí. Před zápisem znovu uvidíš model a kapacitu vybrané karty."
 $info.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
 $info.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
+$info.AutoEllipsis = $true
 $form.Controls.Add($info)
 
 $progressLabel = New-Object Windows.Forms.Label
-$progressLabel.Location = New-Object Drawing.Point(32,414)
-$progressLabel.Size = New-Object Drawing.Size(773,20)
+$progressLabel.Location = New-Object Drawing.Point(32,410)
+$progressLabel.Size = New-Object Drawing.Size(773,24)
 $progressLabel.ForeColor = [Drawing.Color]::FromArgb(125,211,252)
+$progressLabel.BackColor = $form.BackColor
+$progressLabel.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
+$progressLabel.AutoEllipsis = $true
 $progressLabel.Text = "Připraveno"
 $form.Controls.Add($progressLabel)
+$progressLabel.BringToFront()
 
 $progress = New-Object Windows.Forms.ProgressBar
 $progress.Location = New-Object Drawing.Point(32,438)
