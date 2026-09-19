@@ -98,6 +98,7 @@ jobs:
         run: |
           $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
           $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
 
           if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
             throw "Legacy Raspberry Pi Imager dependency is still present."
@@ -134,7 +135,19 @@ jobs:
             }
           }
 
-          Write-Host "PiTV raw writer/cache contract OK"
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/flush contract OK"
 
       - name: Verify launcher target
         shell: powershell
