@@ -2172,17 +2172,30 @@ class PiTV:
                             finish(msg, False)
                             return
                     try:
-                        proc = subprocess.Popen(
-                            ["/usr/local/bin/pitv-kodi-addon", "install", addon_id],
-                            env=os.environ.copy(), start_new_session=True,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                        )
+                        env = build_gui_env()
+                        problem = gui_env_error(env)
+                        if problem:
+                            finish(f"Kodi/Plex: {problem}", False)
+                            return
+                        log_path = Path("/tmp/pitv-kodi-install.log")
+                        log_path.write_text("", encoding="utf-8")
+                        with log_path.open("a", encoding="utf-8") as log:
+                            proc = subprocess.Popen(
+                                ["/usr/local/bin/pitv-kodi-addon", "install", addon_id],
+                                env=env,
+                                cwd=str(Path.home()),
+                                start_new_session=True,
+                                stdout=log,
+                                stderr=subprocess.STDOUT,
+                            )
                         self.external_proc = proc
                         self.external_kind = "linux"
                         self.store_busy_id = ""
                         self.set_operation(f"Otevírám {item.get('name','Plex')} v Kodi…")
                         self.show_toast("Kodi nainstaluje Plex přehrávač z Kodi.tv repozitáře", 6)
-                        self._watch_launch(proc, item.get("name","Plex"), "linux")
+                        self._watch_launch(
+                            proc, item.get("name","Plex"), "linux", str(log_path)
+                        )
                     except Exception as e:
                         finish(f"Kodi/Plex: {e}", False)
                     return
@@ -2224,7 +2237,10 @@ class PiTV:
                         "tv": bool(meta.get("tv")),
                     }
 
-                    run_privileged("waydroid-container-start", {}, 90)
+                    ok, msg = run_privileged("waydroid-container-start", {}, 90)
+                    if not ok:
+                        finish(msg, False)
+                        return
                     ok, msg = ensure_apk_installed(app)
                     if ok:
                         mark_android_installed(item, package, path, version)
@@ -2245,10 +2261,18 @@ class PiTV:
                         finish("Store položka nemá package ID", False)
                         return
                     try:
+                        env = build_gui_env()
+                        problem = gui_env_error(env)
+                        if problem:
+                            finish(f"Google Play: {problem}", False)
+                            return
                         self.external_proc = subprocess.Popen(
                             ["/usr/local/bin/pitv-waydroid-launch", "--play-store", package],
-                            env=os.environ.copy(), start_new_session=True,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            env=env,
+                            cwd=str(Path.home()),
+                            start_new_session=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
                         )
                         self.external_kind = "apk"
                         self.store_busy_id = ""
