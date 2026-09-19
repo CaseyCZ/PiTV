@@ -3005,9 +3005,6 @@ class PiTV:
         # PiTV received a wtype echo, so its SDL window is active again and
         # the external session marker is stale. Terminate the stale process
         # group so it cannot steal future CEC input.
-        #
-        # session has become stale/minimized/hidden. Terminate the stale
-        # process group so it cannot steal future CEC input again.
         if proc and proc.poll() is None:
             try:
                 os.killpg(os.getpgid(proc.pid), 15)
