@@ -65,26 +65,26 @@ jobs:
             sha256sum *.deb | sort -k2 > SHA256SUMS
           )
 
-          cat > "$DEST/README.md" <<EOF
-          # PiTV Waydroid fallback snapshot
-
-          This directory is an automated fallback snapshot of the current ARM64 runtime
-          packages from the official Waydroid repository for Ubuntu 24.04 (Noble).
-
-          It is used only when the primary `https://repo.waydro.id` installation path
-          is unavailable.
-
-          Mirrored packages:
-
-          - `$LIBGLIBUTIL`
-          - `$LIBGBINDER`
-          - `$PYGBINDER`
-          - `$WAYDROID`
-
-          Source: `$BASE/`
-
-          Updated by `.github/workflows/waydroid-fallback-mirror.yml`.
-          EOF
+          {
+            echo "# PiTV Waydroid fallback snapshot"
+            echo
+            echo "This directory is an automated fallback snapshot of the current ARM64 runtime"
+            echo "packages from the official Waydroid repository for Ubuntu 24.04 (Noble)."
+            echo
+            echo "It is used only when the primary https://repo.waydro.id installation path"
+            echo "is unavailable."
+            echo
+            echo "Mirrored packages:"
+            echo
+            echo "- $LIBGLIBUTIL"
+            echo "- $LIBGBINDER"
+            echo "- $PYGBINDER"
+            echo "- $WAYDROID"
+            echo
+            echo "Source: $BASE/"
+            echo
+            echo "Updated by .github/workflows/waydroid-fallback-mirror.yml."
+          } > "$DEST/README.md"
 
           cat > "$DEST/packages.env" <<EOF
           LIBGLIBUTIL_FILE=$LIBGLIBUTIL
