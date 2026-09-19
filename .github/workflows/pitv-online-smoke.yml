@@ -46,7 +46,7 @@ jobs:
           test -f /etc/pitv/store/server_catalog.json
           id pitv
           sudo visudo -cf /etc/sudoers.d/pitv-power
-          dpkg -s python3-pygame labwc wtype cec-utils alsa-utils aapt apktool >/dev/null
+          dpkg -s python3-pygame labwc wtype wlrctl cec-utils alsa-utils aapt apktool >/dev/null
 
       - name: Render all PiTV screens with dummy SDL
         run: |
