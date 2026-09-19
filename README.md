@@ -133,6 +133,8 @@ Instalace:
 
 **Nastavení → Android / APK → Waydroid + Google Play → Instalovat**
 
+PiTV nejdřív používá oficiální `repo.waydro.id`. Pokud je nedostupné nebo instalace z něj selže, automaticky použije **PiTV fallback snapshot** uložený v tomto repozitáři. Snapshot pro Ubuntu 24.04 / ARM64 obsahuje potřebné Waydroid runtime balíčky, SHA-256 kontrolní součty a jednou týdně se obnovuje z oficiálního zdroje.
+
 Vlastní APK:
 
 ```text
