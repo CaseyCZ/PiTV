@@ -46,6 +46,46 @@ jobs:
         run: |
           & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
 
+      - name: Verify current Raspberry Pi Imager CLI contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $installer = Join-Path $env:RUNNER_TEMP "rpi-imager.exe"
+          Invoke-WebRequest -UseBasicParsing -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
+
+          $p = Start-Process -FilePath $installer -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/SP-"
+          ) -Wait -PassThru
+
+          if ($p.ExitCode -ne 0) {
+            throw "Raspberry Pi Imager installer failed with exit code $($p.ExitCode)"
+          }
+
+          $candidates = @(
+            (Join-Path $env:ProgramFiles "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
+            (Join-Path $env:ProgramFiles "Raspberry Pi Imager\rpi-imager.exe")
+          )
+          $imager = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $imager) { throw "Installed rpi-imager.exe was not found." }
+
+          $help = (& $imager --cli --help 2>&1 | Out-String)
+          foreach ($required in @("--cloudinit-userdata","--cloudinit-networkconfig","--sha256")) {
+            if ($help -notmatch [regex]::Escape($required)) {
+              throw "Current Raspberry Pi Imager CLI is missing $required"
+            }
+          }
+
+          $script = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          if ($script -match '"--disable-telemetry"') {
+            throw "PiTV installer still passes GUI-only --disable-telemetry to CLI mode."
+          }
+
+          & $imager --version
+          Write-Host "Current Raspberry Pi Imager CLI contract OK"
+
       - name: Verify launcher target
         shell: powershell
         run: |
