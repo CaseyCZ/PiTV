@@ -388,11 +388,17 @@ def uptime():
 def build_gui_env():
     """Return a normalized environment for children launched inside labwc."""
     env = os.environ.copy()
-    runtime = env.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    # Never trust an inherited SSH/admin runtime. PiTV GUI is owned by the
+    # current kiosk UID and all session-bound children must use its logind
+    # runtime regardless of caller environment.
+    runtime = f"/run/user/{os.getuid()}"
+    env["HOME"] = "/home/pitv"
+    env["USER"] = "pitv"
+    env["LOGNAME"] = "pitv"
     env["XDG_RUNTIME_DIR"] = runtime
-    env.setdefault("XDG_SESSION_TYPE", "wayland")
-    env.setdefault("XDG_CURRENT_DESKTOP", "labwc")
-    env.setdefault("PULSE_RUNTIME_PATH", str(Path(runtime) / "pulse"))
+    env["XDG_SESSION_TYPE"] = "wayland"
+    env["XDG_CURRENT_DESKTOP"] = "labwc"
+    env["PULSE_RUNTIME_PATH"] = str(Path(runtime) / "pulse")
 
     display = env.get("WAYLAND_DISPLAY", "")
     display_path = Path(display) if display.startswith("/") else Path(runtime) / display
@@ -404,10 +410,11 @@ def build_gui_env():
         if sockets:
             env["WAYLAND_DISPLAY"] = sockets[0].name
 
-    if not env.get("DBUS_SESSION_BUS_ADDRESS"):
-        bus = Path(runtime) / "bus"
-        if bus.is_socket():
-            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
+    bus = Path(runtime) / "bus"
+    if bus.is_socket():
+        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
+    else:
+        env.pop("DBUS_SESSION_BUS_ADDRESS", None)
     return env
 
 
