@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CaseyCZ/PiTV/releases/latest"><img src="https://img.shields.io/badge/St%C3%A1hnout-Nejnov%C4%9Bj%C5%A1%C3%AD%20release-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Stáhnout nejnovější PiTV release" /></a>
+  <a href="https://github.com/CaseyCZ/PiTV/releases/tag/alpha"><img src="https://img.shields.io/badge/St%C3%A1hnout-Nejnov%C4%9Bj%C5%A1%C3%AD%20release-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Stáhnout nejnovější PiTV release" /></a>
   <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-N%C3%A1vod-172033?style=for-the-badge&labelColor=111827&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
   <a href="INSTALL.md"><img src="https://img.shields.io/badge/N%C3%A1vod-Ru%C4%8Dn%C3%AD%20instalace-172033?style=for-the-badge&labelColor=111827&logo=ubuntu&logoColor=white" alt="Ruční instalace" /></a>
   <a href="https://github.com/CaseyCZ/PiTV/issues"><img src="https://img.shields.io/badge/GitHub-Nahl%C3%A1sit%20probl%C3%A9m-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="Nahlásit problém" /></a>
@@ -48,9 +48,9 @@ PiTV nepoužívá plný desktop typu GNOME. Grafická část běží nad lehkým
 
 ## Stažení
 
-Nejjednodušší cesta je přes **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)**.
+Aktuální testovací build je vždy v jediném **[PiTV Alpha Release](https://github.com/CaseyCZ/PiTV/releases/tag/alpha)**.
 
-Pro Windows stáhni jediný instalační balík **`PiTV-SD-Installer-Windows-v1.3.3.zip`**, rozbal ho a spusť **`Start-PiTV-SD-Installer.cmd`**. Launcher při každém spuštění zkontroluje nejnovější GitHub Release a použije aktuální installer.
+Pro Windows stáhni jediný instalační balík **`PiTV-SD-Installer-Windows.zip`**, rozbal ho a spusť **`Start-PiTV-SD-Installer.cmd`**. Launcher při každém spuštění zkontroluje nejnovější GitHub Release a použije aktuální installer.
 
 Linux a macOS používají `tools/pitv-flasher.sh` přímo z repozitáře. GitHub ke každému Release automaticky přidává také Source code ZIP/TAR.GZ.
 
