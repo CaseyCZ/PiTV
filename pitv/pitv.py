@@ -637,12 +637,12 @@ class CECReader(threading.Thread):
             # Claim a Playback logical address (OSD name PiTV), then monitor
             # Remote Control Pass Through messages addressed by the TV to PiTV.
             subprocess.run(
-                ["sudo", "-n", "/usr/bin/cec-ctl", "-d", str(self.device), "--playback", "-o", "PiTV"],
+                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", str(self.device), "register"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 timeout=5, check=False,
             )
             self.proc = subprocess.Popen(
-                ["sudo", "-n", "/usr/bin/cec-ctl", "-d", str(self.device), "--monitor"],
+                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", str(self.device), "monitor"],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1,
             )
