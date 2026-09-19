@@ -71,7 +71,19 @@ jobs:
           PYTHONPATH=pitv SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
             python3 - <<'PY'
           import pygame
-          from pitv import PiTV, VERSION
+          from queue import Queue
+          from pitv import CECReader, PiTV, VERSION
+
+          # Regression: cec-ctl prints USER_CONTROL_PRESSED and ui-cmd on
+          # separate lines. OK/Back must survive both decoded and raw formats.
+          q = Queue()
+          cec = CECReader(q)
+          cec._handle_monitor_line("USER_CONTROL_PRESSED (0x44):\n")
+          cec._handle_monitor_line("  ui-cmd: select (0x00)\n")
+          assert q.get_nowait() == pygame.K_RETURN
+          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+          cec._handle_monitor_line("> 01:44:0d\n")
+          assert q.get_nowait() == pygame.K_ESCAPE
 
           app = PiTV()
           pages = (
