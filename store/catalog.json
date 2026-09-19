@@ -35,19 +35,15 @@
     {
       "id": "stremio",
       "name": "Stremio",
-      "description": "Oficiální Stremio pro Android TV ARM64.",
+      "description": "Stremio pro Linux ARM64 přes Flathub.",
       "category": "Media",
-      "platform": "android",
+      "platform": "linux",
       "icon": "STR",
       "featured": true,
-      "source_label": "Stremio",
-      "requires": "waydroid",
+      "source_label": "Flathub",
       "installer": {
-        "type": "direct_apk",
-        "url": "https://dl.strem.io/android/v1.10.4-androidTV/com.stremio.one-1.10.4-33145732-arm64-v8a.apk",
-        "version": "1.10.4",
-        "filename": "stremio-tv-arm64.apk",
-        "expected_package": "com.stremio.one"
+        "type": "flatpak",
+        "app_id": "com.stremio.Stremio"
       }
     },
     {
