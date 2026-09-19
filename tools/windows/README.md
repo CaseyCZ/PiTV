@@ -1,38 +1,40 @@
-# PiTV SD Installer
+# PiTV SD Installer — Windows
 
-První prototyp jednoduchého Windows nástroje pro přípravu microSD karty bez ruční instalace Ubuntu a PiTV.
-
-## Co umí
-
-- zobrazí pouze bezpečné výměnné USB / SD / MMC disky,
-- nikdy nenabízí Disk 0 ani disk s Windows boot/system partition,
-- nabídne podporovaný Ubuntu Server 24.04 LTS ARM64,
-- použije oficiální Raspberry Pi Imager CLI pro samotný zápis,
-- pokud Imager chybí, pokusí se ho doinstalovat přes winget,
-- převezme aktuální Wi-Fi profil a heslo z Windows,
-- vloží cloud-init konfiguraci,
-- při prvním bootu Raspberry automaticky:
-  - připojí Wi-Fi,
-  - vytvoří recovery účet pitvadmin,
-  - stáhne CaseyCZ/PiTV,
-  - spustí install.sh,
-  - restartuje Raspberry,
-  - následně naběhne PiTV.
+Malé grafické rozhraní pro vytvoření PiTV microSD bez ruční instalace Ubuntu, nastavování Wi-Fi nebo kopírování příkazů přes SSH.
 
 ## Spuštění
 
-Nejjednodušší:
-
 1. vlož microSD do čtečky,
-2. spusť Start-PiTV-SD-Installer.cmd,
+2. spusť **Start-PiTV-SD-Installer.cmd**,
 3. potvrď UAC,
-4. vyber SD kartu,
-5. klikni na VYTVOŘIT PiTV SD.
+4. vyber microSD,
+5. klikni na **VYTVOŘIT PiTV SD**.
 
-Nebo z PowerShellu použij PiTV-SD-Installer.ps1.
+## Co udělá automaticky
+
+- nabídne pouze bezpečné výměnné USB / SD / MMC disky,
+- vyloučí Disk 0 a disk s Windows boot/system partition,
+- najde podporovaný Ubuntu Server 24.04 LTS ARM64,
+- použije oficiální Raspberry Pi Imager CLI,
+- při chybějícím Imageru se ho pokusí doinstalovat přes `winget`,
+- převezme aktuální Wi-Fi profil z Windows,
+- připraví cloud-init,
+- vytvoří silné náhodné recovery heslo pro `pitvadmin`,
+- při prvním bootu stáhne `CaseyCZ/PiTV`, spustí `install.sh` a Raspberry restartuje,
+- po úspěšné první instalaci odstraní dočasné `user-data` a `network-config` z boot oddílu.
+
+Po vytvoření karty se recovery heslo zkopíruje do schránky.
+
+## Bezpečnost
+
+Před zápisem Installer znovu zobrazí číslo disku, model a kapacitu vybrané karty. Přesto vždy zkontroluj, že je vybraná správná microSD — cílový disk bude kompletně přepsán.
+
+Samotný zápis image nedělá vlastní raw-disk kód. Používá oficiální Raspberry Pi Imager.
 
 ## Stav
 
-Toto je v0.1 prototyp pro Windows. Zápis image nedělá vlastní raw-disk kód; používá oficiální Raspberry Pi Imager CLI.
+Aktuálně jde o **v0.1 beta/prototyp**. PowerShell syntaxe a launcher jsou kontrolované GitHub Actions na Windows runneru.
 
-Před veřejným releasem ještě chceme ověřit celý proces na skutečné microSD + Raspberry Pi 4 a následně zabalit Windows verzi jako malé .exe.
+Celý fyzický proces — skutečná microSD, první boot, Wi-Fi a automatická instalace na Raspberry Pi 4 — ještě před veřejným releasem ověříme na reálném hardware.
+
+Později lze Windows variantu zabalit také jako malé `.exe`, aby uživatel nemusel vůbec vidět PowerShell.
