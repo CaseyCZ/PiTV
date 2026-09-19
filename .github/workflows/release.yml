@@ -126,16 +126,13 @@ jobs:
           app.handle_key(pygame.K_RIGHT)
           assert abs(float(app.cfg["tile_scale"]) - 1.0) < 0.001
 
-          # Regression: if labwc focus has returned to PiTV while an external
-          # process is still flagged, clear the stale external session.
+          # Regression: if a key relayed with wtype comes back into PiTV,
+          # the external app no longer owns focus. Recover without wlrctl.
           app.external_kind = "linux"
           app.external_proc = None
-          app.external_started_at = time.monotonic() - 5
-          app._active_toplevels = lambda: "python3: PiTV test"
-          app._focus_probe_at = 0
-          app._external_focus_watchdog()
-          app._focus_probe_at = 0
-          app._external_focus_watchdog()
+          app._mark_relay_echo(pygame.K_LEFT)
+          assert app._consume_relay_echo(pygame.K_LEFT)
+          app._recover_external_focus()
           assert app.external_kind is None
 
           # Ordered timer settings must stop at their limits, never wrap
