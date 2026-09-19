@@ -135,20 +135,28 @@ jobs:
           assert native_item["installer"]["type"] == "flatpak"
           assert app.app_can_uninstall(native_stremio)
 
-          # Regression: LEFT inside Appearance must change the selected value,
-          # not steal focus to the sidebar. Reproduce the physical-TV report:
-          # Large -> Normal -> Small, then RIGHT restores Normal.
+          # Settings values are visible Kodi-style lists, not blind
+          # left/right cycling. Open Tile Size at Large, move to Extra large,
+          # confirm and verify the value changes only after confirmation.
           app.page = "appearance"
           app.sidebar_focus = False
-          app.sub_selected = 1
+          app.sub_selected = 2
           app.cfg["tile_scale"] = 1.15
-          app.handle_key(pygame.K_LEFT)
-          assert abs(float(app.cfg["tile_scale"]) - 1.0) < 0.001
-          assert not app.sidebar_focus
-          app.handle_key(pygame.K_LEFT)
-          assert abs(float(app.cfg["tile_scale"]) - 0.85) < 0.001
           app.handle_key(pygame.K_RIGHT)
-          assert abs(float(app.cfg["tile_scale"]) - 1.0) < 0.001
+          assert app.choice_active
+          assert app.choice_title == "Velikost dlaždic"
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.30) < 0.001
+
+          # Theme selector exposes both values and can be cancelled with Back.
+          app.sub_selected = 0
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
 
           # Regression: if a key relayed with wtype comes back into PiTV,
           # the external app no longer owns focus. Recover without wlrctl.
@@ -159,26 +167,17 @@ jobs:
           app._recover_external_focus()
           assert app.external_kind is None
 
-          # Ordered timer settings must stop at their limits, never wrap
-          # e.g. 1 minute LEFT -> 60 minutes.
+          # Screensaver values use the same visible list model.
           app.page = "screensaver"
           app.sub_selected = 1
           app.cfg["screensaver_after_min"] = 1
-          app.handle_key(pygame.K_LEFT)
-          assert app.cfg["screensaver_after_min"] == 1
-          app.cfg["screensaver_after_min"] = 60
-          app.handle_key(pygame.K_RIGHT)
-          assert app.cfg["screensaver_after_min"] == 60
-
-          app.sub_selected = 3
-          app.cfg["screensaver_black_after_min"] = 0
-          app.handle_key(pygame.K_LEFT)
-          assert app.cfg["screensaver_black_after_min"] == 0
-
-          app.sub_selected = 4
-          app.cfg["screensaver_cec_standby_after_min"] = 0
-          app.handle_key(pygame.K_LEFT)
-          assert app.cfg["screensaver_cec_standby_after_min"] == 0
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Spustit po"
+          assert app.choice_options[app.choice_selected][1] == 1
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert app.cfg["screensaver_after_min"] == 2
 
           pages = (
               "home", "settings", "appearance", "screensaver", "network",
