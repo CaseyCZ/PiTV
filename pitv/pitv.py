@@ -2695,9 +2695,11 @@ class PiTV:
                 self.page = self.server_store_return_page
                 return
             if self.page == "settings":
-                self.page = "home"; self.selected = max(0, len(self.home_items())-1)
-            else:
-                self.page = "settings"
+                self.page = "home"
+                self.selected = max(0, len(self.home_items())-1)
+                return
+            # Every Settings child returns one level to Settings.
+            self.page = "settings"
             return
 
         # Hardware volume buttons: HDMI TV/receiver via CEC.
@@ -2722,6 +2724,9 @@ class PiTV:
                 self.enter_settings_item()
 
         elif self.page == "appearance":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("appearance")
+                return
             if key == pygame.K_UP: self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN: self.sub_selected = min(2, self.sub_selected+1)
             elif key in (pygame.K_LEFT, pygame.K_RIGHT):
@@ -2739,6 +2744,9 @@ class PiTV:
                 save_user_config(self.cfg)
 
         elif self.page == "screensaver":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("screensaver")
+                return
             if key == pygame.K_UP:
                 self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN:
@@ -2753,6 +2761,9 @@ class PiTV:
                     self.set_screensaver_value(0, 1)
 
         elif self.page == "network":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("network")
+                return
             items = self.network_items()
             if not items:
                 return
@@ -2779,6 +2790,9 @@ class PiTV:
                     self.connect_wifi(item["net"])
 
         elif self.page == "audio":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("audio")
+                return
             items = self.audio_items()
             if key == pygame.K_UP:
                 self.audio_selected = max(0, self.audio_selected-1)
@@ -2806,6 +2820,9 @@ class PiTV:
                     self.async_action(lambda: test_hdmi_audio(pref))
 
         elif self.page == "cec":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("cec")
+                return
             if key == pygame.K_UP:
                 self.cec_selected = max(0, self.cec_selected-1)
             elif key == pygame.K_DOWN:
@@ -2814,6 +2831,9 @@ class PiTV:
                 self.run_cec_action(self.CEC_ACTIONS[self.cec_selected][2])
 
         elif self.page == "apps":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("apps")
+                return
             items = self.app_items()
             if key == pygame.K_UP:
                 self.apps_selected = max(0, self.apps_selected-1)
@@ -2946,6 +2966,9 @@ class PiTV:
                     os.execv(sys.executable, [sys.executable, __file__])
 
         elif self.page == "system":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("system")
+                return
             rows = self.system_items()
             if key == pygame.K_UP:
                 self.system_selected = max(0, self.system_selected-1)
@@ -2977,6 +3000,9 @@ class PiTV:
                     os.execv(sys.executable, [sys.executable, __file__])
 
         elif self.page == "power":
+            if key == pygame.K_LEFT:
+                self.focus_sidebar("power")
+                return
             if key == pygame.K_UP: self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN: self.sub_selected = min(1, self.sub_selected+1)
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
