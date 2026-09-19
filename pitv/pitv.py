@@ -2319,6 +2319,7 @@ class PiTV:
         def worker():
             ok, msg = run_privileged("pitv-self-update", {}, 1800)
             self.updates_busy = False
+            self.finish_operation("PiTV aktualizováno" if ok else msg, ok)
             if ok:
                 self.show_toast("PiTV aktualizováno · restartuji rozhraní", 4)
                 time.sleep(1)
@@ -2343,6 +2344,7 @@ class PiTV:
                 self.store_states = {}
                 self.refresh_store_async()
             self.updates_busy = False
+            self.finish_operation(msg, ok)
             self.show_toast(msg, 5)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -2372,6 +2374,7 @@ class PiTV:
             ok, msg = run_privileged("apt-store-upgrade", {"packages": packages}, 1200)
             self.updates_busy = False
             self.apps = load_apps()
+            self.finish_operation(msg, ok)
             self.show_toast(msg, 5)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -2387,6 +2390,7 @@ class PiTV:
             ok, msg = run_privileged("apt-upgrade", {}, 1200)
             self.update_count = count_updates()
             self.updates_busy = False
+            self.finish_operation(msg, ok)
             self.show_toast(msg, 5)
 
         threading.Thread(target=worker, daemon=True).start()
