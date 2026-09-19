@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "apps": [
     {
       "id": "kodi",
@@ -35,15 +35,16 @@
     {
       "id": "stremio",
       "name": "Stremio",
-      "description": "Stremio pro Linux ARM64 přes Flathub.",
+      "description": "Oficiální Stremio pro Android TV. TV rozhraní běží v PiTV přes Waydroid.",
       "category": "Media",
-      "platform": "linux",
+      "platform": "android",
       "icon": "STR",
       "featured": true,
-      "source_label": "Flathub",
+      "source_label": "Stremio / Google Play",
+      "requires": "gapps",
       "installer": {
-        "type": "flatpak",
-        "app_id": "com.stremio.Stremio"
+        "type": "play_store",
+        "package": "com.stremio.one"
       }
     },
     {
