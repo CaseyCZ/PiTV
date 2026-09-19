@@ -581,6 +581,15 @@ class CECReader(threading.Thread):
                 text=True,
                 bufsize=1,
             )
+            # Register PiTV as the active playback source once libCEC has
+            # initialised. This announces the source on the CEC bus; TVs can
+            # then expose it in their HDMI-CEC device/source list.
+            try:
+                self.proc.stdin.write("as\n")
+                self.proc.stdin.flush()
+            except Exception:
+                pass
+
             for line in self.proc.stdout:
                 low = line.lower()
                 if "key pressed:" not in low:
