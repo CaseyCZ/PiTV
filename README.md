@@ -40,6 +40,16 @@ Cílem je spojit TV aplikace, Android aplikace, systémová nastavení a servero
 - 🌡️ systémový přehled — teplota, RAM, disk, uptime, kernel, síť a Tailscale
 - 🔄 self-update se zachováním uživatelského nastavení
 
+## PiTV Flasher
+
+<p>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20Flasher-Automatick%C3%A1%20SD%20instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV Flasher" /></a>
+</p>
+
+Pro nejjednodušší instalaci lze použít **PiTV Flasher** pro Windows, Linux a macOS. Připojíš microSD kartu, vybereš ji, zadáš Wi-Fi a Flasher připraví **Ubuntu Server + automatickou první instalaci PiTV**. Podrobnosti jsou v **[FLASHER.md](FLASHER.md)**.
+
+> PiTV Flasher je zatím **beta** a skutečný zápis SD karty na jednotlivých hostitelských systémech ještě musí projít fyzickým testem.
+
 ## Instalace
 
 <p>
