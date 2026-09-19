@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.5"
+VERSION = "1.4.6"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -634,7 +634,7 @@ class CECReader(threading.Thread):
             # Claim a Playback logical address (OSD name PiTV), then monitor
             # Remote Control Pass Through messages addressed by the TV to PiTV.
             subprocess.run(
-                ["cec-ctl", "-d", str(self.device), "--playback", "-o", "PiTV"],
+                ["sudo", "-n", "/usr/bin/cec-ctl", "-d", str(self.device), "--playback", "-o", "PiTV"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 timeout=5, check=False,
             )
@@ -754,8 +754,9 @@ class PiTV:
             self.cec.start()
             if self.cfg.get("cec_wake_on_start", False):
                 threading.Thread(target=cec_tv_on, daemon=True).start()
-        # Comfortable D-pad style navigation when a physical key is held.
-        pygame.key.set_repeat(220, 70)
+        # One physical press = one navigation step. TV remotes already provide
+        # their own hold/repeat events; SDL repeat caused multi-tile jumps.
+        pygame.key.set_repeat()
         self.clock = pygame.time.Clock()
 
     @property
@@ -936,10 +937,13 @@ class PiTV:
 
     def focus_sidebar(self, active_page=None):
         page = active_page or self.page
+        # Settings children belong to the Settings sidebar entry.
+        if page not in self.SIDEBAR_PAGES:
+            page = "settings"
         try:
             self.sidebar_selected = self.SIDEBAR_PAGES.index(page)
         except ValueError:
-            self.sidebar_selected = self.SIDEBAR_PAGES.index("settings")
+            self.sidebar_selected = 0
         self.sidebar_focus = True
 
     def activate_sidebar(self):
@@ -1248,17 +1252,20 @@ class PiTV:
             self.wifi_networks = list_wifi_networks()
             self.wifi_scanning = False
             self.network_selected = min(self.network_selected, max(0, len(self.network_items())-1))
+            self.finish_operation(f"Nalezeno {len(self.wifi_networks)} sítí", True)
             self.show_toast(f"Nalezeno {len(self.wifi_networks)} sítí")
         threading.Thread(target=worker, daemon=True).start()
 
     def connect_wifi(self, net):
         def do_connect(password=""):
+            self.set_operation(f"Připojuji {net['ssid']}…")
             self.show_toast(f"Připojuji {net['ssid']}…")
             def worker():
                 ok, msg = run_privileged("wifi-connect", {
                     "ssid": net["ssid"],
                     "password": password,
                 }, timeout=45)
+                self.finish_operation(msg, ok)
                 self.show_toast(msg)
                 time.sleep(.5)
                 self.wifi_networks = list_wifi_networks()
@@ -2026,7 +2033,9 @@ class PiTV:
                         )
                         self.external_kind = "apk"
                         self.store_busy_id = ""
+                        self.set_operation(f"Otevírám {item.get('name','aplikaci')} v Google Play…")
                         self.show_toast(f"Otevírám {item.get('name','aplikaci')} v Google Play", 5)
+                        self._watch_launch(self.external_proc, "Google Play", "apk")
                     except Exception as e:
                         finish(f"Google Play: {e}", False)
                     return
@@ -2164,11 +2173,13 @@ class PiTV:
                 return
 
         self.server_store_busy_id = sid
+        self.set_operation(f"Instaluji {item.get('name','službu')}…")
         self.show_toast(f"Instaluji {item.get('name','službu')}…", 5)
 
         def worker():
             ok, msg = run_privileged("server-store-install", {"target": sid}, 1800)
             self.server_store_busy_id = ""
+            self.finish_operation(msg, ok)
             self.show_toast(msg, 7)
             self.refresh_server_store_async()
 
@@ -2522,16 +2533,44 @@ class PiTV:
         self.page = "home"
         self.show_toast("PiTV")
 
+    def _watch_launch(self, proc, name, kind):
+        def worker():
+            # A healthy GUI normally stays alive. Catch immediate launcher
+            # failures instead of silently returning to PiTV.
+            try:
+                rc = proc.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                self.finish_operation(f"{name} spuštěno", True, 2.0)
+                return
+            if self.external_proc is proc:
+                self.external_proc = None
+                self.external_kind = None
+            if rc == 0:
+                self.finish_operation(f"{name} ukončeno", True, 2.0)
+            else:
+                detail = ""
+                if kind == "apk":
+                    try:
+                        detail = Path("/tmp/pitv-waydroid-launch.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1]
+                    except Exception:
+                        detail = ""
+                self.finish_operation(detail or f"{name}: chyba spuštění ({rc})", False, 6.0)
+        threading.Thread(target=worker, daemon=True).start()
+
     def launch_linux(self, app):
         try:
+            name = app.get("name", "Aplikace")
+            self.set_operation(f"Spouštím {name}…")
             self.external_proc = subprocess.Popen(
                 ["/bin/bash", "-lc", app["command"]],
                 env=os.environ.copy(), start_new_session=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             self.external_kind = "linux"
-            self.show_toast(f"Spouštím {app['name']}")
+            self.show_toast(f"Spouštím {name}")
+            self._watch_launch(self.external_proc, name, "linux")
         except Exception as e:
+            self.finish_operation(f"Nelze spustit: {e}", False, 5.0)
             self.show_toast(f"Nelze spustit: {e}", 4)
 
     def launch_apk(self, app):
@@ -2544,14 +2583,18 @@ class PiTV:
             self.show_toast("APK nemá rozpoznaný package name", 5)
             return
         try:
+            name = app.get("name", "Android aplikace")
+            self.set_operation(f"Spouštím {name}…")
             self.external_proc = subprocess.Popen(
                 ["/usr/local/bin/pitv-waydroid-launch", package, apk_path],
                 env=os.environ.copy(), start_new_session=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             self.external_kind = "apk"
-            self.show_toast(f"Připravuji {app['name']}…")
+            self.show_toast(f"Připravuji {name}…")
+            self._watch_launch(self.external_proc, name, "apk")
         except Exception as e:
+            self.finish_operation(f"Waydroid: {e}", False, 5.0)
             self.show_toast(f"Waydroid: {e}", 5)
 
     def launch(self, app):
