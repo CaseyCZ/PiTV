@@ -84,7 +84,19 @@ jobs:
           }
 
           & $imager --version
-          Write-Host "Current Raspberry Pi Imager CLI contract OK"
+
+          $userData = Join-Path $env:RUNNER_TEMP "pitv-test-user-data"
+          $network = Join-Path $env:RUNNER_TEMP "pitv-test-network-config"
+          Set-Content -Path $userData -Value "#cloud-config" -Encoding UTF8
+          Set-Content -Path $network -Value "version: 2" -Encoding UTF8
+
+          $probe = (& $imager --cli --cloudinit-userdata $userData --cloudinit-networkconfig $network --sha256 ("0" * 64) (Join-Path $env:RUNNER_TEMP "missing-pitv-image.img") "\\.\PhysicalDrive999" 2>&1 | Out-String)
+
+          if ($probe -match "(?i)unknown option|unknown argument") {
+            throw "PiTV CLI probe was rejected by the current Raspberry Pi Imager: $probe"
+          }
+
+          Write-Host "Current Raspberry Pi Imager CLI contract and PiTV argument set OK"
 
       - name: Verify launcher target
         shell: powershell
