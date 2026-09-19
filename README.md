@@ -17,7 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
+  <a href="https://github.com/CaseyCZ/PiTV/releases/latest"><img src="https://img.shields.io/badge/St%C3%A1hnout-Nejnov%C4%9Bj%C5%A1%C3%AD%20release-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Stáhnout nejnovější PiTV release" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-N%C3%A1vod-172033?style=for-the-badge&labelColor=111827&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
   <a href="INSTALL.md"><img src="https://img.shields.io/badge/N%C3%A1vod-Ru%C4%8Dn%C3%AD%20instalace-172033?style=for-the-badge&labelColor=111827&logo=ubuntu&logoColor=white" alt="Ruční instalace" /></a>
   <a href="https://github.com/CaseyCZ/PiTV/issues"><img src="https://img.shields.io/badge/GitHub-Nahl%C3%A1sit%20probl%C3%A9m-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="Nahlásit problém" /></a>
 </p>
@@ -44,6 +45,14 @@ PiTV nepoužívá plný desktop typu GNOME. Grafická část běží nad lehkým
 - ⬆️ aktualizace PiTV, katalogů, aplikací a Ubuntu
 - 🌡️ systémové informace — teplota, RAM, disk, uptime, kernel, síť a Tailscale
 - 🔄 self-update se zachováním uživatelského nastavení
+
+## Stažení
+
+Nejjednodušší cesta je přes **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)**.
+
+Pro Windows stáhni **`PiTV-SD-Installer-Windows-v1.3.0.zip`**, rozbal ho a spusť **`Start-PiTV-SD-Installer.cmd`**. Linux a macOS mohou použít samostatný **`pitv-flasher.sh`**; pro Windows je k dispozici také konzolový **`pitv-flasher.ps1`**.
+
+Každý release obsahuje také **`SHA256SUMS.txt`** pro ověření stažených instalačních souborů. GitHub navíc automaticky nabízí kompletní zdrojový kód jako ZIP a TAR.GZ.
 
 ## Instalace
 
