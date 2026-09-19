@@ -1,5 +1,15 @@
 # PiTV Alpha
 
+### PiTV 1.4.22 · Waydroid fullscreen isolation
+- Android aplikace se už nespouštějí přímo do hlavního labwc compositoru; PiTV používá dokumentovaný Waydroid kiosk/fullscreen model přes nested Cage
+- Cage běží jako jediný fullscreen Android povrch uvnitř PiTV a po ukončení aplikace se celý Android compositor/session zavře a vrátí se launcher
+- před startem Cage PiTV ukončí starou Waydroid session, aby se nová session svázala se správným nested Wayland socketem
+- uvnitř Cage se používá oficiální `waydroid show-full-ui`; poté se explicitně nastaví `persist.waydroid.multi_windows=false` a až pak se spustí SmartTube / APK / Play Store
+- přidaný Raspberry Pi preflight: 4 KiB page size a dostupné PSI (`/proc/pressure`) před spuštěním Androidu
+- CEC/DPAD relay do Androidu opraven: upstream Waydroid vyžaduje root pro `waydroid shell`, proto PiTV posílá Android keyeventy přes omezený privilegovaný helper
+- instalátor přidává `cage`; labwc automaticky maximalizuje nested wlroots/Cage povrch
+- změna zachovává nativní Kodi a Linux Stremio přímo v labwc; izolace se týká pouze Waydroid/Android aplikací
+
 ### PiTV 1.4.21 · Glass UI + seznamové Nastavení
 - Home a Nastavení přepracované podle schváleného mockupu: užší glass sidebar, hlubší navy pozadí, průsvitné panely, jemný sheen, tenké hrany a modrý focus glow
 - hero panel má nové proporce, editoriální pravý blok, page dots a nativní planet/space artwork bez těžkého obrázkového pozadí
