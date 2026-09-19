@@ -634,30 +634,49 @@ function Install-PiTVCloudInitToBootPartition($d,$cloud) {
         }
     }
 
+    # mountvol /p can leave Get-Partition reporting the old drive letter even
+    # though that access path no longer points at the newly written filesystem.
+    # Never trust that cached letter. Force Windows to create a fresh mount.
     $assignedByUs = $false
-    if (-not $bootPart.DriveLetter) {
-        $bootPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction Stop
-        $assignedByUs = $true
-        Start-Sleep -Milliseconds 800
-        $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $partNumber -ErrorAction Stop
+    $oldLetter = [string]$bootPart.DriveLetter
+    if ($oldLetter) {
+        $oldRoot = $oldLetter + ":" + [IO.Path]::DirectorySeparatorChar
+        try { $bootPart | Remove-PartitionAccessPath -AccessPath $oldRoot -ErrorAction SilentlyContinue } catch {}
+        Start-Sleep -Milliseconds 300
     }
 
+    try {
+        if (Get-Command Update-HostStorageCache -ErrorAction SilentlyContinue) {
+            Update-HostStorageCache -ErrorAction SilentlyContinue
+        }
+    } catch {}
+    try { Update-Disk -Number $d.Number -ErrorAction SilentlyContinue } catch {}
+
+    $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $partNumber -ErrorAction Stop
+    $bootPart | Add-PartitionAccessPath -AssignDriveLetter -ErrorAction Stop
+    $assignedByUs = $true
+    Start-Sleep -Milliseconds 1200
+    $bootPart = Get-Partition -DiskNumber $d.Number -PartitionNumber $partNumber -ErrorAction Stop
+
     if (-not $bootPart.DriveLetter) {
-        throw "Boot oddílu se nepodařilo přiřadit písmeno jednotky."
+        throw "Boot oddílu se nepodařilo přiřadit nové písmeno jednotky."
     }
 
     $root = ([string]$bootPart.DriveLetter) + ":" + [IO.Path]::DirectorySeparatorChar
 
+    # Test-Path can succeed on a stale mount. Require an actual directory read.
     $rootReady = $false
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        if (Test-Path -LiteralPath $root) {
+        try {
+            $null = Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop | Select-Object -First 1
             $rootReady = $true
             break
+        } catch {
+            Start-Sleep -Milliseconds 350
         }
-        Start-Sleep -Milliseconds 250
     }
     if (-not $rootReady) {
-        throw ("Boot oddíl " + $root + " není po připojení čitelný.")
+        throw ("Boot oddíl " + $root + " není po novém připojení čitelný.")
     }
 
     Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force -ErrorAction Stop
