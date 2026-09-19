@@ -1,5 +1,14 @@
 # PiTV Alpha
 
+### PiTV 1.4.18 · Full user/session ownership audit
+- TV runtime má jednoho vlastníka: uživatel pitv; admin zůstává pouze SSH/recovery a root pouze privilegované/system operace
+- labwc, PipeWire, WirePlumber, Kodi, Stremio a Waydroid GUI sdílejí jediný systemd user D-Bus a /run/user/<pitv UID>
+- odstraněn privátní dbus-run-session a nucený SDL_AUDIODRIVER=alsa; tichý PiTV launcher už neinicializuje audio mixer
+- všechny GUI child procesy přepisují HOME/USER/LOGNAME/XDG_RUNTIME_DIR/PULSE_RUNTIME_PATH/DBUS na pitv session
+- cizí nebo absolutní WAYLAND_DISPLAY mimo pitv runtime je odmítnut a nahrazen skutečným labwc socketem
+- Kodi a Waydroid wrappery odmítnou spuštění mimo uživatele pitv
+- sudo pitv-session-run <příkaz> poskytuje z SSH správný kontext TV session pro wpctl, wlrctl a další diagnostiku
+- serverové služby Homebridge/Tailscale/Docker/ATVLoadly zůstávají správně systémové/root; APT/Flatpak instalace jsou systémové, ale TV aplikace se spouštějí jako pitv
 ### PiTV 1.4.17 · Session isolation audit
 - TV GUI, Kodi, Stremio, Waydroid a PipeWire jsou sjednocené pod uživatelem pitv
 - odstraněn privátní dbus-run-session; labwc používá standardní systemd user D-Bus /run/user/<uid>/bus
