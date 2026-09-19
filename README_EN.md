@@ -13,60 +13,73 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/VERSION-v1.3.0-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV version 1.3.0" />
+  <img src="https://img.shields.io/badge/STATUS-Beta-FDE68A?style=for-the-badge&labelColor=92400E" alt="PiTV Beta" />
 </p>
 
 <p align="center">
-  <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/PiTV-Install-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Install PiTV" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Install-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
+  <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/Guide-Manual%20install-172033?style=for-the-badge&labelColor=111827&logo=ubuntu&logoColor=white" alt="Manual installation" /></a>
+  <a href="https://github.com/CaseyCZ/PiTV/issues"><img src="https://img.shields.io/badge/GitHub-Report%20issue-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="Report issue" /></a>
 </p>
 
 ## About
 
-**PiTV** is a custom TV environment for Raspberry Pi 4 built on **Ubuntu Server 24.04 ARM64**. The Raspberry Pi remains a full 24/7 server while HDMI provides a clean interface controlled by the TV remote.
+**PiTV** is a custom TV environment for Raspberry Pi 4 built on **Ubuntu Server 24.04 ARM64**.
 
-The goal is to combine TV apps, Android apps, system settings and background server services without installing a full desktop environment such as GNOME.
+The Raspberry Pi remains a full 24/7 server while HDMI provides a dedicated TV interface controlled through **HDMI-CEC**.
+
+PiTV does not require a full desktop such as GNOME. The graphical layer runs on lightweight **labwc / Wayland**, leaving the same Raspberry Pi available for Homebridge, Tailscale, Docker and other background services.
 
 ## Main features
 
-- 📺 fullscreen TV launcher on lightweight **labwc / Wayland**
-- 🎨 **PiTV Apple Dark** and **PiTV Apple Light** themes
-- 🎮 **HDMI-CEC** control — arrows, OK, Back, Home, power, volume and mute
-- 💤 screensaver with clock, black screen and optional CEC standby
-- 🔊 HDMI audio for Raspberry Pi 4
-- 📡 Wi-Fi and network settings directly from the TV
+- 📺 custom fullscreen TV launcher
+- 🎨 **PiTV Apple Dark** and **PiTV Apple Light**
+- 🎮 **HDMI-CEC** remote control
+- 🔊 HDMI audio
+- 💤 clock screensaver, black screen and optional CEC standby
+- 📡 Wi-Fi and basic network management from the TV
 - 📦 **PiTV Store** for TV apps
-- 🖥️ **Server Store** for 24/7 background services
+- 🖥️ **Server Store** for 24/7 services
 - 🤖 **Waydroid + Google Play** for Android TV apps
-- ⬆️ PiTV, catalog, Linux app and Ubuntu updates from the TV
-- 🌡️ system overview — temperature, RAM, disk, uptime, kernel, network and Tailscale
-- 🔄 self-update while preserving user settings
-
-## PiTV SD Installer
-
-<p>
-  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Automatic%20microSD-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
-</p>
-
-The easiest installation path is **PiTV SD Installer**. Connect a microSD card and the tool prepares **Ubuntu Server 24.04 ARM64 + Wi-Fi + zero-touch PiTV first boot**.
-
-- **Windows:** small GUI — select the card and click **CREATE PiTV SD**
-- **Linux / macOS:** one shell script in Terminal
-- image writing is delegated to the official **Raspberry Pi Imager**
-- system/boot disks are excluded and destructive writes require confirmation
-- on first boot the Raspberry Pi downloads PiTV, installs it and reboots automatically
-
-See **[FLASHER.md](FLASHER.md)** for details.
-
-> PiTV SD Installer is currently **beta**. Syntax and safety checks are automated, while full physical microSD + Raspberry Pi 4 validation is still pending.
+- ⬆️ PiTV, catalog, app and Ubuntu updates
+- 🌡️ system information — temperature, RAM, disk, uptime, kernel, network and Tailscale
+- 🔄 self-update while preserving user configuration
 
 ## Installation
 
-<p>
-  <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/Guide-Full%20installation-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Full PiTV installation guide" /></a>
-</p>
+### PiTV SD Installer — recommended
 
-The complete process from an empty microSD card through Raspberry Pi Imager, Wi-Fi and SSH to the first PiTV boot is in **[INSTALL_EN.md](INSTALL_EN.md)**.
+Prepare the microSD card directly from a computer.
 
-Quick install on a prepared **Raspberry Pi 4 + Ubuntu Server 24.04 ARM64**:
+| Platform | Method |
+|---|---|
+| **Windows** | run `tools/windows/Start-PiTV-SD-Installer.cmd`, select the card and click **CREATE PiTV SD** |
+| **Linux** | run `tools/pitv-flasher.sh` |
+| **macOS** | run `tools/pitv-flasher.sh` |
+
+The installer prepares Ubuntu Server 24.04 ARM64, Wi-Fi, first boot and automatic PiTV installation. Image writing is delegated to the official Raspberry Pi Imager.
+
+Details: **[PiTV SD Installer](FLASHER.md)**
+
+### Restore / format an SD card
+
+The Windows GUI includes **FORMAT SD**. It wipes the selected card and creates one exFAT `SDCARD` partition using the available capacity.
+
+Windows PowerShell:
+
+```powershell
+.\tools\pitv-flasher.ps1 -FormatOnly
+```
+
+Linux / macOS:
+
+```bash
+./tools/pitv-flasher.sh --format-only
+```
+
+### Manual install
+
+On a prepared **Ubuntu Server 24.04 ARM64** system:
 
 ```bash
 git clone https://github.com/CaseyCZ/PiTV.git
@@ -75,61 +88,48 @@ sudo ./install.sh
 sudo reboot
 ```
 
-After reboot PiTV starts automatically:
-
-```text
-Ubuntu Server
-└── tty1 autologin
-    └── labwc / Wayland
-        └── PiTV
-```
-
-SSH and server services remain available while the TV is off or asleep.
+Full manual guide: **[INSTALL_EN.md](INSTALL_EN.md)**
 
 ## PiTV Store
 
-Apps are installed from **Settings → Applications → PiTV Store**.
-
-- 📺 **Kodi** — Ubuntu APT
-- ▶️ **SmartTube** — official ARM64 GitHub release
-- 🎬 **Stremio** — official Android TV ARM64 APK
-- ▶️ **YouTube** — Google Play inside Waydroid
-- 🎵 **Spotify** — Google Play inside Waydroid
-- 🎞️ **Plex** — Google Play inside Waydroid
+| App | Installation |
+|---|---|
+| Kodi | Ubuntu APT |
+| SmartTube | ARM64 GitHub release |
+| Stremio | Android TV ARM64 APK |
+| YouTube | Google Play / Waydroid |
+| Spotify | Google Play / Waydroid |
+| Plex | Google Play / Waydroid |
 
 PiTV validates the expected package ID for direct APK installs.
 
 ## Server Store
 
-**Settings → Server Store** installs services that continue running independently of the TV interface.
+| Service | Purpose |
+|---|---|
+| Homebridge | HomeKit bridge + web UI |
+| Tailscale | remote access / VPN |
+| Docker Engine | containers |
+| ATVLoadly | Apple TV sideload server |
 
-- 🏠 **Homebridge** — official repository, web UI on port 8581
-- 🔐 **Tailscale** — VPN / remote access
-- 🐳 **Docker Engine** — official Docker repository
-- 📲 **ATVLoadly** — Docker container, web UI on port 5533
-
-Server services remain active while the TV is off or PiTV is in screensaver mode.
+These services continue running while the TV is off or asleep.
 
 ## Android / APK
 
-Waydroid is optional — PiTV also works as a pure Linux TV launcher.
+Waydroid is optional. PiTV also works as a pure Linux TV launcher.
 
-Install directly from the TV:
+Install from:
 
 **Settings → Android / APK → Waydroid + Google Play → Install**
 
-Custom APK files can be placed in:
+Custom APK files:
 
 ```text
 /var/lib/pitv/apks/
 ~/PiTV/APKs/
 ```
 
-PiTV uses `aapt` to read package name, app label, launchable activity, SDK and TV / Leanback information.
-
 ## Remote control
-
-PiTV receives TV remote input through HDMI-CEC.
 
 | Button | Action |
 |---|---|
@@ -142,47 +142,61 @@ PiTV receives TV remote input through HDMI-CEC.
 
 PiTV uses one persistent CEC client for both input and outgoing commands.
 
-## Appearance
+## Requirements
 
-The same visual system is used across Home, Store, Server Store, Settings, Updates, Android / APK and HDMI / CEC.
+Recommended setup:
 
-- **PiTV Apple Dark** — dark glass panels, blue focus and hero cards
-- **PiTV Apple Light** — clean light interface with identical navigation
+- Raspberry Pi 4
+- 32 GB or larger microSD
+- Ubuntu Server 24.04 LTS ARM64
+- micro-HDMI → HDMI
+- quality USB-C power supply
+- Wi-Fi or Ethernet
+- HDMI-CEC capable TV
 
-Switch themes in **Settings → Appearance**.
+## Project status
 
-## Updates
+PiTV is currently **beta**.
 
-**Settings → Updates** can:
+Automated tests cover syntax, catalogs, all UI screens, both themes, Ubuntu 24.04 x64/ARM64 install/start/update/uninstall, Kodi Store installation, Android APK sources and Server Store services.
 
-- check for a new PiTV version
-- update PiTV
-- update PiTV Store and Server Store catalogs
-- update Linux Store apps
-- update Ubuntu packages
-- restart only the PiTV UI
+Physical Raspberry Pi 4 testing still covers HDMI/KMS, real TV CEC behavior, HDMI audio, Kodi hardware decoding and Waydroid GPU/kernel compatibility.
 
-User configuration in `/home/pitv/.config/pitv` is preserved during self-update.
+See **[AUDIT.md](AUDIT.md)**.
 
-## Testing
+## Credits
 
-PiTV includes two GitHub Actions test levels.
+PiTV builds on the work of several open-source projects and services:
 
-**PiTV Check** validates Python, shell scripts, JSON catalogs, both themes and all UI screens.
+- **Raspberry Pi** — hardware and Raspberry Pi Imager
+- **Ubuntu** — server base
+- **labwc / Wayland** — lightweight graphical environment
+- **Pygame** — PiTV UI runtime
+- **libCEC / cec-utils** — HDMI-CEC communication
+- **Waydroid** — Android environment
+- **Kodi** — Linux media center
+- **Homebridge** — HomeKit bridge
+- **Tailscale** — mesh VPN
+- **Docker** — containers
+- **SmartTube, Stremio, Plex, Spotify and YouTube** — applications available through PiTV Store / Android
 
-**PiTV Online Smoke** performs a complete install/start test on Ubuntu 24.04 **x64 and ARM64**, including Kodi, self-update, uninstall, Homebridge, Tailscale, Docker, ATVLoadly and Android APK sources.
-
-The latest full online test of the standalone repository completed with **PASS**.
-
-> A physical Raspberry Pi 4 is still required for final HDMI/KMS, real TV CEC, HDMI audio, Kodi hardware acceleration and Waydroid GPU/kernel verification.
+PiTV is not an official product of these projects. Product names and trademarks belong to their respective owners.
 
 ## Links
 
 <p>
-  <a href="AUDIT.md"><img src="https://img.shields.io/badge/PiTV-Audit-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="PiTV Audit" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/PiTV-Changelog-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="PiTV Changelog" /></a>
-  <a href="SECURITY.md"><img src="https://img.shields.io/badge/PiTV-Security-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="PiTV Security" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV-SD%20Installer-172033?style=for-the-badge&labelColor=111827" alt="PiTV SD Installer" /></a>
+  <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/PiTV-Install%20Guide-172033?style=for-the-badge&labelColor=111827" alt="Install Guide" /></a>
+  <a href="AUDIT.md"><img src="https://img.shields.io/badge/PiTV-Audit-172033?style=for-the-badge&labelColor=111827" alt="PiTV Audit" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/PiTV-Changelog-172033?style=for-the-badge&labelColor=111827" alt="PiTV Changelog" /></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/PiTV-Security-172033?style=for-the-badge&labelColor=111827" alt="PiTV Security" /></a>
 </p>
+
+## License
+
+PiTV is released under the **MIT License**. See **[LICENSE](LICENSE)**.
+
+Third-party projects and applications keep their own licenses and terms.
 
 ## Support
 
