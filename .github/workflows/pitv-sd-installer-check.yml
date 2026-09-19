@@ -88,7 +88,7 @@ jobs:
             throw "PiTV installer still passes GUI-only --disable-telemetry to CLI mode."
           }
 
-          & $imager --version
+          & $imager --cli --version
 
           $userData = Join-Path $env:RUNNER_TEMP "pitv-test-user-data"
           $network = Join-Path $env:RUNNER_TEMP "pitv-test-network-config"
