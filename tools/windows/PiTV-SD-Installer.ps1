@@ -233,8 +233,37 @@ function Get-Prop($obj,[string]$name) {
     return $p.Value
 }
 
+function Expand-CatalogItem($item,[int]$depth=0) {
+    if ($null -eq $item -or $depth -gt 8) { return @() }
+
+    $all = @()
+    $itemUrl = Get-Prop $item "url"
+    $itemName = Get-Prop $item "name"
+    if ($itemUrl -and $itemName) {
+        $all += $item
+    }
+
+    $subitemsUrl = Get-Prop $item "subitems_url"
+    if ($subitemsUrl) {
+        try {
+            $all += Get-Entries ([string]$subitemsUrl) ($depth + 1)
+        } catch {
+            Log ("Katalog subitems URL přeskočen: " + $_.Exception.Message)
+        }
+    }
+
+    $subitems = Get-Prop $item "subitems"
+    foreach ($sub in @($subitems)) {
+        if ($null -ne $sub) {
+            $all += Expand-CatalogItem $sub ($depth + 1)
+        }
+    }
+
+    return $all
+}
+
 function Get-Entries([string]$url,[int]$depth=0) {
-    if ($depth -gt 5) { return @() }
+    if ($depth -gt 8) { return @() }
 
     $data = Invoke-RestMethod -Uri $url -UseBasicParsing
     $all = @()
@@ -242,26 +271,7 @@ function Get-Entries([string]$url,[int]$depth=0) {
     if ($null -eq $osList) { return @() }
 
     foreach ($item in @($osList)) {
-        $subitemsUrl = Get-Prop $item "subitems_url"
-        if ($subitemsUrl) {
-            try {
-                $all += Get-Entries ([string]$subitemsUrl) ($depth + 1)
-            } catch {
-                Log ("Katalog subitems přeskočen: " + $_.Exception.Message)
-            }
-        }
-
-        $subitems = Get-Prop $item "subitems"
-        foreach ($sub in @($subitems)) {
-            if ($null -eq $sub) { continue }
-            $urlValue = Get-Prop $sub "url"
-            $nameValue = Get-Prop $sub "name"
-            if ($urlValue -and $nameValue) { $all += $sub }
-        }
-
-        $itemUrl = Get-Prop $item "url"
-        $itemName = Get-Prop $item "name"
-        if ($itemUrl -and $itemName) { $all += $item }
+        $all += Expand-CatalogItem $item $depth
     }
     return $all
 }
@@ -271,8 +281,8 @@ function Get-Ubuntu2404 {
     $list = $entries | Where-Object {
         $name = [string](Get-Prop $_ "name")
         $devices = Get-Prop $_ "devices"
-        $name -match "^Ubuntu Server 24\.04.*LTS \(64-bit\)$" -and
-        (-not $devices -or $devices -contains "pi4" -or $devices -contains "pi4-64")
+        $name -match "^Ubuntu Server 24\.04(?:\.\d+)? LTS \(64-bit\)$" -and
+        (-not $devices -or $devices -contains "pi4-64bit" -or $devices -contains "pi4-64" -or $devices -contains "pi4")
     } | Sort-Object @{ Expression={
         try {
             $releaseDate = Get-Prop $_ "release_date"
@@ -929,7 +939,7 @@ $create.Add_Click({
         else {
             Log "Online režim: načítám oficiální Ubuntu Server 24.04 ARM64 image z katalogu..."
             $image = Get-Ubuntu2404
-            Log ("Vybráno: " + [string](Get-Prop $image "name"))
+            Log ("Vybráno z katalogu: " + [string](Get-Prop $image "name"))
             $imageSource = [string](Get-Prop $image "url")
             $imageSha = Get-Prop $image "extract_sha256"
             if (-not $imageSource) { throw "Vybraný Ubuntu záznam neobsahuje URL image." }
@@ -1020,7 +1030,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.11 · Windows"
+    Log "PiTV SD Installer v0.12 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
     Refresh-Drives
