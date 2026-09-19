@@ -85,6 +85,12 @@ jobs:
           cec._handle_monitor_line("> 01:44:0d\n")
           assert q.get_nowait() == pygame.K_ESCAPE
 
+          # Sencor/other TVs may expose the Home key as any CEC menu command.
+          for raw_home in ("0a", "0c", "11"):
+              cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+              cec._handle_monitor_line(f"> 01:44:{raw_home}\n")
+              assert q.get_nowait() == pygame.K_HOME
+
           app = PiTV()
 
           # Regression: LEFT inside Appearance must change the selected value,
