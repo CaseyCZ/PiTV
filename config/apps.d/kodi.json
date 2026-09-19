@@ -1,0 +1,7 @@
+{
+  "name": "Kodi",
+  "subtitle": "Média",
+  "icon": "▶",
+  "command": "kodi",
+  "requires": "kodi"
+}
