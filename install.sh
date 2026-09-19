@@ -119,8 +119,33 @@ MODE="${2:-monitor}"
 [[ "$DEV" =~ ^/dev/cec[0-9]+$ ]] || exit 2
 [ -c "$DEV" ] || exit 2
 case "$MODE" in
-  register) exec /usr/bin/cec-ctl -d "$DEV" --playback -o PiTV ;;
-  monitor)  exec /usr/bin/cec-ctl -d "$DEV" --monitor ;;
+  register)
+    exec /usr/bin/cec-ctl -d "$DEV" --no-rc-passthrough --playback -o PiTV
+    ;;
+  monitor)
+    exec /usr/bin/cec-ctl -d "$DEV" --monitor --show-raw
+    ;;
+  on)
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --image-view-on
+    ;;
+  standby)
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --standby
+    ;;
+  active)
+    PA="$(/usr/bin/cec-ctl -d "$DEV" -s -x 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+    [[ "$PA" =~ ^[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]$ ]] || exit 4
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --active-source "phys-addr=$PA"
+    ;;
+  volup|voldown|mute)
+    case "$MODE" in
+      volup) UI_CMD="volume-up" ;;
+      voldown) UI_CMD="volume-down" ;;
+      mute) UI_CMD="mute" ;;
+    esac
+    /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-pressed "ui-cmd=$UI_CMD"
+    sleep 0.05
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-released
+    ;;
   *) exit 2 ;;
 esac
 EOF
