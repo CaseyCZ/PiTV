@@ -161,6 +161,19 @@ elif action == "waydroid-app-running":
         out("running")
     out("Android aplikace zatím neběží", 4)
 
+elif action == "waydroid-keyevent":
+    # Upstream Waydroid requires root for the 'shell' action. PiTV previously
+    # attempted this directly from the unprivileged pitv GUI, so CEC DPAD
+    # events could never reliably reach Android.
+    code = str(payload.get("code", "")).strip()
+    allowed = {"4", "19", "20", "21", "22", "23", "85"}
+    if code not in allowed:
+        out("Nepovolený Android keyevent", 2)
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    run(["waydroid", "shell", "input", "keyevent", code], timeout=10)
+    out("ok")
+
 elif action == "waydroid-container-stop":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
