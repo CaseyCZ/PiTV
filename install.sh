@@ -106,6 +106,7 @@ rm -rf /etc/pitv/apps.d
 install -d -m 0755 /etc/pitv/apps.d
 cp -a config/apps.d/. /etc/pitv/apps.d/
 install -m 0755 system/pitv-session /usr/local/bin/pitv-session
+install -m 0755 system/pitv-session-run /usr/local/bin/pitv-session-run
 install -m 0755 system/pitv-waydroid-launch /usr/local/bin/pitv-waydroid-launch
 install -m 0755 system/pitv-kodi-addon /usr/local/bin/pitv-kodi-addon
 install -d -m 0755 /usr/local/libexec
