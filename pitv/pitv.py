@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -546,74 +546,106 @@ def cec_mute():
 
 
 class CECReader(threading.Thread):
+    """Read TV remote keys from the Linux kernel HDMI-CEC API.
+
+    Ubuntu on Raspberry Pi 4/5 exposes vc4 HDMI CEC as /dev/cec*.  The
+    distro libCEC can still auto-select its legacy RPI backend, which detects
+    an adapter but cannot open it with vc4-kms.  cec-ctl talks to the kernel
+    API directly and is therefore the primary PiTV input path.
+    """
     def __init__(self, event_queue):
         super().__init__(daemon=True)
         self.event_queue = event_queue
         self.proc = None
-        self.write_lock = threading.Lock()
+        self.device = None
         self.last_key = None
         self.last_key_at = 0.0
 
+    def _devices(self):
+        return sorted(Path("/dev").glob("cec*"))
+
+    def _device_info(self, device):
+        try:
+            p = subprocess.run(
+                ["cec-ctl", "-d", str(device), "--show-topology"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, timeout=4, check=False,
+            )
+            return p.stdout or ""
+        except Exception:
+            return ""
+
+    def _pick_device(self):
+        devices = self._devices()
+        if not devices:
+            return None
+        # Prefer a connector with a real HDMI physical address.  0.0.0.0 and
+        # f.f.f.f are not connected to a usable CEC topology.
+        for dev in devices:
+            info = self._device_info(dev)
+            m = re.search(r"Physical Address\\s*:\\s*([^\\s]+)", info, re.I)
+            if m and m.group(1).lower() not in ("0.0.0.0", "f.f.f.f"):
+                return dev
+        return devices[0]
+
     def is_ready(self):
-        return self.proc is not None and self.proc.poll() is None and self.proc.stdin is not None
+        return self.device is not None and self.proc is not None and self.proc.poll() is None
 
     def send(self, commands):
-        if isinstance(commands, str):
-            commands = [commands]
-        if not self.is_ready():
-            return False, "CEC klient ještě není připravený"
-        try:
-            with self.write_lock:
-                for command in commands:
-                    self.proc.stdin.write(str(command).strip() + "\n")
-                self.proc.stdin.flush()
-            return True, "CEC příkaz odeslán"
-        except Exception as e:
-            return False, f"CEC zápis selhal: {e}"
+        # Existing TV power/volume actions still use libCEC one-shot commands;
+        # input reception itself never depends on the legacy RPI backend.
+        return False, "CEC výstup není v kernel režimu zatím dostupný"
+
+    def _emit(self, name):
+        key = name.strip().lower().replace("_", " ").replace("-", " ")
+        aliases = {
+            "device root menu": "root menu",
+            "setup menu": "root menu",
+            "favorite menu": "root menu",
+            "media top menu": "top menu",
+            "device vendor specific": "home",
+            "previous channel": "back",
+        }
+        key = aliases.get(key, key)
+        mapped = CEC_MAP.get(key)
+        if mapped is None:
+            return
+        now = time.monotonic()
+        if mapped == self.last_key and (now - self.last_key_at) < 0.12:
+            return
+        self.last_key, self.last_key_at = mapped, now
+        self.event_queue.put(mapped)
 
     def run(self):
         global _CEC_MANAGER
-        if shutil.which("cec-client") is None:
+        if shutil.which("cec-ctl") is None:
+            return
+        self.device = self._pick_device()
+        if self.device is None:
             return
         _CEC_MANAGER = self
         try:
-            # libCEC emits "key pressed:" at DEBUG level (16).
-            self.proc = subprocess.Popen(
-                ["cec-client", "-d", "16", "-t", "p", "-o", "PiTV"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
+            # Claim a Playback logical address (OSD name PiTV), then monitor
+            # Remote Control Pass Through messages addressed by the TV to PiTV.
+            subprocess.run(
+                ["cec-ctl", "-d", str(self.device), "--playback", "-o", "PiTV"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=5, check=False,
             )
-            # Register PiTV as the active playback source once libCEC has
-            # initialised. This announces the source on the CEC bus; TVs can
-            # then expose it in their HDMI-CEC device/source list.
-            try:
-                self.proc.stdin.write("as\n")
-                self.proc.stdin.flush()
-            except Exception:
-                pass
-
+            self.proc = subprocess.Popen(
+                ["cec-ctl", "-d", str(self.device), "--monitor"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1,
+            )
             for line in self.proc.stdout:
-                low = line.lower()
-                if "key pressed:" not in low:
-                    continue
-                key = low.split("key pressed:", 1)[1].strip()
-                key = key.split("(", 1)[0].strip()
-                if key in CEC_MAP:
-                    # Some TVs emit duplicate "key pressed" messages for one
-                    # physical press. Drop only the immediate duplicates; a
-                    # held key still repeats after the debounce window.
-                    now = time.monotonic()
-                    mapped = CEC_MAP[key]
-                    if mapped == self.last_key and (now - self.last_key_at) < 0.18:
-                        continue
-                    self.last_key = mapped
-                    self.last_key_at = now
-                    self.event_queue.put(mapped)
+                m = re.search(r"ui-cmd:\\s*([^\\(\\r\\n]+)", line, re.I)
+                if m:
+                    self._emit(m.group(1))
         except Exception:
-            pass
+            self.device = None
+        finally:
+            if _CEC_MANAGER is self:
+                _CEC_MANAGER = None
 
     def stop(self):
         global _CEC_MANAGER
