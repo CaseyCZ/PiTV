@@ -1,40 +1,52 @@
-# PiTV Flasher
+# PiTV SD Installer
 
 <p align="center">
-  Připraví microSD kartu pro Raspberry Pi 4 tak, aby se po prvním bootu <strong>Ubuntu Server + PiTV nainstalovaly automaticky</strong>.
+  Připraví microSD kartu pro Raspberry Pi 4 tak, aby se po prvním zapnutí <strong>Ubuntu Server + PiTV nainstalovaly automaticky</strong>.
 </p>
 
-> **Stav:** beta. Skripty mají bezpečnostní kontrolu cílového disku a dry-run testy, ale skutečný zápis SD karty na Windows/macOS/Linux ještě musí projít fyzickým testem.
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-GUI-38BDF8?style=for-the-badge&labelColor=0284C7&logo=windows&logoColor=white" alt="Windows GUI" />
+  <img src="https://img.shields.io/badge/Linux-Script-172033?style=for-the-badge&labelColor=111827&logo=linux&logoColor=white" alt="Linux" />
+  <img src="https://img.shields.io/badge/macOS-Script-172033?style=for-the-badge&labelColor=111827&logo=apple&logoColor=white" alt="macOS" />
+</p>
 
-## Co Flasher udělá
+> **Stav: beta.** Syntaxe, bezpečnostní kontroly a dry-run jsou testované v CI. Skutečný zápis microSD a první boot ještě ověříme na fyzickém Raspberry Pi 4.
 
-1. najde výměnnou SD/USB kartu,
-2. vyžádá přesné potvrzení před smazáním,
-3. najde aktuální oficiální Ubuntu Server 24.04 LTS ARM64 image pro Raspberry Pi,
-4. načte oficiální SHA-256 z Ubuntu,
-5. použije Raspberry Pi Imager CLI pro zápis a ověření image,
-6. zeptá se na Wi-Fi,
-7. vytvoří recovery SSH klíč bez ukládání administrátorského hesla na SD kartu,
-8. připraví cloud-init,
-9. při prvním bootu Raspberry Pi samo stáhne `CaseyCZ/PiTV`,
-10. spustí `install.sh`,
-11. restartuje Raspberry Pi do PiTV.
+## Jak to funguje
 
-## Windows
+PiTV SD Installer použije oficiální Raspberry Pi Imager pro zápis Ubuntu Serveru 24.04 LTS ARM64. Na boot kartu přidá Wi-Fi a cloud-init konfiguraci. Při prvním startu se Raspberry připojí k internetu, stáhne aktuální `CaseyCZ/PiTV`, spustí `install.sh` a po dokončení se restartuje přímo do PiTV.
 
-Stáhni skript:
+Běžný uživatel tedy nemusí ručně instalovat Ubuntu, hledat IP adresu Raspberry ani kopírovat instalační příkazy přes SSH.
+
+## Windows — doporučená cesta
+
+Windows má vlastní malé grafické rozhraní.
+
+1. stáhni nebo naklonuj repozitář PiTV,
+2. otevři `tools/windows/`,
+3. spusť **Start-PiTV-SD-Installer.cmd**,
+4. potvrď oprávnění správce,
+5. vyber microSD kartu,
+6. klikni na **VYTVOŘIT PiTV SD**.
+
+Installer automaticky převezme aktuální Wi-Fi profil z Windows. Pokud Raspberry Pi Imager chybí a je dostupný `winget`, pokusí se ho nainstalovat.
+
+Windows nástroj nabízí pouze výměnné USB / SD / MMC disky, vylučuje systémový a boot disk a před zápisem zobrazí model i kapacitu zvolené karty.
+
+Po dokončení vytvoří náhodné recovery heslo pro účet `pitvadmin` a zkopíruje ho do schránky. Po prvním úspěšném bootu PiTV odstraní z boot oddílu dočasné cloud-init soubory s Wi-Fi nastavením.
+
+Podrobnosti: **[tools/windows/README.md](tools/windows/README.md)**
+
+## Windows — PowerShell CLI
+
+Pro uživatele, kteří nechtějí GUI, zůstává dostupný konzolový flasher:
 
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/CaseyCZ/PiTV/Master/tools/pitv-flasher.ps1 -OutFile "$env:TEMP\pitv-flasher.ps1"
-```
-
-Spusť ho:
-
-```powershell
 powershell -ExecutionPolicy Bypass -File "$env:TEMP\pitv-flasher.ps1"
 ```
 
-Skript si vyžádá administrátorská práva. Pokud Raspberry Pi Imager chybí a je dostupný `winget`, zkusí ho nainstalovat automaticky.
+CLI se zeptá na kartu, Wi-Fi, hostname a recovery uživatele. Recovery přístup používá SSH klíč.
 
 ## Linux
 
@@ -44,7 +56,7 @@ chmod +x /tmp/pitv-flasher.sh
 /tmp/pitv-flasher.sh
 ```
 
-Na Linuxu se při chybějícím Raspberry Pi Imageru stáhne aktuální oficiální CLI `.deb` pro amd64/arm64.
+Na Linuxu skript nabídne pouze výměnné disky, vyžádá přesné potvrzení před smazáním a používá recovery SSH klíč.
 
 ## macOS
 
@@ -54,78 +66,53 @@ chmod +x /tmp/pitv-flasher.sh
 /tmp/pitv-flasher.sh
 ```
 
-Pokud Raspberry Pi Imager není nainstalovaný a je dostupný Homebrew, skript použije:
+Pokud Raspberry Pi Imager není nainstalovaný a je dostupný Homebrew, skript ho může nainstalovat přes Homebrew.
 
-```bash
-brew install --cask raspberry-pi-imager
+## Co se stane na Raspberry Pi
+
+Po vložení připravené microSD a zapnutí Raspberry:
+
+```text
+První boot Ubuntu Server
+        ↓
+Wi-Fi
+        ↓
+cloud-init
+        ↓
+stáhne CaseyCZ/PiTV
+        ↓
+./install.sh
+        ↓
+automatický restart
+        ↓
+PiTV na HDMI
 ```
 
-## Co zadáš
-
-Flasher potřebuje pouze:
-
-- cílovou SD kartu,
-- Wi-Fi SSID,
-- Wi-Fi heslo,
-- volitelně hostname — výchozí `pitv`,
-- volitelně recovery SSH uživatele — výchozí `pitvadmin`.
-
-Wi-Fi heslo se na terminálu nezobrazuje. Recovery SSH používá samostatný Ed25519 klíč vytvořený na počítači.
+První boot může podle rychlosti SD karty a internetu trvat přibližně **10–30 minut**.
 
 ## Bezpečnost disku
 
-Flasher nikdy nezačne zápis jen podle pořadí disku. Před smazáním vypíše vybraný fyzický disk a vyžádá přesnou potvrzovací frázi.
+Zápis microSD je destruktivní operace. Installer proto omezuje výběr na výměnná zařízení a před smazáním vyžaduje další potvrzení.
 
-Přesto vždy zkontroluj velikost a označení karty. **Vybraný disk bude kompletně přepsán.**
-
-## První boot
-
-Po dokončení Flasheru:
-
-1. bezpečně vysuň SD kartu,
-2. vlož ji do Raspberry Pi 4,
-3. připoj HDMI a napájení,
-4. počkej přibližně 10–30 minut.
-
-První boot provede Ubuntu cloud-init, připojí Wi-Fi, stáhne PiTV a spustí instalaci. Po dokončení se Raspberry Pi automaticky restartuje.
-
-Pokud vše proběhne správně, po restartu se na HDMI zobrazí PiTV.
+Přesto vždy zkontroluj **model a kapacitu vybrané karty**. Vybraný fyzický disk bude kompletně přepsán.
 
 ## Recovery
 
-Windows vytvoří recovery klíč přibližně zde:
-
-```text
-%USERPROFILE%\.ssh\pitv_ed25519
-```
-
-Linux/macOS:
-
-```text
-~/.ssh/pitv_ed25519
-```
-
-Výchozí připojení:
-
-```bash
-ssh -i ~/.ssh/pitv_ed25519 pitvadmin@pitv.local
-```
-
-Log automatické instalace na Raspberry Pi:
+Pokud automatická první instalace selže, PiTV lze diagnostikovat přes SSH. Log first-boot instalace je:
 
 ```text
 /var/log/pitv-firstboot.log
 ```
 
-## Dry run
+Linux/macOS a Windows CLI ukládají recovery SSH klíč jako:
 
-Dry run nic nestahuje ani nezapisuje na disk.
-
-Windows:
-
-```powershell
-.\tools\pitv-flasher.ps1 -DryRun
+```text
+~/.ssh/pitv_ed25519
 ```
+
+Windows GUI místo toho vytvoří silné náhodné recovery heslo a po zápisu ho zkopíruje do schránky.
+
+## Testování bez zápisu
 
 Linux/macOS:
 
@@ -133,6 +120,14 @@ Linux/macOS:
 ./tools/pitv-flasher.sh --dry-run
 ```
 
-## Ruční instalace zůstává
+Windows CLI:
 
-PiTV Flasher je pohodlnější cesta, ale klasická instalace přes Raspberry Pi Imager a `install.sh` zůstává podporovaná v [INSTALL.md](INSTALL.md).
+```powershell
+.\tools\pitv-flasher.ps1 -DryRun
+```
+
+Windows GUI má samostatnou GitHub Actions kontrolu PowerShell syntaxe a launcheru.
+
+## Ruční instalace
+
+Automatický installer je doporučená pohodlná cesta. Klasická instalace přes Raspberry Pi Imager + SSH zůstává podporovaná v **[INSTALL.md](INSTALL.md)**.
