@@ -3,7 +3,7 @@
 Aktuální průběžná testovací verze PiTV. **Pi 4 je hlavní a doporučený cíl.**
 
 ### Aktuálně
-- PiTV SD Installer pro Windows v0.19
+- PiTV SD Installer pro Windows v0.20
 - výběr Raspberry Pi 3 / 3B+, Pi 4 nebo Pi 5
 - Pi 3 a Pi 5 jsou zatím experimentální Alpha cíle
 - automatické vyhledání Wi-Fi + načtení uloženého hesla
