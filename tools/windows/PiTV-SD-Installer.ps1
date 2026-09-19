@@ -292,7 +292,7 @@ packages:
   - git
 runcmd:
   - [ bash, -lc, "echo '$credentialB64' | base64 -d | chpasswd" ]
-  - [ bash, -lc, "set -e; rm -rf /opt/pitv-bootstrap; git clone --depth 1 $PiTVRepoUrl /opt/pitv-bootstrap; cd /opt/pitv-bootstrap; ./install.sh > /var/log/pitv-firstboot.log 2>&1; mkdir -p /var/lib/pitv; touch /var/lib/pitv/firstboot-complete; rm -f /boot/firmware/user-data || true; sync; systemctl reboot" ]
+  - [ bash, -lc, "set -e; test -s /boot/firmware/network-config; install -m 600 /boot/firmware/network-config /etc/netplan/50-cloud-init.yaml; printf 'network: {config: disabled}\\n' > /etc/cloud/cloud.cfg.d/99-pitv-disable-network-config.cfg; netplan generate; rm -rf /opt/pitv-bootstrap; git clone --depth 1 $PiTVRepoUrl /opt/pitv-bootstrap; cd /opt/pitv-bootstrap; ./install.sh > /var/log/pitv-firstboot.log 2>&1; test -s /etc/netplan/50-cloud-init.yaml; grep -q 'access-points:' /etc/netplan/50-cloud-init.yaml; mkdir -p /var/lib/pitv; touch /var/lib/pitv/firstboot-complete; rm -f /boot/firmware/user-data /boot/firmware/network-config || true; sync; systemctl reboot" ]
 "@
 
     $network = @"
