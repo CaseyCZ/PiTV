@@ -123,6 +123,10 @@ jobs:
             "CACHE HIT",
             "image_download_sha256",
             "Get-PiTVDeviceSha256",
+            "Wait-PiTVTargetDiskReadyAfterRawWrite",
+            "DiskPartRescan",
+            "Write-PiTVBytesDurable",
+            "FINALIZE RETRY",
             "PiTV-XZ.exe"
           )) {
             if ($engine -notmatch [regex]::Escape($required)) {
