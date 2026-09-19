@@ -12,8 +12,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERZE-v1.3.3-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV verze 1.3.0" />
-  <img src="https://img.shields.io/badge/STAV-Beta-FDE68A?style=for-the-badge&labelColor=92400E" alt="PiTV Beta" />
+  <img src="https://img.shields.io/badge/KAN%C3%81L-Alpha-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV Alpha" />
+  <img src="https://img.shields.io/badge/STAV-Aktivn%C3%AD%20v%C3%BDvoj-FDE68A?style=for-the-badge&labelColor=92400E" alt="Aktivní vývoj" />
 </p>
 
 <p align="center">
@@ -65,6 +65,8 @@ Nejjednodušší způsob je připravit microSD přímo z počítače.
 | **Windows** | spusť `tools/windows/Start-PiTV-SD-Installer.cmd`, vyber kartu a klikni **VYTVOŘIT PiTV SD** |
 | **Linux** | spusť `tools/pitv-flasher.sh` |
 | **macOS** | spusť `tools/pitv-flasher.sh` |
+
+Windows installer nabízí **Raspberry Pi 3 / 3B+**, **Raspberry Pi 4** a **Raspberry Pi 5**. Pi 4 je výchozí a doporučený cíl; Pi 3 a Pi 5 jsou v Alpha fázi experimentální.
 
 Installer připraví:
 
@@ -170,7 +172,9 @@ PiTV používá jeden persistentní CEC klient pro příjem tlačítek i odesíl
 
 Doporučená sestava:
 
-- Raspberry Pi 4
+- **Raspberry Pi 4** — hlavní a doporučený cíl
+- Raspberry Pi 3 / 3B+ — Alpha, omezenější výkon
+- Raspberry Pi 5 — Alpha, hardware zatím není fyzicky ověřený
 - microSD 32 GB nebo větší
 - Ubuntu Server 24.04 LTS ARM64
 - micro-HDMI → HDMI
@@ -180,7 +184,7 @@ Doporučená sestava:
 
 ## Stav projektu
 
-PiTV je aktuálně ve fázi **beta**.
+PiTV je aktuálně ve fázi **Alpha / aktivní vývoj**.
 
 Automatické testy ověřují:
 
