@@ -770,7 +770,7 @@ function Refresh-Drives {
             Number=$d.Number
             Name=$d.FriendlyName
             Size=[UInt64]$d.Size
-            Identity=(if ($d.UniqueId) { [string]$d.UniqueId } elseif ($d.SerialNumber) { [string]$d.SerialNumber } else { "" })
+            Identity=$(if ($d.UniqueId) { [string]$d.UniqueId } elseif ($d.SerialNumber) { [string]$d.SerialNumber } else { "" })
             Display=("Disk {0} · {1} · {2} · {3}" -f $d.Number,$d.FriendlyName,(Size-Text $d.Size),$d.BusType)
         }
         [void]$disk.Items.Add($o)
