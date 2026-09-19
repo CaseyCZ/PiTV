@@ -24,6 +24,12 @@ if (-not (Is-Admin)) {
 function Get-ImagerPath {
     $pf86 = [Environment]::GetFolderPath("ProgramFilesX86")
     $paths = @(
+        # Raspberry Pi Imager 2.x
+        (Join-Path $env:ProgramFiles "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
+        (Join-Path $pf86 "Raspberry Pi Ltd\Imager\rpi-imager.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Raspberry Pi Ltd\Imager\rpi-imager.exe"),
+
+        # Older Raspberry Pi Imager layouts
         (Join-Path $env:ProgramFiles "Raspberry Pi Imager\rpi-imager.exe"),
         (Join-Path $pf86 "Raspberry Pi Imager\rpi-imager.exe"),
         (Join-Path $env:LOCALAPPDATA "Programs\Raspberry Pi Imager\rpi-imager.exe")
@@ -40,33 +46,66 @@ function Ensure-Imager {
     $path = Get-ImagerPath
     if ($path) { return $path }
 
+    $wingetExit = $null
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if (-not $winget) {
-        [Windows.Forms.MessageBox]::Show(
-            "Raspberry Pi Imager není nainstalovaný. Otevřu oficiální stránku pro instalaci.",
-            "PiTV SD Installer",
-            [Windows.Forms.MessageBoxButtons]::OK,
-            [Windows.Forms.MessageBoxIcon]::Information
-        ) | Out-Null
-        Start-Process "https://www.raspberrypi.com/software/"
-        throw "Nainstaluj Raspberry Pi Imager a spusť PiTV SD Installer znovu."
+    if ($winget) {
+        try {
+            Log "Raspberry Pi Imager nebyl nalezen. Zkouším instalaci přes winget..."
+            $p = Start-Process -FilePath $winget.Source -ArgumentList @(
+                "install",
+                "--id","RaspberryPiFoundation.RaspberryPiImager",
+                "-e",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+                "--silent"
+            ) -Wait -PassThru
+            $wingetExit = $p.ExitCode
+            $path = Get-ImagerPath
+            if ($path) { return $path }
+            Log ("winget nedokončil použitelnou instalaci (kód " + $p.ExitCode + ").")
+        }
+        catch {
+            Log ("winget instalace selhala: " + $_.Exception.Message)
+        }
     }
 
-    $p = Start-Process -FilePath $winget.Source -ArgumentList @(
-        "install",
-        "--id","RaspberryPiFoundation.RaspberryPiImager",
-        "-e",
-        "--accept-package-agreements",
-        "--accept-source-agreements",
-        "--silent"
-    ) -Wait -PassThru
+    $installer = Join-Path $env:TEMP ("rpi-imager-" + [guid]::NewGuid().ToString("N") + ".exe")
+    try {
+        Log "Zkouším přímou instalaci z oficiálního Raspberry Pi serveru..."
+        Invoke-WebRequest -UseBasicParsing -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
 
-    if ($p.ExitCode -ne 0) { throw "Automatická instalace Raspberry Pi Imageru selhala." }
-    $path = Get-ImagerPath
-    if (-not $path) { throw "Raspberry Pi Imager byl nainstalován, ale jeho program nebyl nalezen." }
-    return $path
+        if (-not (Test-Path $installer) -or (Get-Item $installer).Length -lt 1MB) {
+            throw "Stažený instalátor Raspberry Pi Imageru není platný."
+        }
+
+        $p = Start-Process -FilePath $installer -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/SP-"
+        ) -Wait -PassThru
+
+        if ($p.ExitCode -ne 0) {
+            throw ("Oficiální instalátor skončil s kódem " + $p.ExitCode + ".")
+        }
+
+        Start-Sleep -Milliseconds 500
+        $path = Get-ImagerPath
+        if ($path) { return $path }
+
+        throw "Raspberry Pi Imager se nainstaloval, ale rpi-imager.exe nebyl nalezen."
+    }
+    catch {
+        $detail = $_.Exception.Message
+        if ($null -ne $wingetExit) {
+            $detail += " Winget kód: $wingetExit."
+        }
+        throw ("Automatická instalace Raspberry Pi Imageru selhala. " + $detail)
+    }
+    finally {
+        Remove-Item $installer -Force -ErrorAction SilentlyContinue
+    }
 }
-
 function Get-SafeDisks {
     $protected = @()
     try {
@@ -656,7 +695,7 @@ $create.Add_Click({
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.4 · Windows"
+    Log "PiTV SD Installer v0.5 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Refresh-Drives
     [void](Load-WifiFromWindows)
