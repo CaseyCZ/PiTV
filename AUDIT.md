@@ -68,7 +68,7 @@ Tyto body jsou poslední část před označením Raspberry Pi 4 build jako hard
 - aktivní PiTV repo: `CaseyCZ/PiTV` / `Master`,
 - žádné nalezené hardcoded tokeny, privátní klíče ani credentials,
 - CI workflow používají minimální `contents: read` oprávnění a concurrency,
-- README profilu CZ/EN odkazuje na aktuální PiTV 1.3 větev.
+- README profilu CZ/EN odkazuje na samostatný repozitář `CaseyCZ/PiTV`.
 
 ## Kontrola externích Store zdrojů
 
