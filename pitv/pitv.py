@@ -401,14 +401,30 @@ def build_gui_env():
     env["PULSE_RUNTIME_PATH"] = str(Path(runtime) / "pulse")
 
     display = env.get("WAYLAND_DISPLAY", "")
-    display_path = Path(display) if display.startswith("/") else Path(runtime) / display
-    if not display or not display_path.is_socket():
+    runtime_path = Path(runtime)
+    if display.startswith("/"):
+        candidate = Path(display)
         try:
-            sockets = [p for p in sorted(Path(runtime).glob("wayland-*")) if p.is_socket()]
+            valid_display = candidate.is_socket() and candidate.parent.resolve() == runtime_path.resolve()
+        except Exception:
+            valid_display = False
+        if valid_display:
+            env["WAYLAND_DISPLAY"] = candidate.name
+        else:
+            env.pop("WAYLAND_DISPLAY", None)
+    else:
+        candidate = runtime_path / display if display else None
+        valid_display = bool(candidate and candidate.is_socket())
+
+    if not valid_display:
+        try:
+            sockets = [p for p in sorted(runtime_path.glob("wayland-*")) if p.is_socket()]
         except Exception:
             sockets = []
         if sockets:
             env["WAYLAND_DISPLAY"] = sockets[0].name
+        else:
+            env.pop("WAYLAND_DISPLAY", None)
 
     bus = Path(runtime) / "bus"
     if bus.is_socket():
