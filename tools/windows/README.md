@@ -4,44 +4,91 @@ Malé grafické rozhraní pro vytvoření PiTV microSD bez ruční instalace Ubu
 
 ## Spuštění
 
-1. stáhni z GitHub Releases jediný ZIP, rozbal ho a ponech si `Start-PiTV-SD-Installer.cmd`,
+1. stáhni z GitHub Releases ZIP **PiTV-SD-Installer-Windows.zip** a rozbal celý obsah,
 2. vlož microSD do čtečky,
 3. spusť **Start-PiTV-SD-Installer.cmd**,
 4. potvrď UAC,
 5. vyber Raspberry Pi — Pi 4 je doporučený,
-6. vyber microSD,
-7. zkontroluj nebo zadej Wi-Fi a klikni na **VYTVOŘIT PiTV SD**.
+6. nech doporučenou online Ubuntu image, nebo zvol **Vlastní image...**,
+7. vyber microSD,
+8. zkontroluj nebo zadej Wi-Fi a klikni na **VYTVOŘIT PiTV SD**.
 
 Pokud chceš kartu pouze vrátit do běžného stavu, použij **NAFORMÁTOVAT SD**. Installer smaže staré oddíly a vytvoří jeden exFAT oddíl `SDCARD` přes dostupnou kapacitu.
+
+## Jak funguje online image
+
+Installer načte aktuální oficiální katalog, najde Ubuntu Server 24.04 LTS ARM64 kompatibilní se zvoleným Raspberry Pi a image stáhne jen tehdy, když ještě není uložená v počítači.
+
+Stažené komprimované image se ukládají mimo instalační ZIP do:
+
+`%LOCALAPPDATA%\PiTV\images`
+
+Aktualizace PiTV Installeru tuto cache nemaže. Pokud je v katalogu stále stejná image a její velikost / SHA-256 souhlasí, další vytvoření SD přeskočí stahování a použije lokální kopii. Novější vydání image dostane nový soubor a stáhne se automaticky.
+
+Nedokončené soubory používají příponu `.part` a nepovažují se za platnou cache.
+
+## Vlastní image
+
+Tlačítko **Vlastní image...** je rychlejší režim pro uživatele, kteří už image mají staženou.
+
+Podporované vstupy:
+
+- `.img` — jde rovnou do kontroly a zápisu,
+- `.img.xz` / `.xz` — rozbalí se vestavěným Windows `tar/libarchive`,
+- `.zip` — musí obsahovat právě jeden `.img` soubor.
+
+Vlastní image musí být kompatibilní se zvoleným Raspberry Pi a s cloud-init, pokud má automaticky fungovat Wi-Fi a první instalace PiTV.
 
 ## Co udělá automaticky
 
 - nabídne pouze bezpečné výměnné USB / SD / MMC disky,
 - vyloučí Disk 0 a disk s Windows boot/system partition,
 - nabídne Pi 3 / 3B+, Pi 4 a Pi 5; Pi 4 je výchozí doporučený model,
-- najde Ubuntu Server 24.04 LTS ARM64 označený v aktuálním katalogu pro zvolený model,
-- použije oficiální Raspberry Pi Imager CLI,
-- při chybějícím Imageru se ho pokusí doinstalovat přes `winget`,
+- najde správnou Ubuntu Server 24.04 LTS ARM64 image v aktuálním oficiálním katalogu,
+- použije trvalou lokální cache a nestahuje stejnou ověřenou image znovu,
+- zkontroluje velikost a dostupný SHA-256 stažené image,
+- rozbalí image do dočasného raw `.img`,
+- zapíše image přímo na `\\.\PhysicalDriveN` vlastním PiTV raw writerem,
+- po zápisu přečte stejné bajty zpět z karty a porovná SHA-256,
+- znovu načte boot oddíl a vloží `user-data`, `network-config` a podle potřeby `meta-data`,
 - vyhledá dostupné Wi-Fi sítě a spojí je s uloženými Windows profily,
 - u známé sítě se pokusí načíst uložené heslo; SSID i heslo lze vždy zadat ručně,
-- heslo lze dočasně zobrazit pro kontrolu před zápisem,
-- připraví cloud-init,
 - vytvoří silné náhodné recovery heslo pro `pitvadmin`,
 - při prvním bootu stáhne `CaseyCZ/PiTV`, spustí `install.sh` a Raspberry restartuje,
 - po úspěšné první instalaci odstraní dočasné `user-data` a `network-config` z boot oddílu.
 
 Po vytvoření karty se recovery heslo zkopíruje do schránky.
 
+## Co už není potřeba
+
+PiTV SD Installer už **nepoužívá ani neinstaluje Raspberry Pi Imager**. Zápis provádí vlastní modul `PiTV-ImageEngine.ps1` přes Windows raw-disk API.
+
+Pro rozbalení XZ používá vestavěný `tar.exe` z moderních Windows 10/11.
+
 ## Bezpečnost
 
-Před zápisem Installer znovu zobrazí číslo disku, model a kapacitu vybrané karty. Přesto vždy zkontroluj, že je vybraná správná microSD — cílový disk bude kompletně přepsán.
+Před destruktivní operací Installer znovu ověří číslo disku, model, kapacitu a dostupnou identitu cílové karty. Systémový disk a boot disk Windows se nenabízejí.
 
-Samotný zápis image nedělá vlastní raw-disk kód. Používá oficiální Raspberry Pi Imager.
+Přesto vždy zkontroluj, že je vybraná správná microSD — cílový disk bude kompletně přepsán.
+
+## Diagnostika
+
+Okno zobrazuje aktuální fázi a progress. Kompletní log se ukládá do:
+
+`%LOCALAPPDATA%\PiTV\SD-Installer\logs`
+
+Při chybě se zapisuje typ výjimky, zpráva, HResult, PowerShell error ID, kategorie, stack trace, řádek a příkaz. Tlačítko **ODESLAT CHYBU** připraví zkrácený report a před odesláním skryje nalezená SSID.
 
 ## Stav
 
-Aktuálně jde o **v0.14 alpha**. PowerShell syntaxe, živý Ubuntu katalog pro Pi 3/4/5, launcher a aktuální Raspberry Pi Imager CLI jsou kontrolované GitHub Actions na Windows runneru.
+Aktuálně jde o **v0.15 alpha**.
 
-Celý fyzický proces — skutečná microSD, první boot, Wi-Fi a automatická instalace na Raspberry Pi 4 — ještě před veřejným releasem ověříme na reálném hardware.
+GitHub Actions na Windows kontrolují:
 
-Později lze Windows variantu zabalit také jako malé `.exe`, aby uživatel nemusel vůbec vidět PowerShell.
+- PowerShell syntaxi hlavního installeru i image enginu,
+- živý Ubuntu katalog pro Pi 3 / 4 / 5,
+- že vestavěný Windows `tar/libarchive` umí byte-perfect rozbalit raw XZ stream,
+- že aplikace neobsahuje starou závislost na Raspberry Pi Imageru,
+- že release ZIP obsahuje nový zapisovací engine.
+
+Skutečný zápis na fyzickou microSD a první boot je dál potřeba ověřovat na reálném hardware.
