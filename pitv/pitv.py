@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.3"
+VERSION = "1.4.5"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -560,6 +560,7 @@ class CECReader(threading.Thread):
         self.device = None
         self.last_key = None
         self.last_key_at = 0.0
+        self.key_released = True
 
     def _devices(self):
         return sorted(Path("/dev").glob("cec*"))
@@ -611,9 +612,14 @@ class CECReader(threading.Thread):
         if mapped is None:
             return
         now = time.monotonic()
-        if mapped == self.last_key and (now - self.last_key_at) < 0.12:
-            return
+        # A short TV remote press must produce exactly one UI step. Some TVs
+        # repeat USER_CONTROL_PRESSED aggressively; accept a held-key repeat
+        # only after a deliberate delay.
+        if mapped == self.last_key and not self.key_released:
+            if (now - self.last_key_at) < 0.45:
+                return
         self.last_key, self.last_key_at = mapped, now
+        self.key_released = False
         self.event_queue.put(mapped)
 
     def run(self):
@@ -633,11 +639,17 @@ class CECReader(threading.Thread):
                 timeout=5, check=False,
             )
             self.proc = subprocess.Popen(
-                ["cec-ctl", "-d", str(self.device), "--monitor"],
+                ["sudo", "-n", "/usr/bin/cec-ctl", "-d", str(self.device), "--monitor"],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1,
             )
             for line in self.proc.stdout:
+                if "USER_CONTROL_RELEASED" in line.upper():
+                    self.key_released = True
+                    self.last_key = None
+                    continue
+                if "USER_CONTROL_PRESSED" not in line.upper():
+                    continue
                 m = re.search(r"ui-cmd:\\s*([^\\(\\r\\n]+)", line, re.I)
                 if m:
                     self._emit(m.group(1))
@@ -722,6 +734,11 @@ class PiTV:
 
         self.toast = ""
         self.toast_until = 0.0
+        # Persistent global activity indicator for long-running TV operations.
+        self.operation_text = ""
+        self.operation_progress = None
+        self.operation_error = False
+        self.operation_until = 0.0
 
         # 24/7 TV idle state. PiTV itself keeps running.
         self.last_activity = time.monotonic()
@@ -1015,6 +1032,52 @@ class PiTV:
         self.text(title, rect.x+pad, rect.y+int(rect.h*.57), rect.h*.118, self.t["text"], True)
         if subtitle:
             self.text(subtitle, rect.x+pad, rect.y+int(rect.h*.76), rect.h*.073, self.t["muted"])
+
+    def set_operation(self, text, progress=None, error=False):
+        self.operation_text = str(text)
+        self.operation_progress = None if progress is None else max(0, min(100, int(progress)))
+        self.operation_error = bool(error)
+        self.operation_until = 0.0
+
+    def finish_operation(self, text="Hotovo", ok=True, seconds=3.0):
+        self.operation_text = ("✓ " if ok else "! ") + str(text)
+        self.operation_progress = 100 if ok else None
+        self.operation_error = not ok
+        self.operation_until = time.monotonic() + seconds
+
+    def clear_operation_if_due(self):
+        if self.operation_until and time.monotonic() >= self.operation_until:
+            self.operation_text = ""
+            self.operation_progress = None
+            self.operation_error = False
+            self.operation_until = 0.0
+
+    def draw_operation(self):
+        self.clear_operation_if_due()
+        if not self.operation_text:
+            return
+        f = self.font(self.h*.017, True)
+        suffix = "" if self.operation_progress is None else f"  {self.operation_progress}%"
+        surf = f.render(self.operation_text + suffix, True,
+                        self.t["bad"] if self.operation_error else self.t["text"])
+        w = max(int(self.w*.19), surf.get_width()+54)
+        h = int(self.h*.062)
+        r = pygame.Rect(self.w-w-int(self.w*.025), int(self.h*.025), w, h)
+        pygame.draw.rect(self.screen, self.t["panel2"], r, border_radius=h//2)
+        pygame.draw.rect(self.screen, self.t["bad"] if self.operation_error else self.t["accent"],
+                         r, 2, border_radius=h//2)
+        if self.operation_progress is None:
+            # Indeterminate spinner.
+            angle = (time.monotonic()*300) % 360
+            center = (r.x+22, r.centery)
+            pygame.draw.arc(self.screen, self.t["accent"],
+                            pygame.Rect(center[0]-9, center[1]-9, 18, 18),
+                            angle*3.14159/180, (angle+250)*3.14159/180, 3)
+        else:
+            bw = int((r.w-20) * self.operation_progress / 100)
+            pygame.draw.rect(self.screen, self.t["accent"],
+                             pygame.Rect(r.x+10, r.bottom-7, bw, 3), border_radius=2)
+        self.screen.blit(surf, (r.x+42, r.y+(r.h-surf.get_height())//2-1))
 
     def show_toast(self, message, seconds=2.4):
         self.toast = str(message)
@@ -1847,12 +1910,27 @@ class PiTV:
 
         state = self.store_states.get(store_id)
         if state == "installed":
-            self.show_toast(f"{item.get('name','Aplikace')} už je nainstalovaná")
+            # Installed Store entries are actions, not dead-end status cards.
+            installer = item.get("installer", {})
+            itype = installer.get("type")
+            if itype == "flatpak":
+                self.launch_linux({"name": item.get("name","Aplikace"), "command": f"flatpak run {installer.get('app_id','')}"})
+                return
+            app = next((a for a in self.apps if a.get("name","").lower() == item.get("name","").lower()), None)
+            if app:
+                self.launch(app)
+                return
+            package = installer.get("package") or installer.get("expected_package")
+            if package:
+                self.launch_apk({"name": item.get("name","Aplikace"), "kind":"apk", "package":package, "apk_path":""})
+                return
+            self.show_toast(f"{item.get('name','Aplikace')} je nainstalovaná")
             return
 
         installer = item.get("installer", {})
         install_type = installer.get("type")
         self.store_busy_id = store_id
+        self.set_operation(f"Instaluji {item.get('name','aplikaci')}…")
         self.show_toast(f"Instaluji {item.get('name','aplikaci')}…", 4)
 
         def finish(message, ok=True):
@@ -1862,7 +1940,12 @@ class PiTV:
                 self.store_states[store_id] = store_state(item)
             except Exception:
                 self.store_states[store_id] = "installed" if ok else "available"
+            self.finish_operation(message, ok)
             self.show_toast(message, 5)
+
+        def progress(done, total):
+            if total:
+                self.set_operation(f"Stahuji {item.get('name','aplikaci')}…", done * 100 / total)
 
         def worker():
             try:
@@ -1880,13 +1963,16 @@ class PiTV:
 
                 if install_type in ("github_release_apk", "direct_apk"):
                     if not waydroid_available():
-                        finish("Waydroid není nainstalovaný — otevři Android / APK", False)
-                        return
+                        self.set_operation("Připravuji Android + Google Play…")
+                        ok, msg = run_privileged("waydroid-install", {}, 1800)
+                        if not ok:
+                            finish(msg, False)
+                            return
 
                     if install_type == "github_release_apk":
-                        path, version = download_github_apk(item)
+                        path, version = download_github_apk(item, progress=progress)
                     else:
-                        path, version = download_direct_apk(item)
+                        path, version = download_direct_apk(item, progress=progress)
 
                     meta = inspect_apk(path)
                     package = meta.get("package","")
@@ -1923,8 +2009,11 @@ class PiTV:
 
                 if install_type == "play_store":
                     if not waydroid_available():
-                        finish("Waydroid není nainstalovaný — otevři Android / APK", False)
-                        return
+                        self.set_operation("Připravuji Android + Google Play…")
+                        ok, msg = run_privileged("waydroid-install", {}, 1800)
+                        if not ok:
+                            finish(msg, False)
+                            return
                     package = installer.get("package","")
                     if not package:
                         finish("Store položka nemá package ID", False)
@@ -2109,11 +2198,13 @@ class PiTV:
             return
 
         self.updates_busy = True
+        self.set_operation("Instaluji Waydroid + Google Play…")
         self.show_toast("Instaluji Waydroid + Google Play…", 6)
 
         def worker():
             ok, msg = run_privileged("waydroid-install", {}, 1800)
             self.updates_busy = False
+            self.finish_operation(msg, ok)
             self.show_toast(msg, 7)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -2222,6 +2313,7 @@ class PiTV:
         if self.updates_busy:
             return
         self.updates_busy = True
+        self.set_operation("Aktualizuji PiTV z GitHubu…")
         self.show_toast("Aktualizuji PiTV z GitHubu…", 5)
 
         def worker():
@@ -2241,6 +2333,7 @@ class PiTV:
         if self.updates_busy:
             return
         self.updates_busy = True
+        self.set_operation("Aktualizuji Store katalog…")
         self.show_toast("Aktualizuji PiTV Store katalog…", 4)
 
         def worker():
@@ -2272,6 +2365,7 @@ class PiTV:
             return
 
         self.updates_busy = True
+        self.set_operation("Aktualizuji Store aplikace…")
         self.show_toast("Aktualizuji Store aplikace…", 4)
 
         def worker():
@@ -2286,6 +2380,7 @@ class PiTV:
         if self.updates_busy:
             return
         self.updates_busy = True
+        self.set_operation("Aktualizuji Ubuntu…")
         self.show_toast("Aktualizuji Ubuntu balíčky…", 5)
 
         def worker():
@@ -2376,6 +2471,8 @@ class PiTV:
             self.screen.blit(surf, (rect.x+pad_x, rect.y+pad_y))
         elif self.toast:
             self.toast = ""
+
+        self.draw_operation()
 
         if self.keyboard_active:
             self.draw_keyboard()
