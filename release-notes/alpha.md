@@ -13,7 +13,7 @@
 Aktuální průběžná testovací verze PiTV. **Pi 4 je hlavní a doporučený cíl.**
 
 ### Aktuálně
-- PiTV SD Installer pro Windows v0.21
+- PiTV SD Installer pro Windows v0.28
 - výběr Raspberry Pi 3 / 3B+, Pi 4 nebo Pi 5
 - Pi 3 a Pi 5 jsou zatím experimentální Alpha cíle
 - automatické vyhledání Wi-Fi + načtení uloženého hesla
@@ -41,4 +41,5 @@ Stáhni **PiTV-SD-Installer-Windows.zip**, rozbal **celý ZIP** a spusť `Start-
 - ověření zápisu nyní čte přes stejný otevřený PhysicalDrive handle; tím se vyhne okamžité chybě některých USB/SD čteček po dokončení raw zápisu
 
 - v0.24: pro výměnná média se fallback už nesnaží svazky dismountovat; pouze je zamkne a drží PhysicalDrive handle otevřený přes zápis i ověření, aby USB/SD čtečky nespadly do stavu „Zařízení není připraveno“
+- v0.28: po raw zápisu installer čeká na stabilní návrat boot oddílu, při transientní chybě provede automatický `diskpart rescan` + až 3 finalize pokusy, cloud-init zapisuje s `Flush(true)` a read-back SHA-256; ruční OPRAVIT už nemá být nutný po běžném zápisu
 - ODESLAT CHYBU nyní předvyplní do GitHub issue krátkou diagnostiku; celý report zůstává zároveň ve schránce a lokálním souboru
