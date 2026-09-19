@@ -443,7 +443,7 @@ function Install-PiTVCloudInitToBootPartition($d,$cloud) {
         throw "Boot oddílu se nepodařilo přiřadit písmeno jednotky."
     }
 
-    $root = [string]$bootPart.DriveLetter + ":\"
+    $root = ([string]$bootPart.DriveLetter) + ":" + [IO.Path]::DirectorySeparatorChar
     Copy-Item -LiteralPath $cloud.UserData -Destination (Join-Path $root "user-data") -Force
     Copy-Item -LiteralPath $cloud.Network -Destination (Join-Path $root "network-config") -Force
 
