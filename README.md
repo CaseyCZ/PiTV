@@ -8,65 +8,85 @@
 </p>
 
 <p align="center">
-  Lehký TV launcher pro <strong>Raspberry Pi 4</strong>, který kombinuje vlastní TV rozhraní, aplikace a 24/7 serverové služby na jednom zařízení.
+  Lehký TV launcher pro <strong>Raspberry Pi 4</strong>, který spojuje vlastní TV rozhraní, aplikace a 24/7 serverové služby na jednom zařízení.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/VERZE-v1.3.0-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV verze 1.3.0" />
+  <img src="https://img.shields.io/badge/STAV-Beta-FDE68A?style=for-the-badge&labelColor=92400E" alt="PiTV Beta" />
 </p>
 
 <p align="center">
-  <a href="INSTALL.md"><img src="https://img.shields.io/badge/PiTV-Instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Instalace PiTV" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
+  <a href="INSTALL.md"><img src="https://img.shields.io/badge/N%C3%A1vod-Ru%C4%8Dn%C3%AD%20instalace-172033?style=for-the-badge&labelColor=111827&logo=ubuntu&logoColor=white" alt="Ruční instalace" /></a>
+  <a href="https://github.com/CaseyCZ/PiTV/issues"><img src="https://img.shields.io/badge/GitHub-Nahl%C3%A1sit%20probl%C3%A9m-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="Nahlásit problém" /></a>
 </p>
 
 ## O projektu
 
-**PiTV** je vlastní TV prostředí pro Raspberry Pi 4 postavené nad **Ubuntu Server 24.04 ARM64**. Raspberry zůstává plnohodnotný 24/7 server, zatímco HDMI výstup nabízí přehledné rozhraní ovládané televizním ovladačem.
+**PiTV** je vlastní TV prostředí pro Raspberry Pi 4 postavené nad **Ubuntu Server 24.04 ARM64**.
 
-Cílem je spojit TV aplikace, Android aplikace, systémová nastavení a serverové služby do jednoho rozhraní bez nutnosti instalovat plný desktop typu GNOME.
+Raspberry Pi zůstává plnohodnotný 24/7 server, zatímco HDMI výstup nabízí samostatné TV rozhraní ovládané klasickým televizním ovladačem přes **HDMI-CEC**.
+
+PiTV nepoužívá plný desktop typu GNOME. Grafická část běží nad lehkým **labwc / Wayland**, takže stejné Raspberry může současně provozovat například Homebridge, Tailscale, Docker nebo další služby na pozadí.
 
 ## Hlavní funkce
 
-- 📺 vlastní fullscreen TV launcher nad lehkým **labwc / Wayland**
-- 🎨 témata **PiTV Apple Dark** a **PiTV Apple Light**
-- 🎮 ovládání přes **HDMI-CEC** — šipky, OK, Back, Home, power, volume a mute
-- 💤 vlastní spořič s hodinami, černou obrazovkou a volitelným CEC standby
-- 🔊 HDMI audio pro Raspberry Pi 4
-- 📡 Wi-Fi a síťové nastavení přímo z TV
+- 📺 vlastní fullscreen TV launcher
+- 🎨 **PiTV Apple Dark** a **PiTV Apple Light**
+- 🎮 ovládání přes **HDMI-CEC**
+- 🔊 HDMI audio
+- 💤 spořič obrazovky, black screen a volitelný CEC standby
+- 📡 Wi-Fi a základní síťová správa přímo z TV
 - 📦 **PiTV Store** pro TV aplikace
-- 🖥️ **Server Store** pro služby běžící 24/7 na pozadí
+- 🖥️ **Server Store** pro 24/7 služby
 - 🤖 **Waydroid + Google Play** pro Android TV aplikace
-- ⬆️ aktualizace PiTV, katalogů, Linux aplikací a Ubuntu přímo z TV
-- 🌡️ systémový přehled — teplota, RAM, disk, uptime, kernel, síť a Tailscale
+- ⬆️ aktualizace PiTV, katalogů, aplikací a Ubuntu
+- 🌡️ systémové informace — teplota, RAM, disk, uptime, kernel, síť a Tailscale
 - 🔄 self-update se zachováním uživatelského nastavení
-
-## PiTV SD Installer
-
-<p>
-  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Automatick%C3%A1%20microSD-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
-</p>
-
-Nejjednodušší instalace PiTV je přes **PiTV SD Installer**. Připojíš microSD kartu a nástroj připraví **Ubuntu Server 24.04 ARM64 + Wi-Fi + automatickou první instalaci PiTV**.
-
-- **Windows:** grafické okno — vybereš kartu a klikneš na **VYTVOŘIT PiTV SD**
-- **Linux / macOS:** jeden shell skript v terminálu
-- samotný zápis image provádí oficiální **Raspberry Pi Imager**
-- systémový/boot disk je z výběru vyloučen a před smazáním je vždy vyžadováno potvrzení
-- po prvním zapnutí Raspberry se PiTV samo stáhne, nainstaluje a Raspberry se restartuje
-
-Podrobný postup je v **[FLASHER.md](FLASHER.md)**.
-
-> PiTV SD Installer je zatím **beta**. Syntaxe a bezpečnostní kontroly jsou automaticky testované, ale celý zápis microSD + první boot ještě ověříme na skutečném Raspberry Pi 4.
 
 ## Instalace
 
-<p>
-  <a href="INSTALL.md"><img src="https://img.shields.io/badge/N%C3%A1vod-Kompletn%C3%AD%20instalace-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="Kompletní návod instalace PiTV" /></a>
-</p>
+### PiTV SD Installer — doporučeno
 
-Kompletní postup od prázdné microSD přes Raspberry Pi Imager, Wi-Fi a SSH až po první spuštění PiTV je v **[INSTALL.md](INSTALL.md)**.
+Nejjednodušší způsob je připravit microSD přímo z počítače.
 
-Rychlá instalace na připraveném **Raspberry Pi 4 + Ubuntu Server 24.04 ARM64**:
+| Platforma | Postup |
+|---|---|
+| **Windows** | spusť `tools/windows/Start-PiTV-SD-Installer.cmd`, vyber kartu a klikni **VYTVOŘIT PiTV SD** |
+| **Linux** | spusť `tools/pitv-flasher.sh` |
+| **macOS** | spusť `tools/pitv-flasher.sh` |
+
+Installer připraví:
+
+- Ubuntu Server 24.04 ARM64
+- Wi-Fi
+- první boot
+- automatické stažení PiTV
+- automatickou instalaci
+- restart přímo do PiTV
+
+Podrobnosti: **[PiTV SD Installer](FLASHER.md)**
+
+### Formátování SD karty
+
+Windows GUI obsahuje také **NAFORMÁTOVAT SD**. Kartu kompletně vyčistí a vytvoří jeden exFAT oddíl `SDCARD` přes celou dostupnou kapacitu.
+
+Windows PowerShell:
+
+```powershell
+.\tools\pitv-flasher.ps1 -FormatOnly
+```
+
+Linux / macOS:
+
+```bash
+./tools/pitv-flasher.sh --format-only
+```
+
+### Ruční instalace
+
+Pokud už běží **Ubuntu Server 24.04 ARM64**:
 
 ```bash
 git clone https://github.com/CaseyCZ/PiTV.git
@@ -75,61 +95,54 @@ sudo ./install.sh
 sudo reboot
 ```
 
-Po restartu se PiTV spustí automaticky:
-
-```text
-Ubuntu Server
-└── tty1 autologin
-    └── labwc / Wayland
-        └── PiTV
-```
-
-SSH a serverové služby zůstávají dostupné i při vypnuté nebo uspáné TV.
+Kompletní postup od prázdné microSD je v **[INSTALL.md](INSTALL.md)**.
 
 ## PiTV Store
 
 Aplikace se instalují přímo z TV přes **Nastavení → Aplikace → PiTV Store**.
 
-- 📺 **Kodi** — Ubuntu APT
-- ▶️ **SmartTube** — oficiální ARM64 GitHub release
-- 🎬 **Stremio** — oficiální Android TV ARM64 APK
-- ▶️ **YouTube** — Google Play ve Waydroidu
-- 🎵 **Spotify** — Google Play ve Waydroidu
-- 🎞️ **Plex** — Google Play ve Waydroidu
+| Aplikace | Způsob instalace |
+|---|---|
+| Kodi | Ubuntu APT |
+| SmartTube | ARM64 GitHub release |
+| Stremio | Android TV ARM64 APK |
+| YouTube | Google Play / Waydroid |
+| Spotify | Google Play / Waydroid |
+| Plex | Google Play / Waydroid |
 
-PiTV u přímých APK kontroluje očekávané package ID před instalací.
+U přímých APK PiTV kontroluje očekávané package ID před instalací.
 
 ## Server Store
 
-**Nastavení → Server Store** umožňuje instalovat služby, které běží nezávisle na TV rozhraní.
+**Nastavení → Server Store**
 
-- 🏠 **Homebridge** — oficiální repository, web UI na portu 8581
-- 🔐 **Tailscale** — VPN / vzdálený přístup
-- 🐳 **Docker Engine** — oficiální Docker repository
-- 📲 **ATVLoadly** — Docker container, web UI na portu 5533
+| Služba | Použití |
+|---|---|
+| Homebridge | HomeKit bridge + web UI |
+| Tailscale | vzdálený přístup / VPN |
+| Docker Engine | kontejnery |
+| ATVLoadly | Apple TV sideload server |
 
-Serverové služby zůstávají spuštěné i při vypnuté TV nebo aktivním spořiči PiTV.
+Serverové služby běží dál i při vypnuté nebo uspáné TV.
 
 ## Android / APK
 
-Waydroid je volitelný — PiTV funguje i bez něj jako čistý Linux TV launcher.
+Waydroid je volitelný. PiTV funguje i bez Androidu jako čistý Linux TV launcher.
 
-Instalace přímo z TV:
+Instalace:
 
 **Nastavení → Android / APK → Waydroid + Google Play → Instalovat**
 
-Vlastní APK lze vložit do:
+Vlastní APK:
 
 ```text
 /var/lib/pitv/apks/
 ~/PiTV/APKs/
 ```
 
-PiTV přes `aapt` načte package name, název aplikace, launchable activity, SDK a TV / Leanback informace.
-
 ## Ovládání
 
-TV ovladač komunikuje s PiTV přes HDMI-CEC.
+TV ovladač komunikuje s Raspberry Pi přes HDMI-CEC.
 
 | Tlačítko | Akce |
 |---|---|
@@ -142,47 +155,76 @@ TV ovladač komunikuje s PiTV přes HDMI-CEC.
 
 PiTV používá jeden persistentní CEC klient pro příjem tlačítek i odesílání příkazů.
 
-## Vzhled
+## Požadavky
 
-PiTV používá stejný layout ve všech hlavních sekcích — Home, Store, Server Store, Nastavení, Aktualizace, Android / APK i HDMI / CEC.
+Doporučená sestava:
 
-- **PiTV Apple Dark** — tmavé glass panely, modrý focus a hero karty
-- **PiTV Apple Light** — světlé čisté rozhraní se stejným ovládáním
+- Raspberry Pi 4
+- microSD 32 GB nebo větší
+- Ubuntu Server 24.04 LTS ARM64
+- micro-HDMI → HDMI
+- kvalitní USB-C napájení
+- Wi-Fi nebo Ethernet
+- TV s HDMI-CEC
 
-Přepnutí vzhledu: **Nastavení → Vzhled**.
+## Stav projektu
 
-## Aktualizace
+PiTV je aktuálně ve fázi **beta**.
 
-V **Nastavení → Aktualizace** lze:
+Automatické testy ověřují:
 
-- zkontrolovat novou verzi PiTV
-- aktualizovat PiTV
-- aktualizovat PiTV Store a Server Store katalog
-- aktualizovat Linux Store aplikace
-- aktualizovat Ubuntu balíčky
-- restartovat pouze PiTV UI
+- Python a shell syntax
+- Store JSON katalogy
+- render všech obrazovek
+- PiTV Apple Dark / Light
+- Ubuntu 24.04 x64 i ARM64 install / start / update / uninstall
+- Kodi Store install
+- SmartTube + Stremio APK zdroje
+- Homebridge, Tailscale, Docker a ATVLoadly
 
-Uživatelské nastavení v `/home/pitv/.config/pitv` zůstává při self-update zachované.
+Na fyzickém Raspberry Pi 4 ještě ověřujeme zejména:
 
-## Testování
+- HDMI/KMS výstup
+- konkrétní TV přes HDMI-CEC
+- HDMI audio
+- Kodi hardware decode
+- Waydroid GPU / kernel kompatibilitu
 
-PiTV má dvě úrovně GitHub Actions testů.
+Podrobnosti: **[AUDIT.md](AUDIT.md)**
 
-**PiTV Check** automaticky kontroluje Python, shell, JSON katalogy, oba motivy a render všech obrazovek.
+## Zásluhy
 
-**PiTV Online Smoke** ověřuje kompletní instalaci a spuštění na Ubuntu 24.04 **x64 i ARM64**, včetně Kodi, self-update, uninstall, Homebridge, Tailscale, Docker, ATVLoadly a Android APK zdrojů.
+PiTV stojí na práci několika open-source projektů a služeb:
 
-Poslední kompletní online test nového samostatného repozitáře skončil **PASS**.
+- **Raspberry Pi** — hardware a Raspberry Pi Imager
+- **Ubuntu** — serverový základ
+- **labwc / Wayland** — lehké grafické prostředí
+- **Pygame** — PiTV UI runtime
+- **libCEC / cec-utils** — HDMI-CEC komunikace
+- **Waydroid** — Android prostředí
+- **Kodi** — Linux media center
+- **Homebridge** — HomeKit bridge
+- **Tailscale** — mesh VPN
+- **Docker** — kontejnery
+- **SmartTube, Stremio, Plex, Spotify a YouTube** — aplikace dostupné přes PiTV Store / Android
 
-> Fyzický Raspberry Pi 4 je stále potřeba pro finální ověření HDMI/KMS, konkrétní TV přes CEC, HDMI audio, hardwarovou akceleraci Kodi a Waydroid GPU/kernel kompatibilitu.
+PiTV tyto projekty nevlastní a není jejich oficiální součástí. Jejich názvy a ochranné známky patří příslušným vlastníkům.
 
 ## Odkazy
 
 <p>
-  <a href="AUDIT.md"><img src="https://img.shields.io/badge/PiTV-Audit-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="PiTV Audit" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/PiTV-Changelog-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="PiTV Changelog" /></a>
-  <a href="SECURITY.md"><img src="https://img.shields.io/badge/PiTV-Security-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="PiTV Security" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV-SD%20Installer-172033?style=for-the-badge&labelColor=111827" alt="PiTV SD Installer" /></a>
+  <a href="INSTALL.md"><img src="https://img.shields.io/badge/PiTV-Install%20Guide-172033?style=for-the-badge&labelColor=111827" alt="Install Guide" /></a>
+  <a href="AUDIT.md"><img src="https://img.shields.io/badge/PiTV-Audit-172033?style=for-the-badge&labelColor=111827" alt="PiTV Audit" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/PiTV-Changelog-172033?style=for-the-badge&labelColor=111827" alt="PiTV Changelog" /></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/PiTV-Security-172033?style=for-the-badge&labelColor=111827" alt="PiTV Security" /></a>
 </p>
+
+## Licence
+
+PiTV je vydané pod licencí **MIT**. Podrobnosti jsou v **[LICENSE](LICENSE)**.
+
+Použité projekty a aplikace se řídí vlastními licencemi a podmínkami.
 
 ## Podpora
 
