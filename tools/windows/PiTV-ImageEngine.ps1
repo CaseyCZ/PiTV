@@ -214,8 +214,9 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
             Log "Rozbaluji XZ image pomocí vestavěného Windows tar/libarchive..."
             Set-InstallerProgress "Rozbaluji image" 0
 
-            $quoted = '"' + $source.Replace('"','\"') + '"'
-            $p = Start-Process -FilePath $tar.Source -ArgumentList ("-xOf " + $quoted) -PassThru -WindowStyle Hidden -RedirectStandardOutput $raw -RedirectStandardError $err
+            $dq = [char]34
+            $tarArgs = "-xOf " + $dq + $source + $dq
+            $p = Start-Process -FilePath $tar.Source -ArgumentList $tarArgs -PassThru -WindowStyle Hidden -RedirectStandardOutput $raw -RedirectStandardError $err
 
             while (-not $p.WaitForExit(250)) {
                 [Windows.Forms.Application]::DoEvents()
