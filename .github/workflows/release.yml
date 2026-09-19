@@ -139,8 +139,8 @@ jobs:
           if (-not ("PiTVNativeDisk" -as [type])) {
             throw "PiTVNativeDisk.cs did not compile."
           }
-          if (-not ([PiTVNativeDisk].GetMethod("LockAndDismount"))) {
-            throw "PiTVNativeDisk LockAndDismount helper is missing."
+          if (-not ([PiTVNativeDisk].GetMethod("LockVolume"))) {
+            throw "PiTVNativeDisk LockVolume helper is missing."
           }
           Write-Host "PiTVNativeDisk C# helper compiles"
 
@@ -214,7 +214,7 @@ jobs:
             "image_download_sha256",
             "Get-PiTVDeviceSha256",
             "PiTV-XZ.exe",
-            "LockAndDismount"
+            "LockVolume"
           )) {
             if ($engine -notmatch [regex]::Escape($required)) {
               throw "Image engine is missing contract item $required"
