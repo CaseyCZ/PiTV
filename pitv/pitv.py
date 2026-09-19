@@ -623,6 +623,7 @@ class CECReader(threading.Thread):
         self.last_key = None
         self.last_key_at = 0.0
         self.key_released = True
+        self._stop_event = threading.Event()
 
     def _devices(self):
         return sorted(Path("/dev").glob("cec*"))
@@ -646,7 +647,7 @@ class CECReader(threading.Thread):
         # f.f.f.f are not connected to a usable CEC topology.
         for dev in devices:
             info = self._device_info(dev)
-            m = re.search(r"Physical Address\\s*:\\s*([^\\s]+)", info, re.I)
+            m = re.search(r"Physical Address\s*:\s*([^\s]+)", info, re.I)
             if m and m.group(1).lower() not in ("0.0.0.0", "f.f.f.f"):
                 return dev
         return devices[0]
@@ -655,22 +656,9 @@ class CECReader(threading.Thread):
         return self.device is not None and self.proc is not None and self.proc.poll() is None
 
     def send(self, commands):
-        # Existing TV power/volume actions still use libCEC one-shot commands;
-        # input reception itself never depends on the legacy RPI backend.
-        return False, "CEC výstup není v kernel režimu zatím dostupný"
+        return cec_send(commands)
 
-    def _emit(self, name):
-        key = name.strip().lower().replace("_", " ").replace("-", " ")
-        aliases = {
-            "device root menu": "root menu",
-            "setup menu": "root menu",
-            "favorite menu": "root menu",
-            "media top menu": "top menu",
-            "device vendor specific": "home",
-            "previous channel": "back",
-        }
-        key = aliases.get(key, key)
-        mapped = CEC_MAP.get(key)
+    def _queue_mapped(self, mapped):
         if mapped is None:
             return
         now = time.monotonic()
@@ -684,45 +672,108 @@ class CECReader(threading.Thread):
         self.key_released = False
         self.event_queue.put(mapped)
 
+    def _emit(self, name):
+        key = re.sub(r"\s*\(.*$", "", name).strip().lower()
+        key = key.replace("_", " ").replace("-", " ")
+        aliases = {
+            "device root menu": "root menu",
+            "device setup menu": "root menu",
+            "setup menu": "root menu",
+            "favorite menu": "root menu",
+            "media top menu": "top menu",
+            "media context sensitive menu": "top menu",
+            "device vendor specific": "home",
+            "previous channel": "back",
+            "ok": "select",
+        }
+        self._queue_mapped(CEC_MAP.get(aliases.get(key, key)))
+
+    def _emit_code(self, code):
+        self._queue_mapped(CEC_CODE_MAP.get(code))
+
     def run(self):
         global _CEC_MANAGER
         if shutil.which("cec-ctl") is None:
             return
-        self.device = self._pick_device()
-        if self.device is None:
-            return
+
         _CEC_MANAGER = self
         try:
-            # Claim a Playback logical address (OSD name PiTV), then monitor
-            # Remote Control Pass Through messages addressed by the TV to PiTV.
-            subprocess.run(
-                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", str(self.device), "register"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=5, check=False,
-            )
-            self.proc = subprocess.Popen(
-                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", str(self.device), "monitor"],
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1,
-            )
-            for line in self.proc.stdout:
-                if "USER_CONTROL_RELEASED" in line.upper():
-                    self.key_released = True
-                    self.last_key = None
+            while not self._stop_event.is_set():
+                self.device = self._pick_device()
+                if self.device is None:
+                    self._stop_event.wait(1.0)
                     continue
-                if "USER_CONTROL_PRESSED" not in line.upper():
-                    continue
-                m = re.search(r"ui-cmd:\\s*([^\\(\\r\\n]+)", line, re.I)
-                if m:
-                    self._emit(m.group(1))
-        except Exception:
-            self.device = None
+
+                try:
+                    registered = subprocess.run(
+                        ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor",
+                         str(self.device), "register"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, timeout=5, check=False,
+                    )
+                    if registered.returncode != 0:
+                        self.device = None
+                        self._stop_event.wait(1.0)
+                        continue
+
+                    self.proc = subprocess.Popen(
+                        ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor",
+                         str(self.device), "monitor"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, bufsize=1,
+                    )
+
+                    for line in self.proc.stdout:
+                        if self._stop_event.is_set():
+                            break
+                        upper = line.upper()
+
+                        # Accept both cec-ctl's decoded text and raw CEC frames.
+                        if ("USER_CONTROL_RELEASED" in upper or
+                                re.search(r"(?:^|[\s>])[0-9A-Fa-f]{2}:45(?:\s|$)", line)):
+                            self.key_released = True
+                            self.last_key = None
+                            continue
+
+                        if "USER_CONTROL_PRESSED" in upper:
+                            m = re.search(r"ui-cmd:\s*([^\(\r\n]+)", line, re.I)
+                            if m:
+                                self._emit(m.group(1))
+                                continue
+
+                        raw = re.search(
+                            r"(?:^|[\s>])[0-9A-Fa-f]{2}:44:([0-9A-Fa-f]{2})(?:\s|$)",
+                            line,
+                        )
+                        if raw:
+                            self._emit_code(int(raw.group(1), 16))
+                except Exception:
+                    pass
+                finally:
+                    proc = self.proc
+                    self.proc = None
+                    if proc is not None and proc.poll() is None:
+                        try:
+                            proc.terminate()
+                            proc.wait(timeout=1)
+                        except Exception:
+                            try:
+                                proc.kill()
+                            except Exception:
+                                pass
+
+                # HDMI hotplug / CEC resets can terminate cec-ctl. Reconnect
+                # automatically instead of permanently losing the remote.
+                if not self._stop_event.is_set():
+                    self._stop_event.wait(0.75)
         finally:
+            self.device = None
             if _CEC_MANAGER is self:
                 _CEC_MANAGER = None
 
     def stop(self):
         global _CEC_MANAGER
+        self._stop_event.set()
         if _CEC_MANAGER is self:
             _CEC_MANAGER = None
         try:
