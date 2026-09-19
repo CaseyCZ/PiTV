@@ -1,5 +1,12 @@
 # PiTV Alpha
 
+### PiTV 1.4.20 · Odinstalace aplikací
+- Nastavení → Aplikace: šipka doprava otevře potvrzení pro bezpečné odinstalování vybrané aplikace
+- Android / APK: nalezené APK lze odinstalovat přímo z TV; PiTV odebere Waydroid package, spravovaný APK soubor i odpovídající Store receipt
+- nativní Linux Stremio lze odebrat jako system Flatpak; Kodi jako povolený APT Store balíček
+- ochrana brání odebrání systémových Android balíčků/GApps, ale dovolí běžné PiTV Google Play aplikace
+- legacy Android Stremio se podle package ID neplete s dnešním nativním Linux Stremio jen kvůli stejnému názvu
+
 ### Physical Pi 4 checkpoint · 2026-09-19
 - PiTV 1.4.19 je na fyzickém zařízení potvrzené; `pitv-session-run` a single-user TV session fungují
 - HDMI zvuk je potvrzený přes PipeWire/WirePlumber a Kodi HDMI sink
