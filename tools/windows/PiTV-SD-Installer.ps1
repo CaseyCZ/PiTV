@@ -488,7 +488,7 @@ $openLogs.Size = New-Object Drawing.Size(135,32)
 $form.Controls.Add($openLogs)
 
 $reportLog = New-Object Windows.Forms.Button
-$reportLog.Text = "Nahlásit problém"
+$reportLog.Text = "ODESLAT CHYBU"
 $reportLog.Location = New-Object Drawing.Point(316,526)
 $reportLog.Size = New-Object Drawing.Size(160,32)
 $form.Controls.Add($reportLog)
@@ -571,7 +571,7 @@ function Report-Problem {
         }
         $diag = $lines -join [Environment]::NewLine
 
-        $titleText = "[Alpha] PiTV SD Installer – chyba"
+        $titleText = "[Alpha] PiTV SD Installer – automatický error report"
         $bodyText = @"
 ### PiTV SD Installer diagnostika
 
@@ -583,7 +583,7 @@ Windows: $([Environment]::OSVersion.VersionString)
 $diag
 ```
 
-> Log byl před otevřením Issue automaticky zkrácen a vybrané SSID bylo skryto.
+> Automatický error report z PiTV SD Installeru. Log byl před odesláním zkrácen a vybrané SSID bylo skryto.
 "@
 
         $url = "https://github.com/CaseyCZ/PiTV/issues/new?title=" +
@@ -591,7 +591,7 @@ $diag
             "&body=" + [Uri]::EscapeDataString($bodyText)
 
         Start-Process $url
-        Log "Otevřen GitHub formulář s diagnostikou."
+        Log "Připraven error report. V GitHubu klikni už jen na Submit new issue."
     }
     catch {
         Log ("Příprava hlášení selhala: " + $_.Exception.Message)
