@@ -17,7 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Install-38BDF8?style=for-the-badge&labelColor=0284C7&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
+  <a href="https://github.com/CaseyCZ/PiTV/releases/latest"><img src="https://img.shields.io/badge/Download-Latest%20release-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Download latest PiTV release" /></a>
+  <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Guide-172033?style=for-the-badge&labelColor=111827&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
   <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/Guide-Manual%20install-172033?style=for-the-badge&labelColor=111827&logo=ubuntu&logoColor=white" alt="Manual installation" /></a>
   <a href="https://github.com/CaseyCZ/PiTV/issues"><img src="https://img.shields.io/badge/GitHub-Report%20issue-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="Report issue" /></a>
 </p>
@@ -44,6 +45,14 @@ PiTV does not require a full desktop such as GNOME. The graphical layer runs on 
 - ⬆️ PiTV, catalog, app and Ubuntu updates
 - 🌡️ system information — temperature, RAM, disk, uptime, kernel, network and Tailscale
 - 🔄 self-update while preserving user configuration
+
+## Download
+
+The easiest path is **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)**.
+
+On Windows download **`PiTV-SD-Installer-Windows-v1.3.0.zip`**, extract it and run **`Start-PiTV-SD-Installer.cmd`**. Linux and macOS can use the standalone **`pitv-flasher.sh`**; a console **`pitv-flasher.ps1`** is also provided for Windows.
+
+Every release also includes **`SHA256SUMS.txt`** for verifying installer downloads. GitHub automatically provides the complete source code as ZIP and TAR.GZ as well.
 
 ## Installation
 
