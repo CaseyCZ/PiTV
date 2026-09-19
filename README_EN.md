@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CaseyCZ/PiTV/releases/latest"><img src="https://img.shields.io/badge/Download-Latest%20release-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Download latest PiTV release" /></a>
+  <a href="https://github.com/CaseyCZ/PiTV/releases/tag/alpha"><img src="https://img.shields.io/badge/Download-Latest%20release-38BDF8?style=for-the-badge&labelColor=0284C7&logo=github&logoColor=white" alt="Download latest PiTV release" /></a>
   <a href="FLASHER.md"><img src="https://img.shields.io/badge/PiTV%20SD%20Installer-Guide-172033?style=for-the-badge&labelColor=111827&logo=raspberrypi&logoColor=white" alt="PiTV SD Installer" /></a>
   <a href="INSTALL_EN.md"><img src="https://img.shields.io/badge/Guide-Manual%20install-172033?style=for-the-badge&labelColor=111827&logo=ubuntu&logoColor=white" alt="Manual installation" /></a>
   <a href="https://github.com/CaseyCZ/PiTV/issues"><img src="https://img.shields.io/badge/GitHub-Report%20issue-172033?style=for-the-badge&labelColor=111827&logo=github&logoColor=white" alt="Report issue" /></a>
@@ -48,9 +48,9 @@ PiTV does not require a full desktop such as GNOME. The graphical layer runs on 
 
 ## Download
 
-The easiest path is **[GitHub Releases](https://github.com/CaseyCZ/PiTV/releases/latest)**.
+The current test build is always available from the single **[PiTV Alpha Release](https://github.com/CaseyCZ/PiTV/releases/tag/alpha)**.
 
-On Windows download the single installer package **`PiTV-SD-Installer-Windows-v1.3.3.zip`**, extract it and run **`Start-PiTV-SD-Installer.cmd`**. The launcher checks the latest GitHub Release on every start and runs the current installer.
+On Windows download the single installer package **`PiTV-SD-Installer-Windows.zip`**, extract it and run **`Start-PiTV-SD-Installer.cmd`**. The launcher checks the latest GitHub Release on every start and runs the current installer.
 
 Linux and macOS use `tools/pitv-flasher.sh` directly from the repository. GitHub automatically adds Source code ZIP/TAR.GZ to each Release.
 
