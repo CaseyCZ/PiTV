@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 
 project(PiTVXZ LANGUAGES C)
 
+if(MSVC)
+    # Keep PiTV-XZ self-contained; do not require the Visual C++ redistributable.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 include(FetchContent)
 
 # We only need the 0BSD liblzma decoder. Do not build the upstream CLI tools.
@@ -17,7 +22,8 @@ set(XZ_DOC OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     xz
     GIT_REPOSITORY https://github.com/tukaani-project/xz.git
-    GIT_TAG v5.8.3
+    # Commit behind the verified signed v5.8.3 tag.
+    GIT_TAG 4b73f2ec19a99ef465282fbce633e8deb33691b3
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(xz)
