@@ -2,6 +2,14 @@
 
 All notable PiTV changes are documented here.
 
+## 1.3.2 — 2026-09-19
+
+### Fixed / improved
+- Windows SD Installer discovers nearby Wi-Fi networks and saved profiles,
+- saved Wi-Fi passwords are loaded when Windows knows them,
+- added **Zobrazit heslo** before writing the SD card,
+- manual SSID/password entry remains available as fallback.
+
 ## 1.3.1 — 2026-09-19
 
 ### Fixed
