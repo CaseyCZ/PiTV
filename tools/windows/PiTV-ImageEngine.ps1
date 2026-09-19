@@ -274,7 +274,7 @@ function Prepare-PiTVRawImage([string]$source,[string]$expectedExtractSha="",[In
 function Initialize-PiTVNativeDisk {
     if ("PiTVNativeDisk" -as [type]) { return }
 
-    Add-Type -TypeDefinition @"
+    $source = @"
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -326,6 +326,7 @@ public static class PiTVNativeDisk
     }
 }
 "@
+    Add-Type -TypeDefinition $source
 }
 
 function Set-PiTVTargetDiskOffline($d) {
