@@ -1108,14 +1108,19 @@ $format.Add_Click({
 $create.Add_Click({
     $cloud = $null
     $prepared = $null
+
     try {
         if (-not $disk.SelectedItem) { throw "Vyber microSD kartu." }
+
         $d = $disk.SelectedItem
         $piName = Get-SelectedPiName
         $piTag = Get-SelectedPiTag
         $nl = [Environment]::NewLine
 
-        $warningText = $piName + $nl + "Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size) + " bude KOMPLETNĚ PŘEPSÁN." + $nl + $nl + "Pokračovat?"
+        $warningText = $piName + $nl +
+            "Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size) +
+            " bude KOMPLETNĚ PŘEPSÁN." + $nl + $nl + "Pokračovat?"
+
         $answer = [Windows.Forms.MessageBox]::Show(
             $warningText,
             "Vytvořit PiTV SD",
@@ -1141,11 +1146,12 @@ $create.Add_Click({
         $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
 
         $ssid = $wifiSsid.Text.Trim()
-        $password = $wifiPass.Text
+        $wifiPassword = $wifiPass.Text
+
         if ([string]::IsNullOrWhiteSpace($ssid)) {
             throw "Zadej název cílové Wi-Fi (SSID). Můžeš ho napsat ručně nebo použít tlačítko Vyhledat."
         }
-        if ([string]::IsNullOrWhiteSpace($password)) {
+        if ([string]::IsNullOrWhiteSpace($wifiPassword)) {
             throw "Zadej heslo cílové Wi-Fi."
         }
         if ($script:WifiPasswordSsid -and $script:WifiPasswordSsid -ne $ssid) {
@@ -1159,7 +1165,22 @@ $create.Add_Click({
         if ([string]::IsNullOrWhiteSpace($adminUser)) {
             throw "Zadej uživatelské jméno pro PiTV."
         }
-        if ($adminUser -notmatch '^[a-z_][a-z0-9_-]{0,31}
+        if (-not [Text.RegularExpressions.Regex]::IsMatch($adminUser, "^[a-z_][a-z0-9_-]{0,31}$")) {
+            throw "PiTV uživatel může obsahovat jen malá písmena, čísla, _ a -. Musí začínat písmenem nebo _."
+        }
+        if ($adminUser -in @("root","ubuntu","pitv")) {
+            throw ("Jméno '" + $adminUser + "' je rezervované systémem. Zvol jiné uživatelské jméno.")
+        }
+        if ([string]::IsNullOrWhiteSpace($adminPass) -or $adminPass.Length -lt 8) {
+            throw "Zadej vlastní PiTV heslo o délce alespoň 8 znaků."
+        }
+        if ($adminPass.Contains([char]10) -or $adminPass.Contains([char]13)) {
+            throw "PiTV heslo nesmí obsahovat nový řádek."
+        }
+
+        Log ("PiTV účet: " + $adminUser + " · vlastní heslo zadáno uživatelem.")
+        $cloud = New-CloudInit $ssid $wifiPassword $adminUser $adminPass
+
         $imageSource = ""
         $expectedExtractSha = ""
         [Int64]$expectedExtractSize = 0
@@ -1203,7 +1224,9 @@ $create.Add_Click({
         Log-ExceptionDetails $_ "VYTVOŘENÍ SD"
         Set-InstallerProgress "CHYBA · podrobnosti jsou v logu" 0
 
-        $errorText = $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine + "Podrobnosti byly zapsány do diagnostického logu."
+        $errorText = $_.Exception.Message + [Environment]::NewLine +
+            [Environment]::NewLine + "Podrobnosti byly zapsány do diagnostického logu."
+
         [Windows.Forms.MessageBox]::Show(
             $errorText,
             "PiTV SD Installer",
@@ -1243,112 +1266,7 @@ $form.Add_Shown({
     Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
     Log ("Trvalá cache image: " + $ImageCacheDir)
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
-    Set-InstallerProgress "Připraveno · vyber systém, kartu a Wi-Fi" 0
-    Refresh-Drives
-    [void](Load-WifiFromWindows)
-})
-
-[void]$form.ShowDialog()
-) {
-            throw "PiTV uživatel může obsahovat jen malá písmena, čísla, _ a -. Musí začínat písmenem nebo _."
-        }
-        if ($adminUser -in @("root","ubuntu","pitv")) {
-            throw "Jméno '" + $adminUser + "' je rezervované systémem. Zvol jiné uživatelské jméno."
-        }
-        if ([string]::IsNullOrWhiteSpace($adminPass) -or $adminPass.Length -lt 8) {
-            throw "Zadej vlastní PiTV heslo o délce alespoň 8 znaků."
-        }
-        if ($adminPass.Contains([char]10) -or $adminPass.Contains([char]13)) {
-            throw "PiTV heslo nesmí obsahovat nový řádek."
-        }
-
-        Log ("PiTV účet: " + $adminUser + " · vlastní heslo zadáno uživatelem.")
-        $cloud = New-CloudInit $ssid $password $adminUser $adminPass
-
-        $imageSource = ""
-        $expectedExtractSha = ""
-        [Int64]$expectedExtractSize = 0
-        $useLocalImage = ($os.SelectedIndex -eq 1 -and $script:LocalImagePath)
-
-        if ($useLocalImage) {
-            if (-not (Test-Path $script:LocalImagePath -PathType Leaf)) {
-                throw "Vybraná vlastní image už není dostupná. Vyber soubor znovu."
-            }
-
-            $imageSource = $script:LocalImagePath
-            Log ("RYCHLÝ REŽIM: používám vlastní image " + (Split-Path -Leaf $imageSource) + ". Stahování se přeskočí.")
-            Set-InstallerProgress "Používám vlastní image · bez stahování" 100
-        }
-        else {
-            Set-InstallerProgress "Hledám správnou image v online katalogu" 0
-            Log ("Online režim: hledám Ubuntu Server 24.04 ARM64 pro " + $piName + "...")
-
-            $image = Get-Ubuntu2404 $piTag
-            Log ("Katalog: " + [string](Get-Prop $image "name"))
-            $imageSource = Get-PiTVOnlineImageFile $image
-            $expectedExtractSha = Get-PiTVStringProp $image @("extract_sha256")
-            $expectedExtractSize = Get-PiTVInt64Prop $image @("extract_size")
-        }
-
-        $prepared = Prepare-PiTVRawImage $imageSource $expectedExtractSha $expectedExtractSize
-        Write-PiTVRawImageToDisk $prepared $d
-        Install-PiTVCloudInitToBootPartition $d $cloud
-
-        [Windows.Forms.Clipboard]::SetText($cloud.Password)
-        Set-InstallerProgress "HOTOVO · PiTV SD je připravena" 100
-        Log "HOTOVO. PiTV SD je připravená."
-        Log "Po prvním startu se Raspberry připojí k Wi-Fi, cloud-init stáhne PiTV, spustí install.sh a zařízení restartuje."
-        Log "Online image zůstává uložená v cache a při příštím vytvoření SD se nebude stahovat znovu."
-        Log "Záložní účet: pitvadmin · heslo bylo zkopírováno do schránky."
-
-        Show-PiTVCompletionDialog $piName $cloud.Password
-    }
-    catch {
-        Log ("CHYBA: " + $_.Exception.Message)
-        Log-ExceptionDetails $_ "VYTVOŘENÍ SD"
-        Set-InstallerProgress "CHYBA · podrobnosti jsou v logu" 0
-
-        $errorText = $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine + "Podrobnosti byly zapsány do diagnostického logu."
-        [Windows.Forms.MessageBox]::Show(
-            $errorText,
-            "PiTV SD Installer",
-            [Windows.Forms.MessageBoxButtons]::OK,
-            [Windows.Forms.MessageBoxIcon]::Error
-        ) | Out-Null
-    }
-    finally {
-        if ($prepared -and $prepared.Temporary) {
-            if ($prepared.CleanupDir) {
-                Remove-Item $prepared.CleanupDir -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            elseif ($prepared.Path) {
-                Remove-Item $prepared.Path -Force -ErrorAction SilentlyContinue
-            }
-        }
-
-        if ($cloud -and $cloud.Dir) {
-            Remove-Item $cloud.Dir -Recurse -Force -ErrorAction SilentlyContinue
-        }
-
-        $format.Enabled = $true
-        $create.Enabled = $true
-        $refresh.Enabled = $true
-        $wifiLoad.Enabled = $true
-        $imageBrowse.Enabled = $true
-        $piModel.Enabled = $true
-        $os.Enabled = $true
-        $accountUser.Enabled = $true
-        $accountPass.Enabled = $true
-        $accountShow.Enabled = $true
-    }
-})
-
-$form.Add_Shown({
-    Log ("PiTV SD Installer v" + $InstallerVersion + " · Windows")
-    Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
-    Log ("Trvalá cache image: " + $ImageCacheDir)
-    Log "Diagnostika aktivní · ukládá se posledních 5 relací."
-    Set-InstallerProgress "Připraveno · vyber systém, kartu a Wi-Fi" 0
+    Set-InstallerProgress "Připraveno · vyber systém, kartu, Wi-Fi a PiTV účet" 0
     Refresh-Drives
     [void](Load-WifiFromWindows)
 })
