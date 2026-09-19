@@ -729,9 +729,9 @@ Installer: Alpha / Windows
 Windows: $([Environment]::OSVersion.VersionString)
 Čas: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
-```text
+~~~text
 $diag
-```
+~~~
 
 > Automatický error report z PiTV SD Installeru. Log byl před odesláním zkrácen a všechna nalezená SSID byla skryta.
 "@
