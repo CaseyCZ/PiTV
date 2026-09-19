@@ -1,5 +1,12 @@
 # PiTV Alpha
 
+### PiTV 1.4.17 · Session isolation audit
+- TV GUI, Kodi, Stremio, Waydroid a PipeWire jsou sjednocené pod uživatelem pitv
+- odstraněn privátní dbus-run-session; labwc používá standardní systemd user D-Bus /run/user/<uid>/bus
+- PiTV launcher už neinicializuje pygame audio a autostart nevynucuje SDL_AUDIODRIVER=alsa
+- Kodi/Waydroid wrapper odmítne spuštění mimo TV uživatele pitv
+- přidán sudo pitv-session-run <příkaz> pro správnou SSH diagnostiku TV session
+- přímé spuštění PiTV GUI pod admin/root je blokované, aby nevznikaly druhé HOME/config/audio session
 ### PiTV 1.4.16 · HDMI audio session fix
 - automatický HDMI výstup už není závislý pouze na pactl; PiTV používá i wpctl fallback
 - installer doplňuje pulseaudio-utils, takže pactl je na nových/aktualizovaných instalacích dostupný
