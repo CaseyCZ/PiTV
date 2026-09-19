@@ -21,7 +21,7 @@ from store_backend import (download_direct_apk, download_github_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.6"
+VERSION = "1.4.7"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -473,7 +473,8 @@ _CEC_MANAGER = None
 
 
 def cec_available():
-    return shutil.which("cec-client") is not None
+    # Input uses the kernel CEC API; libCEC is only an optional output fallback.
+    return shutil.which("cec-ctl") is not None and any(Path("/dev").glob("cec*"))
 
 
 def cec_send(commands):
@@ -486,9 +487,11 @@ def cec_send(commands):
     if isinstance(commands, str):
         commands = [commands]
 
-    manager = _CEC_MANAGER
-    if manager is not None and manager.is_ready():
-        return manager.send(commands)
+    # Kernel cec-ctl owns input. Output actions currently use the proven
+    # libCEC one-shot path; do not route them into CECReader.send(), which is
+    # intentionally input-only.
+    if shutil.which("cec-client") is None:
+        return False, "CEC výstup vyžaduje cec-client"
 
     outputs = []
     for command in commands:
@@ -1247,6 +1250,7 @@ class PiTV:
         if self.wifi_scanning:
             return
         self.wifi_scanning = True
+        self.set_operation("Hledám Wi‑Fi sítě…")
         self.show_toast("Hledám Wi‑Fi sítě…")
         def worker():
             self.wifi_networks = list_wifi_networks()
