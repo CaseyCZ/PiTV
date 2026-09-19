@@ -180,6 +180,52 @@ def load_config():
     for p in (SYSTEM_CONFIG, USER_CONFIG):
         if p.exists():
             cfg.update(safe_json(p, {}))
+
+    # Normalize persisted settings. Old/manual configs must never be able to
+    # push TV layout or timers outside values the Settings UI can represent.
+    theme = {"dark": "apple_dark", "light": "apple_light"}.get(
+        cfg.get("theme"), cfg.get("theme")
+    )
+    if theme not in THEMES:
+        theme = DEFAULT_CONFIG["theme"]
+    cfg["theme"] = theme
+
+    try:
+        scale = float(cfg.get("tile_scale", 1.0))
+    except (TypeError, ValueError):
+        scale = 1.0
+    scales = [0.85, 1.0, 1.15]
+    cfg["tile_scale"] = min(scales, key=lambda value: abs(value - scale))
+
+    if not isinstance(cfg.get("show_clock"), bool):
+        cfg["show_clock"] = DEFAULT_CONFIG["show_clock"]
+    if not isinstance(cfg.get("screensaver_enabled"), bool):
+        cfg["screensaver_enabled"] = DEFAULT_CONFIG["screensaver_enabled"]
+    if not isinstance(cfg.get("cec_enabled"), bool):
+        cfg["cec_enabled"] = DEFAULT_CONFIG["cec_enabled"]
+    if not isinstance(cfg.get("cec_wake_on_start"), bool):
+        cfg["cec_wake_on_start"] = DEFAULT_CONFIG["cec_wake_on_start"]
+
+    def normalized_int(name, values):
+        try:
+            current = int(cfg.get(name, DEFAULT_CONFIG[name]))
+        except (TypeError, ValueError):
+            current = int(DEFAULT_CONFIG[name])
+        cfg[name] = min(values, key=lambda value: abs(value - current))
+
+    normalized_int("screensaver_after_min", [1, 2, 5, 10, 15, 30, 60])
+    normalized_int("screensaver_black_after_min", [0, 10, 15, 30, 60, 120])
+    normalized_int("screensaver_cec_standby_after_min", [0, 15, 30, 60, 120, 240])
+
+    if cfg.get("screensaver_mode") not in ("clock", "black"):
+        cfg["screensaver_mode"] = DEFAULT_CONFIG["screensaver_mode"]
+    if str(cfg.get("hdmi_audio_port", "auto")) not in ("auto", "0", "1"):
+        cfg["hdmi_audio_port"] = DEFAULT_CONFIG["hdmi_audio_port"]
+    else:
+        cfg["hdmi_audio_port"] = str(cfg.get("hdmi_audio_port", "auto"))
+
+    hidden = cfg.get("hidden_apps", [])
+    cfg["hidden_apps"] = [str(x) for x in hidden] if isinstance(hidden, list) else []
     return cfg
 
 
