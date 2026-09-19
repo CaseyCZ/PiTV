@@ -623,6 +623,7 @@ class CECReader(threading.Thread):
         self.last_key = None
         self.last_key_at = 0.0
         self.key_released = True
+        self._awaiting_ui_cmd = False
         self._stop_event = threading.Event()
 
     def _devices(self):
@@ -691,6 +692,37 @@ class CECReader(threading.Thread):
     def _emit_code(self, code):
         self._queue_mapped(CEC_CODE_MAP.get(code))
 
+    def _handle_monitor_line(self, line):
+        """Parse one cec-ctl monitor line; supports split decoded output + raw frames."""
+        upper = line.upper()
+
+        if ("USER_CONTROL_RELEASED" in upper or
+                re.search(r"(?:^|[\s>])[0-9A-Fa-f]{2}:45(?:\s|$)", line)):
+            self._awaiting_ui_cmd = False
+            self.key_released = True
+            self.last_key = None
+            return
+
+        # Raw frame fallback is version-independent:
+        # <header>:44:<ui-command>, e.g. 01:44:00 for Select/OK.
+        raw = re.search(
+            r"(?:^|[\s>])[0-9A-Fa-f]{2}:44:([0-9A-Fa-f]{2})(?:\s|$)",
+            line,
+        )
+        if raw:
+            self._emit_code(int(raw.group(1), 16))
+
+        if "USER_CONTROL_PRESSED" in upper:
+            self._awaiting_ui_cmd = True
+
+        # cec-ctl normally prints USER_CONTROL_PRESSED and ui-cmd on separate
+        # lines, so remember that a UI operand is expected.
+        if self._awaiting_ui_cmd or "UI-CMD:" in upper:
+            m = re.search(r"ui-cmd:\s*([^\(\r\n]+)", line, re.I)
+            if m:
+                self._awaiting_ui_cmd = False
+                self._emit(m.group(1))
+
     def run(self):
         global _CEC_MANAGER
         if shutil.which("cec-ctl") is None:
@@ -726,27 +758,7 @@ class CECReader(threading.Thread):
                     for line in self.proc.stdout:
                         if self._stop_event.is_set():
                             break
-                        upper = line.upper()
-
-                        # Accept both cec-ctl's decoded text and raw CEC frames.
-                        if ("USER_CONTROL_RELEASED" in upper or
-                                re.search(r"(?:^|[\s>])[0-9A-Fa-f]{2}:45(?:\s|$)", line)):
-                            self.key_released = True
-                            self.last_key = None
-                            continue
-
-                        if "USER_CONTROL_PRESSED" in upper:
-                            m = re.search(r"ui-cmd:\s*([^\(\r\n]+)", line, re.I)
-                            if m:
-                                self._emit(m.group(1))
-                                continue
-
-                        raw = re.search(
-                            r"(?:^|[\s>])[0-9A-Fa-f]{2}:44:([0-9A-Fa-f]{2})(?:\s|$)",
-                            line,
-                        )
-                        if raw:
-                            self._emit_code(int(raw.group(1), 16))
+                        self._handle_monitor_line(line)
                 except Exception:
                     pass
                 finally:
