@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4 installer =="
+echo "== PiTV v1.4.3 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -42,15 +42,38 @@ for g in video render input audio tty; do
 done
 
 install -d -m 0755 /opt/pitv /etc/pitv/apps.d /etc/pitv/store
-install -d -m 0775 -o pitv -g pitv /var/lib/pitv/apks
-install -d -m 0775 -o pitv -g pitv /home/pitv/PiTV/APKs
+install -d -m 0775 -o pitv -g pitv /var/lib/pitv /var/lib/pitv/apks /var/lib/pitv/backups
+install -d -m 0775 -o pitv -g pitv /home/pitv/PiTV /home/pitv/PiTV/APKs
 
-# Replace only the PiTV runtime tree. User settings live in /home/pitv/.config
-# and are intentionally preserved across updates.
+# Persistent user/media data. These paths are never replaced by a PiTV update.
+# The shared Media tree is deliberately writable by TV apps (Kodi and Android/
+# Waydroid apps after bridging) while program files stay read-only/system-owned.
+install -d -m 0777 -o pitv -g pitv /srv/pitv/Media
+for name in Movies TV Music Downloads USB; do
+  install -d -m 0777 -o pitv -g pitv "/srv/pitv/Media/$name"
+done
+
+# Friendly path for Kodi/file pickers. Never replace a real existing folder,
+# because it may already contain user data from an older installation.
+if [ -L /home/pitv/PiTV/Media ]; then
+  ln -sfn /srv/pitv/Media /home/pitv/PiTV/Media
+elif [ ! -e /home/pitv/PiTV/Media ]; then
+  ln -s /srv/pitv/Media /home/pitv/PiTV/Media
+fi
+
+# Replace only the PiTV runtime tree. User settings, Kodi, Waydroid and Media
+# live outside /opt/pitv and are intentionally preserved across updates.
+# Keep one previous runtime so a failed update still has a rollback copy.
 rm -rf /opt/pitv/pitv.new
 cp -a pitv /opt/pitv/pitv.new
-rm -rf /opt/pitv/pitv
-mv /opt/pitv/pitv.new /opt/pitv/pitv
+rm -rf /opt/pitv/pitv.prev
+if [ -d /opt/pitv/pitv ]; then
+  mv /opt/pitv/pitv /opt/pitv/pitv.prev
+fi
+if ! mv /opt/pitv/pitv.new /opt/pitv/pitv; then
+  [ -d /opt/pitv/pitv.prev ] && mv /opt/pitv/pitv.prev /opt/pitv/pitv
+  exit 1
+fi
 
 install -m 0644 config/config.json /etc/pitv/config.json
 install -m 0644 store/catalog.json /etc/pitv/store/catalog.json
