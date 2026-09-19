@@ -24,7 +24,7 @@ apt-get update
 apt-get install -y \
   python3 python3-pygame \
   labwc wtype cec-utils v4l-utils \
-  dbus-user-session \
+  dbus-user-session pipewire pipewire-pulse wireplumber \
   fonts-dejavu-core \
   iproute2 sudo alsa-utils openssh-server \
   aapt apktool
