@@ -78,6 +78,27 @@ Ubuntu Server
 
 SSH a serverové služby zůstávají dostupné i při vypnuté nebo uspáné TV.
 
+## PiTV SD Installer
+
+Pro Windows je v repozitáři první verze malého průvodce, který připraví microSD bez ruční instalace systému.
+
+<p>
+  <a href="tools/windows/README.md"><img src="https://img.shields.io/badge/Windows-PiTV%20SD%20Installer-38BDF8?style=for-the-badge&labelColor=0284C7&logo=windows&logoColor=white" alt="PiTV SD Installer pro Windows" /></a>
+</p>
+
+Stačí vložit microSD, spustit **Start-PiTV-SD-Installer.cmd**, vybrat kartu a kliknout na **VYTVOŘIT PiTV SD**.
+
+Installer:
+
+- použije oficiální Raspberry Pi Imager pro samotný zápis,
+- automaticky najde podporovaný Ubuntu Server 24.04 LTS ARM64,
+- převezme aktuální Wi-Fi z Windows,
+- připraví cloud-init,
+- při prvním bootu Raspberry stáhne a nainstaluje PiTV,
+- po dokončení Raspberry restartuje a následně naběhne PiTV.
+
+> Windows verze je aktuálně **v0.1 prototyp**. Před veřejným releasem ji ještě ověříme na skutečné microSD a Raspberry Pi 4.
+
 ## PiTV Store
 
 Aplikace se instalují přímo z TV přes **Nastavení → Aplikace → PiTV Store**.
