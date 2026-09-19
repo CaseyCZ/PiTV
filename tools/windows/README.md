@@ -34,7 +34,7 @@ Tlačítko **Vlastní image...** je rychlejší režim pro uživatele, kteří u
 Podporované vstupy:
 
 - `.img` — jde rovnou do kontroly a zápisu,
-- `.img.xz` / `.xz` — rozbalí se vestavěným Windows `tar/libarchive`,
+- `.img.xz` / `.xz` — rozbalí se přiloženým malým `PiTV-XZ.exe` postaveným nad `liblzma`,
 - `.zip` — musí obsahovat právě jeden `.img` soubor.
 
 Vlastní image musí být kompatibilní se zvoleným Raspberry Pi a s cloud-init, pokud má automaticky fungovat Wi-Fi a první instalace PiTV.
@@ -63,7 +63,7 @@ Po vytvoření karty se recovery heslo zkopíruje do schránky.
 
 PiTV SD Installer už **nepoužívá ani neinstaluje Raspberry Pi Imager**. Zápis provádí vlastní modul `PiTV-ImageEngine.ps1` přes Windows raw-disk API.
 
-Pro rozbalení XZ používá vestavěný `tar.exe` z moderních Windows 10/11.
+Pro rozbalení XZ používá přiložený `PiTV-XZ.exe`; uživatel nemusí instalovat žádný další program. `PiTV-XZ.exe` používá `liblzma` z XZ Utils (0BSD); informace o licenci jsou v `THIRD-PARTY-NOTICES.txt`.
 
 ## Bezpečnost
 
@@ -87,7 +87,7 @@ GitHub Actions na Windows kontrolují:
 
 - PowerShell syntaxi hlavního installeru i image enginu,
 - živý Ubuntu katalog pro Pi 3 / 4 / 5,
-- že vestavěný Windows `tar/libarchive` umí byte-perfect rozbalit raw XZ stream,
+- že se `PiTV-XZ.exe` na Windows úspěšně sestaví a byte-perfect rozbalí testovací raw XZ stream,
 - že aplikace neobsahuje starou závislost na Raspberry Pi Imageru,
 - že release ZIP obsahuje nový zapisovací engine.
 
