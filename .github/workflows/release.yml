@@ -80,6 +80,8 @@ jobs:
             zip -9 -r "PiTV-SD-Installer-Windows-v$VERSION.zip" "PiTV-SD-Installer-Windows-v$VERSION" >/dev/null
           )
 
+          cp tools/windows/PiTV-SD-Installer.ps1 dist/PiTV-SD-Installer.ps1
+          cp tools/windows/Start-PiTV-SD-Installer.cmd dist/Start-PiTV-SD-Installer.cmd
           cp tools/pitv-flasher.ps1 dist/pitv-flasher.ps1
           cp tools/pitv-flasher.sh dist/pitv-flasher.sh
           chmod +x dist/pitv-flasher.sh
@@ -88,6 +90,8 @@ jobs:
             cd dist
             sha256sum \
               "PiTV-SD-Installer-Windows-v$VERSION.zip" \
+              PiTV-SD-Installer.ps1 \
+              Start-PiTV-SD-Installer.cmd \
               pitv-flasher.ps1 \
               pitv-flasher.sh \
               > SHA256SUMS.txt
@@ -120,6 +124,8 @@ jobs:
 
           gh release upload "$TAG" \
             "dist/PiTV-SD-Installer-Windows-v$VERSION.zip" \
+            dist/PiTV-SD-Installer.ps1 \
+            dist/Start-PiTV-SD-Installer.cmd \
             dist/pitv-flasher.ps1 \
             dist/pitv-flasher.sh \
             dist/SHA256SUMS.txt \
