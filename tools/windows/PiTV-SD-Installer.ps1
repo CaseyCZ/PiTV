@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
-$InstallerVersion = "0.27"
+$InstallerVersion = "0.28"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
