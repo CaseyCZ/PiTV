@@ -41,11 +41,10 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td:
     install = candidates[0]
     source = install.parent
     try:
+        print("PiTV: spouštím instalaci…", flush=True)
         p = subprocess.run(
             ["bash", str(install)],
             cwd=str(source),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
             text=True,
             timeout=1800,
             check=False,
@@ -53,8 +52,7 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td:
     except subprocess.TimeoutExpired:
         fail("Aktualizace PiTV vypršela")
 
-    output = (p.stdout or "").strip()
     if p.returncode != 0:
-        fail(output[-2000:] if output else "Aktualizace PiTV selhala")
+        fail(f"Aktualizace PiTV selhala (kód {p.returncode})")
 
     print("PiTV aktualizováno z GitHubu")
