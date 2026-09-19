@@ -2,6 +2,13 @@
 
 All notable PiTV changes are documented here.
 
+## 1.3.3 — 2026-09-19
+
+### Fixed
+- Windows SD Installer detects the Raspberry Pi Imager 2.x install path,
+- if winget installation fails, the official Raspberry Pi Imager installer is downloaded directly,
+- installer diagnostics now distinguish winget and official-installer failures.
+
 ## 1.3.2 — 2026-09-19
 
 ### Fixed / improved
