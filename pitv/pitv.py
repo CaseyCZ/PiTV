@@ -22,7 +22,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.20"
+VERSION = "1.4.21"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -36,6 +36,10 @@ DEFAULT_CONFIG = {
     "theme": "apple_dark",
     "accent": "blue",
     "tile_scale": 1.0,
+    "accent": "blue",
+    "show_tile_labels": True,
+    "home_layout": "default",
+    "content_density": "normal",
     "cec_enabled": True,
     "cec_wake_on_start": False,
     "show_clock": True,
@@ -198,8 +202,17 @@ def load_config():
         scale = float(cfg.get("tile_scale", 1.0))
     except (TypeError, ValueError):
         scale = 1.0
-    scales = [0.85, 1.0, 1.15]
+    scales = [0.85, 1.0, 1.15, 1.30]
     cfg["tile_scale"] = min(scales, key=lambda value: abs(value - scale))
+
+    if cfg.get("accent") not in ("blue", "purple", "green"):
+        cfg["accent"] = "blue"
+    if cfg.get("home_layout") not in ("default", "compact"):
+        cfg["home_layout"] = "default"
+    if cfg.get("content_density") not in ("comfortable", "normal", "compact"):
+        cfg["content_density"] = "normal"
+    if not isinstance(cfg.get("show_tile_labels"), bool):
+        cfg["show_tile_labels"] = True
 
     if not isinstance(cfg.get("show_clock"), bool):
         cfg["show_clock"] = DEFAULT_CONFIG["show_clock"]
@@ -1105,7 +1118,30 @@ class PiTV:
     def t(self):
         theme = self.cfg.get("theme", "apple_dark")
         theme = {"dark": "apple_dark", "light": "apple_light"}.get(theme, theme)
-        return THEMES.get(theme, THEMES["apple_dark"])
+        accent = self.cfg.get("accent", "blue")
+        key = (theme, accent)
+        if getattr(self, "_theme_palette_key", None) != key:
+            palette = dict(THEMES.get(theme, THEMES["apple_dark"]))
+            light = theme == "apple_light"
+            if accent == "purple":
+                palette.update({
+                    "accent": (168, 85, 247) if not light else (126, 34, 206),
+                    "accent2": (126, 34, 206),
+                    "action": (109, 40, 217),
+                    "action2": (88, 28, 135),
+                    "accent_soft": (40, 24, 68) if not light else (243, 232, 255),
+                })
+            elif accent == "green":
+                palette.update({
+                    "accent": (74, 222, 128) if not light else (22, 163, 74),
+                    "accent2": (34, 197, 94),
+                    "action": (22, 163, 74),
+                    "action2": (21, 128, 61),
+                    "accent_soft": (15, 55, 39) if not light else (220, 252, 231),
+                })
+            self._theme_palette_key = key
+            self._theme_palette_cache = palette
+        return self._theme_palette_cache
 
     @property
     def theme_name(self):
@@ -1114,7 +1150,7 @@ class PiTV:
         return "PiTV Apple Light" if theme == "apple_light" else "PiTV Apple Dark"
 
     def main_left(self):
-        return int(self.w * .235)
+        return int(self.w * .198)
 
     def main_rect(self):
         left = self.main_left()
@@ -1149,20 +1185,41 @@ class PiTV:
         self.screen.blit(tmp, rect.topleft)
 
     def draw_background(self):
-        # iOS Hub inspired radial/hero feel, approximated cheaply for SDL.
+        """Deep layered backdrop behind the translucent PiTV glass surfaces."""
         self.screen.fill(self.t["page"])
-        upper = pygame.Rect(0, 0, self.w, int(self.h * .78))
-        self.gradient_rect(upper, self.t["hero"], self.t["bg"])
-        lower = pygame.Rect(0, int(self.h*.55), self.w, int(self.h*.45))
-        fade = pygame.Surface((lower.w, lower.h), pygame.SRCALPHA)
-        strips = 28
-        for i in range(strips):
-            y0 = round(i * lower.h / strips)
-            y1 = round((i+1) * lower.h / strips)
-            alpha = int(255 * (i / max(1, strips-1)))
-            c = (*self.t["page"], alpha)
-            pygame.draw.rect(fade, c, pygame.Rect(0, y0, lower.w, max(1,y1-y0)))
-        self.screen.blit(fade, lower.topleft)
+        is_light = self.theme_name.endswith("Light")
+
+        # Main vertical depth.
+        upper = pygame.Rect(0, 0, self.w, self.h)
+        self.gradient_rect(
+            upper,
+            (241, 246, 252) if is_light else (5, 15, 33),
+            (226, 235, 246) if is_light else (3, 9, 22),
+        )
+
+        # Soft blue atmospheric pools make translucent panels read as glass.
+        glow = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        pools = [
+            (int(self.w*.68), int(self.h*.08), int(self.w*.46), (29, 120, 255, 30 if not is_light else 16)),
+            (int(self.w*.28), int(self.h*.78), int(self.w*.32), (35, 87, 170, 24 if not is_light else 10)),
+        ]
+        for cx, cy, radius, color in pools:
+            for step in range(7, 0, -1):
+                alpha = max(1, int(color[3] * step / 7))
+                rr = max(1, int(radius * step / 7))
+                pygame.draw.circle(glow, (*color[:3], alpha), (cx, cy), rr)
+        self.screen.blit(glow, (0, 0))
+
+        # Very subtle top sheen.
+        sheen = pygame.Surface((self.w, int(self.h*.32)), pygame.SRCALPHA)
+        for i in range(20):
+            a = int((20-i) * (1.6 if not is_light else .8))
+            pygame.draw.rect(
+                sheen, (90, 170, 255, max(0, a)),
+                pygame.Rect(0, int(i*sheen.get_height()/20), self.w,
+                            max(1, int(sheen.get_height()/20)+1)),
+            )
+        self.screen.blit(sheen, (0, 0))
 
     def pill(self, text, x, y, color=None, selected=False):
         color = color or self.t["accent"]
@@ -1176,32 +1233,72 @@ class PiTV:
         self.screen.blit(surf, (r.x+pad_x, r.y+pad_y))
         return r
 
-    def glass_panel(self, rect, selected=False, alpha=225, radius=22):
-        surface = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-        base = self.t["accent_soft"] if selected else self.t["panel"]
-        pygame.draw.rect(surface, (*base, alpha), surface.get_rect(), border_radius=radius)
-        self.screen.blit(surface, rect.topleft)
+    def glass_panel(self, rect, selected=False, alpha=205, radius=22):
+        """Glassmorphism panel: translucent fill, sheen, shadow and soft focus glow."""
+        is_light = self.theme_name.endswith("Light")
+
+        shadow = pygame.Surface((rect.w+18, rect.h+18), pygame.SRCALPHA)
         pygame.draw.rect(
-            self.screen,
-            self.t["accent"] if selected else self.t["border"],
-            rect,
-            2 if selected else 1,
-            border_radius=radius,
+            shadow,
+            (0, 0, 0, 42 if not is_light else 18),
+            pygame.Rect(9, 10, rect.w, rect.h),
+            border_radius=radius+3,
+        )
+        self.screen.blit(shadow, (rect.x-9, rect.y-9))
+
+        if selected:
+            halo = pygame.Surface((rect.w+22, rect.h+22), pygame.SRCALPHA)
+            for n, a in ((0, 62), (4, 34), (8, 16)):
+                pygame.draw.rect(
+                    halo, (*self.t["accent"], a),
+                    pygame.Rect(11-n, 11-n, rect.w+2*n, rect.h+2*n),
+                    max(1, 3 if n == 0 else 2),
+                    border_radius=radius+n,
+                )
+            self.screen.blit(halo, (rect.x-11, rect.y-11))
+
+        surface = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+        base_top = self.t["panel2"] if not selected else self.t["accent_soft"]
+        base_bottom = self.t["panel"]
+        strips = max(8, min(28, rect.h//8))
+        for i in range(strips):
+            y0 = round(i*rect.h/strips)
+            y1 = round((i+1)*rect.h/strips)
+            color = self.mix(base_top, base_bottom, i/max(1,strips-1))
+            a = min(245, alpha + (18 if selected else 0))
+            pygame.draw.rect(surface, (*color, a),
+                             pygame.Rect(0, y0, rect.w, max(1,y1-y0)))
+        mask = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+        pygame.draw.rect(mask, (255,255,255,255), mask.get_rect(), border_radius=radius)
+        surface.blit(mask, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
+        self.screen.blit(surface, rect.topleft)
+
+        # Thin inner highlight + cool outer edge sell the glass illusion.
+        hi = (255,255,255,34 if not is_light else 95)
+        edge = self.t["accent"] if selected else (
+            (74, 104, 145) if not is_light else self.t["border"]
+        )
+        pygame.draw.line(
+            self.screen, hi,
+            (rect.x+radius, rect.y+1), (rect.right-radius, rect.y+1), 1,
+        )
+        pygame.draw.rect(
+            self.screen, edge, rect, 2 if selected else 1, border_radius=radius
         )
 
     def draw_sidebar(self, active=""):
-        w = int(self.w*.205)
-        rect = pygame.Rect(int(self.w*.025), int(self.h*.035), w, int(self.h*.93))
-        self.glass_panel(rect, False, 218, 26)
+        w = int(self.w*.174)
+        rect = pygame.Rect(int(self.w*.014), int(self.h*.030), w, int(self.h*.940))
+        self.glass_panel(rect, False, 172, 28)
 
-        x = rect.x + int(w*.11)
-        top = rect.y + int(self.h*.035)
+        x = rect.x + int(w*.095)
+        top = rect.y + int(self.h*.032)
         mark = pygame.Rect(x, top, int(self.h*.055), int(self.h*.055))
-        self.gradient_rect(mark, self.t["accent2"], self.t["action"], radius=14)
+        self.gradient_rect(mark, self.t["accent"], self.t["action"], radius=15)
         play = self.font(mark.h*.34, True).render("▶", True, (255,255,255))
         self.screen.blit(play, play.get_rect(center=mark.center))
-        self.text("PiTV", mark.right+14, top-3, self.h*.041, self.t["text"], True)
-        self.text("Your TV. Your Way.", x, top+int(self.h*.065), self.h*.015, self.t["muted"])
+        self.text("PiTV", mark.right+13, top-4, self.h*.040, self.t["text"], True)
+        self.text("Your TV. Your Way.", x, top+int(self.h*.064), self.h*.014, self.t["muted"])
 
         items = [
             ("home", "⌂", "Home"),
@@ -1211,30 +1308,27 @@ class PiTV:
             ("updates", "↻", "Updates"),
             ("settings", "⚙", "Settings"),
         ]
-        y0 = top + int(self.h*.115)
-        row_h = int(self.h*.058)
+        y0 = top + int(self.h*.122)
+        row_h = int(self.h*.054)
         for i, (key, icon, label) in enumerate(items):
-            rr = pygame.Rect(rect.x+int(w*.055), y0+i*row_h, int(w*.89), int(row_h*.82))
+            rr = pygame.Rect(rect.x+int(w*.050), y0+i*row_h, int(w*.900), int(row_h*.82))
             selected = (self.sidebar_focus and i == self.sidebar_selected) or (
                 not self.sidebar_focus and key == active
             )
             if selected:
-                surf = pygame.Surface((rr.w, rr.h), pygame.SRCALPHA)
-                pygame.draw.rect(surf, (*self.t["accent_soft"], 235), surf.get_rect(), border_radius=14)
-                self.screen.blit(surf, rr.topleft)
-                pygame.draw.rect(self.screen, self.t["accent"], rr, 2, border_radius=14)
-            self.text(icon, rr.x+14, rr.y+int(rr.h*.20), rr.h*.36,
+                self.glass_panel(rr, True, 188, 14)
+            self.text(icon, rr.x+14, rr.y+int(rr.h*.18), rr.h*.36,
                       self.t["accent"] if selected else self.t["muted"], True)
-            self.text(label, rr.x+int(rr.h*.75), rr.y+int(rr.h*.25), rr.h*.25,
+            self.text(label, rr.x+int(rr.h*.78), rr.y+int(rr.h*.23), rr.h*.26,
                       self.t["text"] if selected else self.t["muted"], selected)
 
-        divider_y = y0 + len(items)*row_h + int(self.h*.008)
-        pygame.draw.line(self.screen, self.t["border"],
+        divider_y = y0 + len(items)*row_h + int(self.h*.010)
+        pygame.draw.line(self.screen, (*self.t["border"],),
                          (rect.x+int(w*.08), divider_y),
                          (rect.right-int(w*.08), divider_y), 1)
 
-        self.text("Media & Tools", x, divider_y+int(self.h*.020),
-                  self.h*.014, self.t["muted"], True)
+        self.text("MEDIA & TOOLS", x, divider_y+int(self.h*.019),
+                  self.h*.012, self.t["muted"], True)
         quick = [
             ("▦", "Kodi"),
             ("▶", "SmartTube"),
@@ -1242,23 +1336,20 @@ class PiTV:
             ("❯", "Plex"),
             ("•••", "More Apps"),
         ]
-        qy = divider_y + int(self.h*.055)
-        qh = int(self.h*.049)
+        qy = divider_y + int(self.h*.051)
+        qh = int(self.h*.047)
         for j, (icon, label) in enumerate(quick):
-            rr = pygame.Rect(rect.x+int(w*.055), qy, int(w*.89), int(qh*.82))
+            rr = pygame.Rect(rect.x+int(w*.050), qy, int(w*.900), int(qh*.82))
             selected = self.sidebar_focus and self.sidebar_selected == 6+j
             if selected:
-                surf = pygame.Surface((rr.w, rr.h), pygame.SRCALPHA)
-                pygame.draw.rect(surf, (*self.t["accent_soft"], 235), surf.get_rect(), border_radius=12)
-                self.screen.blit(surf, rr.topleft)
-                pygame.draw.rect(self.screen, self.t["accent"], rr, 2, border_radius=12)
-            self.text(icon, rr.x+14, rr.y+int(rr.h*.16), rr.h*.34,
+                self.glass_panel(rr, True, 184, 12)
+            self.text(icon, rr.x+14, rr.y+int(rr.h*.14), rr.h*.35,
                       self.t["accent"] if selected else self.t["muted"], True)
-            self.text(label, rr.x+int(rr.h*.78), rr.y+int(rr.h*.20), rr.h*.25,
+            self.text(label, rr.x+int(rr.h*.80), rr.y+int(rr.h*.18), rr.h*.26,
                       self.t["text"] if selected else self.t["muted"], selected)
             qy += qh
 
-        self.text("PiTV  "+VERSION, x, rect.bottom-int(self.h*.045), self.h*.013, self.t["muted"])
+        self.text("PiTV  "+VERSION, x, rect.bottom-int(self.h*.040), self.h*.012, self.t["muted"])
 
     def draw_hero(self, title, subtitle, badge="PiTV", action=""):
         r = pygame.Rect(self.main_left()+int(self.w*.015), int(self.h*.055),
