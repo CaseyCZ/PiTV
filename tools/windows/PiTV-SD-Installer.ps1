@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
-$InstallerVersion = "0.19"
+$InstallerVersion = "0.20"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
@@ -831,6 +831,93 @@ function Get-SelectedPiName {
     }
 }
 
+function Show-PiTVCompletionDialog([string]$piName,[string]$password) {
+    $dlg = New-Object Windows.Forms.Form
+    $dlg.Text = "PiTV SD Installer · dokončeno"
+    $dlg.Size = New-Object Drawing.Size(610,360)
+    $dlg.StartPosition = "CenterParent"
+    $dlg.FormBorderStyle = [Windows.Forms.FormBorderStyle]::FixedDialog
+    $dlg.MaximizeBox = $false
+    $dlg.MinimizeBox = $false
+    $dlg.ShowInTaskbar = $false
+    $dlg.BackColor = [Drawing.Color]::FromArgb(7,11,20)
+    $dlg.ForeColor = [Drawing.Color]::White
+    $dlg.Font = New-Object Drawing.Font("Segoe UI",10)
+
+    $headline = New-Object Windows.Forms.Label
+    $headline.Text = "SD karta je připravená pro " + $piName
+    $headline.Font = New-Object Drawing.Font("Segoe UI",15,[Drawing.FontStyle]::Bold)
+    $headline.Location = New-Object Drawing.Point(28,22)
+    $headline.Size = New-Object Drawing.Size(540,34)
+    $dlg.Controls.Add($headline)
+
+    $info = New-Object Windows.Forms.Label
+    $info.Text = "Kartu můžeš vložit do Raspberry Pi a zapnout. Pro případ ručního přihlášení si ulož přístup k účtu:"
+    $info.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
+    $info.Location = New-Object Drawing.Point(30,68)
+    $info.Size = New-Object Drawing.Size(535,50)
+    $dlg.Controls.Add($info)
+
+    $userLabel = New-Object Windows.Forms.Label
+    $userLabel.Text = "Uživatel"
+    $userLabel.Location = New-Object Drawing.Point(30,132)
+    $userLabel.Size = New-Object Drawing.Size(100,24)
+    $dlg.Controls.Add($userLabel)
+
+    $userBox = New-Object Windows.Forms.TextBox
+    $userBox.Text = "pitvadmin"
+    $userBox.ReadOnly = $true
+    $userBox.Location = New-Object Drawing.Point(140,128)
+    $userBox.Size = New-Object Drawing.Size(420,28)
+    $dlg.Controls.Add($userBox)
+
+    $passLabel = New-Object Windows.Forms.Label
+    $passLabel.Text = "Heslo"
+    $passLabel.Location = New-Object Drawing.Point(30,174)
+    $passLabel.Size = New-Object Drawing.Size(100,24)
+    $dlg.Controls.Add($passLabel)
+
+    $passBox = New-Object Windows.Forms.TextBox
+    $passBox.Text = $password
+    $passBox.ReadOnly = $true
+    $passBox.Location = New-Object Drawing.Point(140,170)
+    $passBox.Size = New-Object Drawing.Size(420,28)
+    $passBox.Font = New-Object Drawing.Font("Consolas",11,[Drawing.FontStyle]::Bold)
+    $dlg.Controls.Add($passBox)
+
+    $hint = New-Object Windows.Forms.Label
+    $hint.Text = "Heslo je zároveň už zkopírované ve schránce Windows."
+    $hint.ForeColor = [Drawing.Color]::FromArgb(148,163,184)
+    $hint.Location = New-Object Drawing.Point(140,203)
+    $hint.Size = New-Object Drawing.Size(420,24)
+    $dlg.Controls.Add($hint)
+
+    $copy = New-Object Windows.Forms.Button
+    $copy.Text = "KOPÍROVAT HESLO"
+    $copy.Location = New-Object Drawing.Point(140,246)
+    $copy.Size = New-Object Drawing.Size(195,42)
+    $copy.Add_Click({
+        try {
+            [Windows.Forms.Clipboard]::SetText($password)
+            $copy.Text = "ZKOPÍROVÁNO ✓"
+        } catch {
+            $copy.Text = "KOPÍROVÁNÍ SELHALO"
+        }
+    })
+    $dlg.Controls.Add($copy)
+
+    $ok = New-Object Windows.Forms.Button
+    $ok.Text = "HOTOVO"
+    $ok.Location = New-Object Drawing.Point(365,246)
+    $ok.Size = New-Object Drawing.Size(195,42)
+    $ok.DialogResult = [Windows.Forms.DialogResult]::OK
+    $dlg.AcceptButton = $ok
+    $dlg.Controls.Add($ok)
+
+    [void]$dlg.ShowDialog($form)
+    $dlg.Dispose()
+}
+
 function Select-LocalImage {
 
     $dialog = New-Object Windows.Forms.OpenFileDialog
@@ -1073,13 +1160,7 @@ $create.Add_Click({
         Log "Online image zůstává uložená v cache a při příštím vytvoření SD se nebude stahovat znovu."
         Log "Záložní účet: pitvadmin · heslo bylo zkopírováno do schránky."
 
-        $doneText = "SD karta je připravená pro " + $piName + "." + $nl + $nl + "Můžeš ji vyjmout, vložit do Raspberry Pi a zapnout. Online image zůstala uložená v počítači pro další použití." + $nl + $nl + "Záložní heslo účtu pitvadmin je ve schránce."
-        [Windows.Forms.MessageBox]::Show(
-            $doneText,
-            "PiTV SD Installer",
-            [Windows.Forms.MessageBoxButtons]::OK,
-            [Windows.Forms.MessageBoxIcon]::Information
-        ) | Out-Null
+        Show-PiTVCompletionDialog $piName $cloud.Password
     }
     catch {
         Log ("CHYBA: " + $_.Exception.Message)
