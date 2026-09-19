@@ -36,6 +36,7 @@ jobs:
             $errors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
+          Write-Host "PowerShell syntax OK"
 
       - name: Verify live Ubuntu catalog
         shell: powershell
@@ -47,8 +48,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $headers = @{ "User-Agent" = "PiTV-CI" }
-          $release = Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri "https://api.github.com/repos/raspberrypi/rpi-imager/releases/latest"
-          $tag = [string]$release.tag_name
+          $latest = Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri "https://api.github.com/repos/raspberrypi/rpi-imager/releases/latest"
+          $tag = [string]$latest.tag_name
           if (-not $tag) { throw "Unable to resolve latest Raspberry Pi Imager release tag." }
 
           $cliUrl = "https://raw.githubusercontent.com/raspberrypi/rpi-imager/$tag/src/cli.cpp"
@@ -68,8 +69,25 @@ jobs:
               throw "PiTV write path is missing required argument $required"
             }
           }
-
           Write-Host ("Raspberry Pi Imager contract OK against latest release " + $tag)
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"
+
+  release:
+    needs: validate-windows
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Release checks
         shell: bash
         run: |
@@ -94,17 +112,15 @@ jobs:
           set -euo pipefail
           rm -rf dist
           mkdir -p "dist/PiTV-SD-Installer-Windows"
-
           cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows/"
           cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
           cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
           cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
-
           (
             cd dist
             zip -9 -r "PiTV-SD-Installer-Windows.zip" "PiTV-SD-Installer-Windows" >/dev/null
           )
-
+          test -s dist/PiTV-SD-Installer-Windows.zip
           ls -lh dist/PiTV-SD-Installer-Windows.zip
 
       - name: Publish rolling Alpha release
@@ -113,26 +129,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -f alpha "$GITHUB_SHA"
           git push -f origin refs/tags/alpha
 
           if gh release view alpha >/dev/null 2>&1; then
-            gh release edit alpha \
-              --title "PiTV Alpha" \
-              --notes-file release-notes/alpha.md \
-              --prerelease
+            gh release edit alpha --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
           else
-            gh release create alpha \
-              --target "$GITHUB_SHA" \
-              --title "PiTV Alpha" \
-              --notes-file release-notes/alpha.md \
-              --prerelease
+            gh release create alpha --target "$GITHUB_SHA" --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
           fi
 
-          # Keep exactly one custom downloadable asset in the rolling Alpha.
           while IFS= read -r asset; do
             if [ -n "$asset" ] && [ "$asset" != "PiTV-SD-Installer-Windows.zip" ]; then
               gh release delete-asset alpha "$asset" -y
@@ -140,12 +147,4 @@ jobs:
           done < <(gh release view alpha --json assets --jq '.assets[].name')
 
           gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
-
-          # Remove the temporary versioned releases created during early testing.
-          for old in v1.3.0 v1.3.1 v1.3.2 v1.3.3; do
-            if gh release view "$old" >/dev/null 2>&1; then
-              gh release delete "$old" --cleanup-tag -y
-            fi
-          done
-
           gh release view alpha --json url,tagName,name,isDraft,isPrerelease,assets
