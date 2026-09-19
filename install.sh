@@ -52,11 +52,6 @@ cp -a pitv /opt/pitv/pitv.new
 rm -rf /opt/pitv/pitv
 mv /opt/pitv/pitv.new /opt/pitv/pitv
 
-# Approved Dark/Light TV mockups also provide the home hero artwork.
-# Keeping them next to pitv.py lets the runtime crop the hero locally with no network dependency.
-install -m 0644 Dark.jpg /opt/pitv/pitv/Dark.jpg
-install -m 0644 Light.jpg /opt/pitv/pitv/Light.jpg
-
 install -m 0644 config/config.json /etc/pitv/config.json
 install -m 0644 store/catalog.json /etc/pitv/store/catalog.json
 install -m 0644 store/server_catalog.json /etc/pitv/store/server_catalog.json
