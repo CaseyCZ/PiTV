@@ -492,7 +492,7 @@ function Format-SdDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,
 
 $form = New-Object Windows.Forms.Form
 $form.Text = "PiTV SD Installer"
-$form.Size = New-Object Drawing.Size(840,730)
+$form.Size = New-Object Drawing.Size(840,790)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [Drawing.Color]::FromArgb(7,11,20)
 $form.ForeColor = [Drawing.Color]::White
@@ -522,9 +522,20 @@ function Add-Label($text,$y) {
     $form.Controls.Add($l)
 }
 
-Add-Label "Systém" 116
+Add-Label "Raspberry Pi" 116
+$piModel = New-Object Windows.Forms.ComboBox
+$piModel.Location = New-Object Drawing.Point(205,112)
+$piModel.Size = New-Object Drawing.Size(600,34)
+$piModel.DropDownStyle = "DropDownList"
+[void]$piModel.Items.Add("Raspberry Pi 3 / 3B+ — Alpha · omezený výkon")
+[void]$piModel.Items.Add("Raspberry Pi 4 — doporučeno")
+[void]$piModel.Items.Add("Raspberry Pi 5 — Alpha · hardware zatím neověřen")
+$piModel.SelectedIndex = 1
+$form.Controls.Add($piModel)
+
+Add-Label "Systém" 164
 $os = New-Object Windows.Forms.ComboBox
-$os.Location = New-Object Drawing.Point(205,112)
+$os.Location = New-Object Drawing.Point(205,160)
 $os.Size = New-Object Drawing.Size(455,34)
 $os.DropDownStyle = "DropDownList"
 [void]$os.Items.Add("Ubuntu Server 24.04 LTS ARM64 — stáhnout online (doporučeno)")
@@ -533,28 +544,28 @@ $form.Controls.Add($os)
 
 $imageBrowse = New-Object Windows.Forms.Button
 $imageBrowse.Text = "Vlastní image..."
-$imageBrowse.Location = New-Object Drawing.Point(675,111)
+$imageBrowse.Location = New-Object Drawing.Point(675,159)
 $imageBrowse.Size = New-Object Drawing.Size(130,34)
 $imageBrowse.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($imageBrowse)
 
-Add-Label "microSD / USB" 164
+Add-Label "microSD / USB" 212
 $disk = New-Object Windows.Forms.ComboBox
-$disk.Location = New-Object Drawing.Point(205,160)
+$disk.Location = New-Object Drawing.Point(205,208)
 $disk.Size = New-Object Drawing.Size(455,34)
 $disk.DropDownStyle = "DropDownList"
 $form.Controls.Add($disk)
 
 $refresh = New-Object Windows.Forms.Button
 $refresh.Text = "Obnovit"
-$refresh.Location = New-Object Drawing.Point(675,159)
+$refresh.Location = New-Object Drawing.Point(675,207)
 $refresh.Size = New-Object Drawing.Size(130,34)
 $refresh.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($refresh)
 
-Add-Label "Wi-Fi SSID" 212
+Add-Label "Wi-Fi SSID" 260
 $wifiSsid = New-Object Windows.Forms.ComboBox
-$wifiSsid.Location = New-Object Drawing.Point(205,208)
+$wifiSsid.Location = New-Object Drawing.Point(205,256)
 $wifiSsid.Size = New-Object Drawing.Size(455,32)
 $wifiSsid.DropDownStyle = "DropDown"
 $wifiSsid.AutoCompleteMode = "SuggestAppend"
@@ -563,35 +574,35 @@ $form.Controls.Add($wifiSsid)
 
 $wifiLoad = New-Object Windows.Forms.Button
 $wifiLoad.Text = "Vyhledat"
-$wifiLoad.Location = New-Object Drawing.Point(675,207)
+$wifiLoad.Location = New-Object Drawing.Point(675,255)
 $wifiLoad.Size = New-Object Drawing.Size(130,34)
 $wifiLoad.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($wifiLoad)
 
-Add-Label "Wi-Fi heslo" 254
+Add-Label "Wi-Fi heslo" 302
 $wifiPass = New-Object Windows.Forms.TextBox
-$wifiPass.Location = New-Object Drawing.Point(205,250)
+$wifiPass.Location = New-Object Drawing.Point(205,298)
 $wifiPass.Size = New-Object Drawing.Size(330,32)
 $wifiPass.UseSystemPasswordChar = $true
 $form.Controls.Add($wifiPass)
 
 $wifiShow = New-Object Windows.Forms.CheckBox
 $wifiShow.Text = "Zobrazit heslo"
-$wifiShow.Location = New-Object Drawing.Point(550,251)
+$wifiShow.Location = New-Object Drawing.Point(550,299)
 $wifiShow.Size = New-Object Drawing.Size(190,28)
 $wifiShow.ForeColor = [Drawing.Color]::FromArgb(241,245,249)
 $wifiShow.BackColor = $form.BackColor
 $form.Controls.Add($wifiShow)
 
 $wifiStatus = New-Object Windows.Forms.Label
-$wifiStatus.Location = New-Object Drawing.Point(205,286)
+$wifiStatus.Location = New-Object Drawing.Point(205,334)
 $wifiStatus.Size = New-Object Drawing.Size(570,24)
 $wifiStatus.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
 $wifiStatus.Text = "Zkouším načíst aktuální Wi-Fi z Windows..."
 $form.Controls.Add($wifiStatus)
 
 $info = New-Object Windows.Forms.Label
-$info.Location = New-Object Drawing.Point(32,322)
+$info.Location = New-Object Drawing.Point(32,370)
 $info.Size = New-Object Drawing.Size(773,54)
 $info.Text = "BEZPEČNOST: systémový disk se nikdy nenabízí. Před zápisem znovu uvidíš model a kapacitu vybrané karty."
 $info.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
@@ -599,7 +610,7 @@ $info.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($info)
 
 $log = New-Object Windows.Forms.TextBox
-$log.Location = New-Object Drawing.Point(32,390)
+$log.Location = New-Object Drawing.Point(32,438)
 $log.Size = New-Object Drawing.Size(773,150)
 $log.Multiline = $true
 $log.ReadOnly = $true
@@ -610,24 +621,24 @@ $form.Controls.Add($log)
 
 $copyLog = New-Object Windows.Forms.Button
 $copyLog.Text = "Kopírovat log"
-$copyLog.Location = New-Object Drawing.Point(32,550)
+$copyLog.Location = New-Object Drawing.Point(32,598)
 $copyLog.Size = New-Object Drawing.Size(145,34)
 $form.Controls.Add($copyLog)
 
 $openLogs = New-Object Windows.Forms.Button
 $openLogs.Text = "Otevřít logy"
-$openLogs.Location = New-Object Drawing.Point(187,550)
+$openLogs.Location = New-Object Drawing.Point(187,598)
 $openLogs.Size = New-Object Drawing.Size(145,34)
 $form.Controls.Add($openLogs)
 
 $reportLog = New-Object Windows.Forms.Button
 $reportLog.Text = "ODESLAT CHYBU"
-$reportLog.Location = New-Object Drawing.Point(342,550)
+$reportLog.Location = New-Object Drawing.Point(342,598)
 $reportLog.Size = New-Object Drawing.Size(170,34)
 $form.Controls.Add($reportLog)
 
 $logPathLabel = New-Object Windows.Forms.Label
-$logPathLabel.Location = New-Object Drawing.Point(530,555)
+$logPathLabel.Location = New-Object Drawing.Point(530,603)
 $logPathLabel.Size = New-Object Drawing.Size(275,24)
 $logPathLabel.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
 $logPathLabel.Text = "Ukládá se 5 posledních logů"
@@ -635,7 +646,7 @@ $form.Controls.Add($logPathLabel)
 
 $format = New-Object Windows.Forms.Button
 $format.Text = "NAFORMÁTOVAT SD"
-$format.Location = New-Object Drawing.Point(32,610)
+$format.Location = New-Object Drawing.Point(32,658)
 $format.Size = New-Object Drawing.Size(245,52)
 $format.BackColor = [Drawing.Color]::FromArgb(23,32,51)
 $format.ForeColor = [Drawing.Color]::White
@@ -645,7 +656,7 @@ $form.Controls.Add($format)
 
 $create = New-Object Windows.Forms.Button
 $create.Text = "VYTVOŘIT PiTV SD"
-$create.Location = New-Object Drawing.Point(290,610)
+$create.Location = New-Object Drawing.Point(290,658)
 $create.Size = New-Object Drawing.Size(515,52)
 $create.BackColor = [Drawing.Color]::FromArgb(2,132,199)
 $create.ForeColor = [Drawing.Color]::White
@@ -853,7 +864,26 @@ function Load-WifiFromWindows {
     }
 }
 
+function Get-SelectedPiTag {
+    switch ($piModel.SelectedIndex) {
+        0 { return "pi3-64bit" }
+        1 { return "pi4-64bit" }
+        2 { return "pi5-64bit" }
+        default { throw "Vyber model Raspberry Pi." }
+    }
+}
+
+function Get-SelectedPiName {
+    switch ($piModel.SelectedIndex) {
+        0 { return "Raspberry Pi 3 / 3B+" }
+        1 { return "Raspberry Pi 4" }
+        2 { return "Raspberry Pi 5" }
+        default { return "Raspberry Pi" }
+    }
+}
+
 function Select-LocalImage {
+
     $dialog = New-Object Windows.Forms.OpenFileDialog
     $dialog.Title = "Vyber vlastní Ubuntu Server image"
     $dialog.Filter = "Ubuntu / Raspberry Pi image (*.img;*.img.xz;*.xz;*.zip)|*.img;*.img.xz;*.xz;*.zip|Všechny soubory (*.*)|*.*"
@@ -874,7 +904,7 @@ function Select-LocalImage {
     }
 
     $confirm = [Windows.Forms.MessageBox]::Show(
-        "Vlastní image musí být kompatibilní s Raspberry Pi 4 a cloud-init, aby se automaticky nastavila Wi-Fi a nainstalovalo PiTV. Doporučená je Ubuntu Server 24.04 ARM64. Pokračovat?",
+        ("Vlastní image musí být kompatibilní se zvoleným " + (Get-SelectedPiName) + " a cloud-init, aby se automaticky nastavila Wi-Fi a nainstalovalo PiTV. Doporučená je Ubuntu Server 24.04 ARM64. Pokračovat?"),
         "Vlastní Ubuntu image",
         [Windows.Forms.MessageBoxButtons]::YesNo,
         [Windows.Forms.MessageBoxIcon]::Information
@@ -976,6 +1006,7 @@ $format.Add_Click({
         $refresh.Enabled = $false
         $wifiLoad.Enabled = $false
         $imageBrowse.Enabled = $false
+        $piModel.Enabled = $false
 
         Log ("Formátuji Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
         $vol = Format-SdDisk $d.Number $d.Size $d.Name $d.Identity
@@ -1007,6 +1038,7 @@ $format.Add_Click({
         $refresh.Enabled = $true
         $wifiLoad.Enabled = $true
         $imageBrowse.Enabled = $true
+        $piModel.Enabled = $true
     }
 })
 
@@ -1029,6 +1061,7 @@ $create.Add_Click({
         $refresh.Enabled = $false
         $wifiLoad.Enabled = $false
         $imageBrowse.Enabled = $false
+        $piModel.Enabled = $false
 
         Log "Kontroluji Raspberry Pi Imager..."
         $imager = Ensure-Imager
@@ -1038,6 +1071,9 @@ $create.Add_Click({
         $image = $null
         $imageSource = ""
         $imageSha = $null
+        $piName = Get-SelectedPiName
+        $piTag = Get-SelectedPiTag
+        Log ("Cílový model: " + $piName)
 
         $useLocalImage = ($os.SelectedIndex -eq 1 -and $script:LocalImagePath)
         if ($useLocalImage) {
@@ -1048,8 +1084,8 @@ $create.Add_Click({
             Log ("Použita vlastní image: " + (Split-Path -Leaf $script:LocalImagePath))
         }
         else {
-            Log "Online režim: načítám oficiální Ubuntu Server 24.04 ARM64 image z katalogu..."
-            $image = Get-Ubuntu2404
+            Log ("Online režim: načítám oficiální Ubuntu Server 24.04 ARM64 pro " + $piName + "...")
+            $image = Get-Ubuntu2404 $piTag
             Log ("Vybráno z katalogu: " + [string](Get-Prop $image "name"))
             $imageSource = [string](Get-Prop $image "url")
             $imageSha = Get-Prop $image "extract_sha256"
@@ -1095,7 +1131,7 @@ $create.Add_Click({
         Log ("Záložní účet: pitvadmin · heslo zkopírováno do schránky.")
 
         [Windows.Forms.MessageBox]::Show(
-            "SD karta je připravená. Vlož ji do Raspberry Pi 4 a zapni ho. PiTV se nainstaluje samo při prvním startu. Záložní heslo účtu pitvadmin je ve schránce.",
+            ("SD karta je připravená. Vlož ji do " + $piName + " a zapni ho. PiTV se nainstaluje samo při prvním startu. Záložní heslo účtu pitvadmin je ve schránce."),
             "PiTV SD Installer",
             [Windows.Forms.MessageBoxButtons]::OK,
             [Windows.Forms.MessageBoxIcon]::Information
@@ -1122,11 +1158,12 @@ $create.Add_Click({
         $refresh.Enabled = $true
         $wifiLoad.Enabled = $true
         $imageBrowse.Enabled = $true
+        $piModel.Enabled = $true
     }
 })
 
 $form.Add_Shown({
-    Log "PiTV SD Installer v0.13 · Windows"
+    Log "PiTV SD Installer v0.14 · Windows"
     Log "Zápis provádí oficiální Raspberry Pi Imager CLI."
     Log "Diagnostika aktivní · ukládá se posledních 5 relací."
     Refresh-Drives
