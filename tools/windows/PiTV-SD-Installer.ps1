@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
-$InstallerVersion = "0.20"
+$InstallerVersion = "0.21"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
@@ -267,18 +267,14 @@ function Yaml-Q([string]$s) {
     return "'" + $s.Replace("'","''") + "'"
 }
 
-function New-Password {
-    $b = New-Object byte[] 18
-    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-    try { $rng.GetBytes($b) } finally { $rng.Dispose() }
-    $v = [Convert]::ToBase64String($b).Replace("+","A").Replace("/","B").Replace("=","")
-    return $v.Substring(0,[Math]::Min(20,$v.Length)) + "!9a"
-}
-
-function New-CloudInit([string]$ssid,[string]$wifiPass) {
+function New-CloudInit([string]$ssid,[string]$wifiPass,[string]$adminUser,[string]$adminPass) {
     $dir = Join-Path $env:TEMP ("pitv-cloud-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory $dir | Out-Null
-    $adminPass = New-Password
+
+    # Encode user:password so shell punctuation in the password is never
+    # interpreted by bash. It is decoded only on first boot for chpasswd.
+    $credentialLine = $adminUser + ":" + $adminPass
+    $credentialB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($credentialLine))
 
     $userData = @"
 #cloud-config
@@ -286,7 +282,7 @@ hostname: pitv
 manage_etc_hosts: true
 ssh_pwauth: true
 users:
-  - name: pitvadmin
+  - name: $adminUser
     groups: [adm, sudo]
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -295,7 +291,7 @@ package_update: true
 packages:
   - git
 runcmd:
-  - [ bash, -lc, "echo 'pitvadmin:$adminPass' | chpasswd" ]
+  - [ bash, -lc, "echo '$credentialB64' | base64 -d | chpasswd" ]
   - [ bash, -lc, "set -e; rm -rf /opt/pitv-bootstrap; git clone --depth 1 $PiTVRepoUrl /opt/pitv-bootstrap; cd /opt/pitv-bootstrap; ./install.sh > /var/log/pitv-firstboot.log 2>&1; mkdir -p /var/lib/pitv; touch /var/lib/pitv/firstboot-complete; rm -f /boot/firmware/user-data /boot/firmware/network-config || true; systemctl reboot" ]
 "@
 
@@ -316,7 +312,13 @@ wifis:
     [IO.File]::WriteAllText($ud,$userData,$utf8)
     [IO.File]::WriteAllText($nw,$network,$utf8)
 
-    return [pscustomobject]@{ Dir=$dir; UserData=$ud; Network=$nw; Password=$adminPass }
+    return [pscustomobject]@{
+        Dir = $dir
+        UserData = $ud
+        Network = $nw
+        Username = $adminUser
+        Password = $adminPass
+    }
 }
 
 function Get-VerifiedSafeDisk([int]$Number,[UInt64]$ExpectedSize,[string]$ExpectedName,[string]$ExpectedIdentity="") {
@@ -358,7 +360,7 @@ if (-not (Test-Path $enginePath -PathType Leaf)) {
 
 $form = New-Object Windows.Forms.Form
 $form.Text = "PiTV SD Installer v" + $InstallerVersion
-$form.Size = New-Object Drawing.Size(840,790)
+$form.Size = New-Object Drawing.Size(840,875)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [Drawing.Color]::FromArgb(7,11,20)
 $form.ForeColor = [Drawing.Color]::White
@@ -481,8 +483,30 @@ $wifiStatus.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
 $wifiStatus.Text = "Zkouším načíst aktuální Wi-Fi z Windows..."
 $form.Controls.Add($wifiStatus)
 
+Add-Label "PiTV uživatel" 372
+$accountUser = New-Object Windows.Forms.TextBox
+$accountUser.Location = New-Object Drawing.Point(205,368)
+$accountUser.Size = New-Object Drawing.Size(455,32)
+$accountUser.Text = "pitvadmin"
+$form.Controls.Add($accountUser)
+
+Add-Label "PiTV heslo" 414
+$accountPass = New-Object Windows.Forms.TextBox
+$accountPass.Location = New-Object Drawing.Point(205,410)
+$accountPass.Size = New-Object Drawing.Size(330,32)
+$accountPass.UseSystemPasswordChar = $true
+$form.Controls.Add($accountPass)
+
+$accountShow = New-Object Windows.Forms.CheckBox
+$accountShow.Text = "Zobrazit heslo"
+$accountShow.Location = New-Object Drawing.Point(550,411)
+$accountShow.Size = New-Object Drawing.Size(190,28)
+$accountShow.ForeColor = [Drawing.Color]::FromArgb(241,245,249)
+$accountShow.BackColor = $form.BackColor
+$form.Controls.Add($accountShow)
+
 $info = New-Object Windows.Forms.Label
-$info.Location = New-Object Drawing.Point(32,370)
+$info.Location = New-Object Drawing.Point(32,462)
 $info.Size = New-Object Drawing.Size(773,34)
 $info.Text = "BEZPEČNOST: systémový disk se nikdy nenabízí. Před zápisem znovu uvidíš model a kapacitu vybrané karty."
 $info.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
@@ -491,7 +515,7 @@ $info.AutoEllipsis = $true
 $form.Controls.Add($info)
 
 $progressLabel = New-Object Windows.Forms.Label
-$progressLabel.Location = New-Object Drawing.Point(32,410)
+$progressLabel.Location = New-Object Drawing.Point(32,502)
 $progressLabel.Size = New-Object Drawing.Size(773,24)
 $progressLabel.ForeColor = [Drawing.Color]::FromArgb(125,211,252)
 $progressLabel.BackColor = $form.BackColor
@@ -502,7 +526,7 @@ $form.Controls.Add($progressLabel)
 $progressLabel.BringToFront()
 
 $progress = New-Object Windows.Forms.ProgressBar
-$progress.Location = New-Object Drawing.Point(32,438)
+$progress.Location = New-Object Drawing.Point(32,530)
 $progress.Size = New-Object Drawing.Size(773,16)
 $progress.Minimum = 0
 $progress.Maximum = 100
@@ -510,7 +534,7 @@ $progress.Value = 0
 $form.Controls.Add($progress)
 
 $log = New-Object Windows.Forms.TextBox
-$log.Location = New-Object Drawing.Point(32,466)
+$log.Location = New-Object Drawing.Point(32,558)
 $log.Size = New-Object Drawing.Size(773,122)
 $log.Multiline = $true
 $log.ReadOnly = $true
@@ -521,24 +545,24 @@ $form.Controls.Add($log)
 
 $copyLog = New-Object Windows.Forms.Button
 $copyLog.Text = "Kopírovat log"
-$copyLog.Location = New-Object Drawing.Point(32,598)
+$copyLog.Location = New-Object Drawing.Point(32,690)
 $copyLog.Size = New-Object Drawing.Size(145,34)
 $form.Controls.Add($copyLog)
 
 $openLogs = New-Object Windows.Forms.Button
 $openLogs.Text = "Otevřít logy"
-$openLogs.Location = New-Object Drawing.Point(187,598)
+$openLogs.Location = New-Object Drawing.Point(187,690)
 $openLogs.Size = New-Object Drawing.Size(145,34)
 $form.Controls.Add($openLogs)
 
 $reportLog = New-Object Windows.Forms.Button
 $reportLog.Text = "ODESLAT CHYBU"
-$reportLog.Location = New-Object Drawing.Point(342,598)
+$reportLog.Location = New-Object Drawing.Point(342,690)
 $reportLog.Size = New-Object Drawing.Size(170,34)
 $form.Controls.Add($reportLog)
 
 $logPathLabel = New-Object Windows.Forms.Label
-$logPathLabel.Location = New-Object Drawing.Point(530,603)
+$logPathLabel.Location = New-Object Drawing.Point(530,695)
 $logPathLabel.Size = New-Object Drawing.Size(275,24)
 $logPathLabel.ForeColor = [Drawing.Color]::FromArgb(226,232,240)
 $logPathLabel.Text = "Ukládá se 5 posledních logů"
@@ -546,7 +570,7 @@ $form.Controls.Add($logPathLabel)
 
 $format = New-Object Windows.Forms.Button
 $format.Text = "NAFORMÁTOVAT SD"
-$format.Location = New-Object Drawing.Point(32,658)
+$format.Location = New-Object Drawing.Point(32,750)
 $format.Size = New-Object Drawing.Size(245,52)
 $format.BackColor = [Drawing.Color]::FromArgb(23,32,51)
 $format.ForeColor = [Drawing.Color]::White
@@ -556,7 +580,7 @@ $form.Controls.Add($format)
 
 $create = New-Object Windows.Forms.Button
 $create.Text = "VYTVOŘIT PiTV SD"
-$create.Location = New-Object Drawing.Point(290,658)
+$create.Location = New-Object Drawing.Point(290,750)
 $create.Size = New-Object Drawing.Size(515,52)
 $create.BackColor = [Drawing.Color]::FromArgb(2,132,199)
 $create.ForeColor = [Drawing.Color]::White
@@ -831,7 +855,7 @@ function Get-SelectedPiName {
     }
 }
 
-function Show-PiTVCompletionDialog([string]$piName,[string]$password) {
+function Show-PiTVCompletionDialog([string]$piName,[string]$username,[string]$password) {
     $dlg = New-Object Windows.Forms.Form
     $dlg.Text = "PiTV SD Installer · dokončeno"
     $dlg.Size = New-Object Drawing.Size(610,360)
@@ -865,7 +889,7 @@ function Show-PiTVCompletionDialog([string]$piName,[string]$password) {
     $dlg.Controls.Add($userLabel)
 
     $userBox = New-Object Windows.Forms.TextBox
-    $userBox.Text = "pitvadmin"
+    $userBox.Text = $username
     $userBox.ReadOnly = $true
     $userBox.Location = New-Object Drawing.Point(140,128)
     $userBox.Size = New-Object Drawing.Size(420,28)
@@ -991,6 +1015,10 @@ $wifiShow.Add_CheckedChanged({
     $wifiPass.UseSystemPasswordChar = -not $wifiShow.Checked
 })
 
+$accountShow.Add_CheckedChanged({
+    $accountPass.UseSystemPasswordChar = -not $accountShow.Checked
+})
+
 $wifiPass.Add_TextChanged({
     if ($wifiPass.Text) {
         $script:WifiPasswordSsid = $wifiSsid.Text.Trim()
@@ -1103,6 +1131,9 @@ $create.Add_Click({
         $imageBrowse.Enabled = $false
         $piModel.Enabled = $false
         $os.Enabled = $false
+        $accountUser.Enabled = $false
+        $accountPass.Enabled = $false
+        $accountShow.Enabled = $false
 
         Set-InstallerProgress "Kontroluji nastavení" 0
         Log ("Cílový model: " + $piName)
@@ -1122,7 +1153,117 @@ $create.Add_Click({
         }
         Log "Cílová Wi-Fi pro Raspberry Pi byla potvrzena."
 
-        $cloud = New-CloudInit $ssid $password
+        $adminUser = $accountUser.Text.Trim().ToLowerInvariant()
+        $adminPass = $accountPass.Text
+
+        if ([string]::IsNullOrWhiteSpace($adminUser)) {
+            throw "Zadej uživatelské jméno pro PiTV."
+        }
+        if ($adminUser -notmatch '^[a-z_][a-z0-9_-]{0,31}
+        $imageSource = ""
+        $expectedExtractSha = ""
+        [Int64]$expectedExtractSize = 0
+        $useLocalImage = ($os.SelectedIndex -eq 1 -and $script:LocalImagePath)
+
+        if ($useLocalImage) {
+            if (-not (Test-Path $script:LocalImagePath -PathType Leaf)) {
+                throw "Vybraná vlastní image už není dostupná. Vyber soubor znovu."
+            }
+
+            $imageSource = $script:LocalImagePath
+            Log ("RYCHLÝ REŽIM: používám vlastní image " + (Split-Path -Leaf $imageSource) + ". Stahování se přeskočí.")
+            Set-InstallerProgress "Používám vlastní image · bez stahování" 100
+        }
+        else {
+            Set-InstallerProgress "Hledám správnou image v online katalogu" 0
+            Log ("Online režim: hledám Ubuntu Server 24.04 ARM64 pro " + $piName + "...")
+
+            $image = Get-Ubuntu2404 $piTag
+            Log ("Katalog: " + [string](Get-Prop $image "name"))
+            $imageSource = Get-PiTVOnlineImageFile $image
+            $expectedExtractSha = Get-PiTVStringProp $image @("extract_sha256")
+            $expectedExtractSize = Get-PiTVInt64Prop $image @("extract_size")
+        }
+
+        $prepared = Prepare-PiTVRawImage $imageSource $expectedExtractSha $expectedExtractSize
+        Write-PiTVRawImageToDisk $prepared $d
+        Install-PiTVCloudInitToBootPartition $d $cloud
+
+        [Windows.Forms.Clipboard]::SetText($cloud.Password)
+        Set-InstallerProgress "HOTOVO · PiTV SD je připravena" 100
+        Log "HOTOVO. PiTV SD je připravená."
+        Log "Po prvním startu se Raspberry připojí k Wi-Fi, cloud-init stáhne PiTV, spustí install.sh a zařízení restartuje."
+        Log "Online image zůstává uložená v cache a při příštím vytvoření SD se nebude stahovat znovu."
+        Log ("PiTV účet: " + $cloud.Username + " · heslo bylo zkopírováno do schránky.")
+
+        Show-PiTVCompletionDialog $piName $cloud.Username $cloud.Password
+    }
+    catch {
+        Log ("CHYBA: " + $_.Exception.Message)
+        Log-ExceptionDetails $_ "VYTVOŘENÍ SD"
+        Set-InstallerProgress "CHYBA · podrobnosti jsou v logu" 0
+
+        $errorText = $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine + "Podrobnosti byly zapsány do diagnostického logu."
+        [Windows.Forms.MessageBox]::Show(
+            $errorText,
+            "PiTV SD Installer",
+            [Windows.Forms.MessageBoxButtons]::OK,
+            [Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+    }
+    finally {
+        if ($prepared -and $prepared.Temporary) {
+            if ($prepared.CleanupDir) {
+                Remove-Item $prepared.CleanupDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            elseif ($prepared.Path) {
+                Remove-Item $prepared.Path -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        if ($cloud -and $cloud.Dir) {
+            Remove-Item $cloud.Dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        $format.Enabled = $true
+        $create.Enabled = $true
+        $refresh.Enabled = $true
+        $wifiLoad.Enabled = $true
+        $imageBrowse.Enabled = $true
+        $piModel.Enabled = $true
+        $os.Enabled = $true
+        $accountUser.Enabled = $true
+        $accountPass.Enabled = $true
+        $accountShow.Enabled = $true
+    }
+})
+
+$form.Add_Shown({
+    Log ("PiTV SD Installer v" + $InstallerVersion + " · Windows")
+    Log "Motor: vlastní PiTV raw writer · bez Raspberry Pi Imageru."
+    Log ("Trvalá cache image: " + $ImageCacheDir)
+    Log "Diagnostika aktivní · ukládá se posledních 5 relací."
+    Set-InstallerProgress "Připraveno · vyber systém, kartu a Wi-Fi" 0
+    Refresh-Drives
+    [void](Load-WifiFromWindows)
+})
+
+[void]$form.ShowDialog()
+) {
+            throw "PiTV uživatel může obsahovat jen malá písmena, čísla, _ a -. Musí začínat písmenem nebo _."
+        }
+        if ($adminUser -in @("root","ubuntu","pitv")) {
+            throw "Jméno '" + $adminUser + "' je rezervované systémem. Zvol jiné uživatelské jméno."
+        }
+        if ([string]::IsNullOrWhiteSpace($adminPass) -or $adminPass.Length -lt 8) {
+            throw "Zadej vlastní PiTV heslo o délce alespoň 8 znaků."
+        }
+        if ($adminPass.Contains([char]10) -or $adminPass.Contains([char]13)) {
+            throw "PiTV heslo nesmí obsahovat nový řádek."
+        }
+
+        Log ("PiTV účet: " + $adminUser + " · vlastní heslo zadáno uživatelem.")
+        $cloud = New-CloudInit $ssid $password $adminUser $adminPass
 
         $imageSource = ""
         $expectedExtractSha = ""
@@ -1196,6 +1337,9 @@ $create.Add_Click({
         $imageBrowse.Enabled = $true
         $piModel.Enabled = $true
         $os.Enabled = $true
+        $accountUser.Enabled = $true
+        $accountPass.Enabled = $true
+        $accountShow.Enabled = $true
     }
 })
 
