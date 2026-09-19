@@ -31,31 +31,30 @@ valid_package() {
   [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$ ]]
 }
 
-# PiTV normally inherits WAYLAND_DISPLAY from labwc's autostart environment.
-# Recover it from XDG_RUNTIME_DIR if an older/manual session lost the variable.
-if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+# Only a Wayland socket from the canonical pitv runtime is valid. A shell can
+# inherit WAYLAND_DISPLAY from admin/root even after switching UID.
+VALID_WAYLAND=""
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  if [[ "$WAYLAND_DISPLAY" = "$RUNTIME/"* ]] && [ -S "$WAYLAND_DISPLAY" ]; then
+    VALID_WAYLAND="$(basename "$WAYLAND_DISPLAY")"
+  elif [[ "$WAYLAND_DISPLAY" != /* ]] && [ -S "$RUNTIME/$WAYLAND_DISPLAY" ]; then
+    VALID_WAYLAND="$WAYLAND_DISPLAY"
+  fi
+fi
+if [ -z "$VALID_WAYLAND" ]; then
   for socket in "$RUNTIME"/wayland-*; do
     if [ -S "$socket" ]; then
-      export WAYLAND_DISPLAY="$(basename "$socket")"
+      VALID_WAYLAND="$(basename "$socket")"
       break
     fi
   done
 fi
-
-if [ -z "${WAYLAND_DISPLAY:-}" ]; then
-  log "WAYLAND_DISPLAY is missing"
+if [ -z "$VALID_WAYLAND" ]; then
+  log "WAYLAND_DISPLAY is missing in $RUNTIME"
   exit 11
 fi
-
-if [[ "$WAYLAND_DISPLAY" = /* ]]; then
-  WAYLAND_SOCKET="$WAYLAND_DISPLAY"
-else
-  WAYLAND_SOCKET="$RUNTIME/$WAYLAND_DISPLAY"
-fi
-if [ ! -S "$WAYLAND_SOCKET" ]; then
-  log "Wayland socket is missing: $WAYLAND_SOCKET"
-  exit 11
-fi
+export WAYLAND_DISPLAY="$VALID_WAYLAND"
+WAYLAND_SOCKET="$RUNTIME/$WAYLAND_DISPLAY"
 
 if [ ! -S "$RUNTIME/bus" ]; then
   log "PiTV user D-Bus is missing: $RUNTIME/bus"
