@@ -1,5 +1,9 @@
 # PiTV Alpha
 
+### PiTV 1.4.11 · Appearance navigation fix
+- opravená levá šipka v Nastavení → Vzhled: Velké → Normální → Malé nyní funguje oběma směry
+- stejný konflikt LEFT byl opraven také u nastavení Spořiče a HDMI audio portu
+- Back zůstává návrat o úroveň zpět, takže šipky ←/→ mohou bezpečně měnit hodnoty
 ### PiTV 1.4.10 · TV runtime incident fixes
 - opravené HDMI-CEC **OK / Zpět**: vlastní parser cec-ctl, split-event i raw fallback
 - vypnutý kernel RC passthrough; PiTV je jediná překladová vrstva pro TV ovladač
