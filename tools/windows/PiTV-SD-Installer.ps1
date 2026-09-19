@@ -361,20 +361,23 @@ $form.BackColor = [Drawing.Color]::FromArgb(7,11,20)
 $form.ForeColor = [Drawing.Color]::White
 $form.Font = New-Object Drawing.Font("Segoe UI",10)
 $form.MaximizeBox = $false
+$form.AutoScroll = $true
 
 $title = New-Object Windows.Forms.Label
 $title.Text = "PiTV SD Installer"
-$title.Font = New-Object Drawing.Font("Segoe UI",24,[Drawing.FontStyle]::Bold)
-$title.Location = New-Object Drawing.Point(28,22)
-$title.AutoSize = $true
+$title.Font = New-Object Drawing.Font("Segoe UI",21,[Drawing.FontStyle]::Bold)
+$title.Location = New-Object Drawing.Point(28,20)
+$title.Size = New-Object Drawing.Size(770,42)
+$title.AutoEllipsis = $true
 $form.Controls.Add($title)
 
 $sub = New-Object Windows.Forms.Label
 $sub.Text = "Vyber Raspberry, systém a kartu. Image PiTV najde online nebo použije uloženou kopii."
 $sub.ForeColor = [Drawing.Color]::FromArgb(203,213,225)
-$sub.Font = New-Object Drawing.Font("Segoe UI",11)
-$sub.Location = New-Object Drawing.Point(31,66)
-$sub.AutoSize = $true
+$sub.Font = New-Object Drawing.Font("Segoe UI",10)
+$sub.Location = New-Object Drawing.Point(31,62)
+$sub.Size = New-Object Drawing.Size(770,40)
+$sub.AutoEllipsis = $true
 $form.Controls.Add($sub)
 
 function Add-Label($text,$y) {
@@ -657,7 +660,7 @@ function Open-LogFolder {
 
 function Report-Problem {
     try {
-        $raw = if (Test-Path $SessionLog) { Get-Content $SessionLog -Raw } else { $log.Text }
+        $raw = if (Test-Path $SessionLog) { Get-Content -LiteralPath $SessionLog -Raw -Encoding UTF8 } else { $log.Text }
         if ([string]::IsNullOrWhiteSpace($raw)) {
             $raw = "Log zatím neobsahuje žádná data."
         }
