@@ -12,8 +12,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/VERSION-v1.3.3-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV version 1.3.0" />
-  <img src="https://img.shields.io/badge/STATUS-Beta-FDE68A?style=for-the-badge&labelColor=92400E" alt="PiTV Beta" />
+  <img src="https://img.shields.io/badge/CHANNEL-Alpha-38BDF8?style=for-the-badge&labelColor=0284C7" alt="PiTV Alpha" />
+  <img src="https://img.shields.io/badge/STATUS-Active%20development-FDE68A?style=for-the-badge&labelColor=92400E" alt="Active development" />
 </p>
 
 <p align="center">
@@ -65,6 +65,8 @@ Prepare the microSD card directly from a computer.
 | **Windows** | run `tools/windows/Start-PiTV-SD-Installer.cmd`, select the card and click **CREATE PiTV SD** |
 | **Linux** | run `tools/pitv-flasher.sh` |
 | **macOS** | run `tools/pitv-flasher.sh` |
+
+The Windows installer offers **Raspberry Pi 3 / 3B+**, **Raspberry Pi 4** and **Raspberry Pi 5**. Pi 4 is the default and recommended target; Pi 3 and Pi 5 remain experimental during Alpha.
 
 The installer prepares Ubuntu Server 24.04 ARM64, Wi-Fi, first boot and automatic PiTV installation. Image writing is delegated to the official Raspberry Pi Imager.
 
@@ -157,7 +159,9 @@ PiTV uses one persistent CEC client for both input and outgoing commands.
 
 Recommended setup:
 
-- Raspberry Pi 4
+- **Raspberry Pi 4** — primary and recommended target
+- Raspberry Pi 3 / 3B+ — Alpha, lower performance
+- Raspberry Pi 5 — Alpha, hardware not physically verified yet
 - 32 GB or larger microSD
 - Ubuntu Server 24.04 LTS ARM64
 - micro-HDMI → HDMI
@@ -167,7 +171,7 @@ Recommended setup:
 
 ## Project status
 
-PiTV is currently **beta**.
+PiTV is currently **Alpha / active development**.
 
 Automated tests cover syntax, catalogs, all UI screens, both themes, Ubuntu 24.04 x64/ARM64 install/start/update/uninstall, Kodi Store installation, Android APK sources and Server Store services.
 
