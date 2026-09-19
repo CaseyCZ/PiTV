@@ -51,14 +51,19 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $installer = Join-Path $env:RUNNER_TEMP "rpi-imager.exe"
-          Invoke-WebRequest -UseBasicParsing -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
+          Invoke-WebRequest -UseBasicParsing -TimeoutSec 120 -Uri "https://downloads.raspberrypi.com/imager/imager_latest.exe" -OutFile $installer
 
           $p = Start-Process -FilePath $installer -ArgumentList @(
             "/VERYSILENT",
             "/SUPPRESSMSGBOXES",
             "/NORESTART",
             "/SP-"
-          ) -Wait -PassThru
+          ) -PassThru
+          if (-not $p.WaitForExit(120000)) {
+            try { $p.Kill() } catch {}
+            throw "Raspberry Pi Imager install timeout"
+          }
+          $p.Refresh()
 
           if ($p.ExitCode -ne 0) {
             throw "Raspberry Pi Imager installer failed with exit code $($p.ExitCode)"
