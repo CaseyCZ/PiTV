@@ -36,6 +36,7 @@ jobs:
         run: |
           test -f /opt/pitv/pitv/pitv.py
           test -x /usr/local/bin/pitv-session
+          test -x /usr/local/bin/pitv-session-run
           test -x /usr/local/bin/pitv-waydroid-launch
           test -x /usr/local/bin/pitv-kodi-addon
           test -x /usr/local/libexec/pitv-helper
@@ -46,7 +47,7 @@ jobs:
           test -f /etc/pitv/store/server_catalog.json
           id pitv
           sudo visudo -cf /etc/sudoers.d/pitv-power
-          dpkg -s python3-pygame labwc wtype wlrctl cec-utils alsa-utils aapt apktool >/dev/null
+          dpkg -s python3-pygame labwc wtype wlrctl cec-utils alsa-utils pulseaudio-utils aapt apktool >/dev/null
 
       - name: Render all PiTV screens with dummy SDL
         run: |
