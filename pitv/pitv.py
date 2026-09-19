@@ -3400,36 +3400,8 @@ class PiTV:
         self.draw_background()
         if self.page == "home": self.draw_home()
         elif self.page == "settings": self.draw_settings()
-        elif self.page == "appearance":
-            rows = self.appearance_rows()
-            if key == pygame.K_UP:
-                self.sub_selected = max(0, self.sub_selected-1)
-            elif key == pygame.K_DOWN:
-                self.sub_selected = min(len(rows)-1, self.sub_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
-                self.open_appearance_choice(self.sub_selected)
-            elif key == pygame.K_LEFT:
-                self.page = "settings"
-                self.settings_selected = 0
-
-        elif self.page == "screensaver":
-            if key == pygame.K_UP:
-                self.sub_selected = max(0, self.sub_selected-1)
-            elif key == pygame.K_DOWN:
-                self.sub_selected = min(5, self.sub_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
-                if self.sub_selected == 5:
-                    self.screensaver_preview = True
-                    self.screensaver_stage = (
-                        "clock" if self.cfg.get("screensaver_mode","clock") == "clock"
-                        else "black"
-                    )
-                else:
-                    self.open_screensaver_choice(self.sub_selected)
-            elif key == pygame.K_LEFT:
-                self.page = "settings"
-                self.settings_selected = 1
-
+        elif self.page == "appearance": self.draw_appearance()
+        elif self.page == "screensaver": self.draw_screensaver_settings()
         elif self.page == "network": self.draw_network()
         elif self.page == "audio": self.draw_audio()
         elif self.page == "cec": self.draw_cec()
@@ -3854,43 +3826,34 @@ class PiTV:
                 self.enter_settings_item()
 
         elif self.page == "appearance":
+            rows = self.appearance_rows()
             if key == pygame.K_UP:
                 self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN:
-                self.sub_selected = min(2, self.sub_selected+1)
-            elif key in (pygame.K_LEFT, pygame.K_RIGHT):
-                direction = 1 if key == pygame.K_RIGHT else -1
-                if self.sub_selected == 0:
-                    themes = ["apple_dark", "apple_light"]
-                    current = {"dark":"apple_dark","light":"apple_light"}.get(
-                        self.cfg.get("theme","apple_dark"), self.cfg.get("theme","apple_dark"))
-                    try:
-                        cur = themes.index(current)
-                    except ValueError:
-                        cur = 0
-                    self.cfg["theme"] = themes[max(0, min(len(themes)-1, cur + direction))]
-                elif self.sub_selected == 1:
-                    vals = [.85, 1.0, 1.15]
-                    cur = min(range(len(vals)), key=lambda i: abs(vals[i]-float(self.cfg.get("tile_scale",1))))
-                    cur = max(0, min(len(vals)-1, cur + direction))
-                    self.cfg["tile_scale"] = vals[cur]
-                else:
-                    self.cfg["show_clock"] = not self.cfg.get("show_clock", True)
-                save_user_config(self.cfg)
+                self.sub_selected = min(len(rows)-1, self.sub_selected+1)
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+                self.open_appearance_choice(self.sub_selected)
+            elif key == pygame.K_LEFT:
+                self.page = "settings"
+                self.settings_selected = 0
 
         elif self.page == "screensaver":
             if key == pygame.K_UP:
                 self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN:
                 self.sub_selected = min(5, self.sub_selected+1)
-            elif key in (pygame.K_LEFT, pygame.K_RIGHT) and self.sub_selected <= 4:
-                self.set_screensaver_value(self.sub_selected, 1 if key == pygame.K_RIGHT else -1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
                 if self.sub_selected == 5:
                     self.screensaver_preview = True
-                    self.screensaver_stage = "clock" if self.cfg.get("screensaver_mode","clock") == "clock" else "black"
-                elif self.sub_selected == 0:
-                    self.set_screensaver_value(0, 1)
+                    self.screensaver_stage = (
+                        "clock" if self.cfg.get("screensaver_mode","clock") == "clock"
+                        else "black"
+                    )
+                else:
+                    self.open_screensaver_choice(self.sub_selected)
+            elif key == pygame.K_LEFT:
+                self.page = "settings"
+                self.settings_selected = 1
 
         elif self.page == "network":
             if key == pygame.K_LEFT:
