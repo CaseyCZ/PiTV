@@ -84,6 +84,12 @@ def store_state(item):
     kind = installer.get("type")
     if kind == "apt":
         return "installed" if apt_installed(installer.get("package", "")) else "available"
+    if kind == "flatpak":
+        app_id = installer.get("app_id", "")
+        if not app_id or shutil.which("flatpak") is None:
+            return "available"
+        p = subprocess.run(["flatpak", "info", "--system", app_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
+        return "installed" if p.returncode == 0 else "available"
     if kind in ("github_release_apk", "direct_apk"):
         receipt = read_receipt(item.get("id", ""))
         package = receipt.get("package", "")
