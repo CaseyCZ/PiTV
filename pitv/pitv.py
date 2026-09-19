@@ -1050,8 +1050,6 @@ class PiTV:
         self.external_proc = None
         self.external_kind = None
         self.external_started_at = 0.0
-        self._focus_probe_at = 0.0
-        self._pitv_focus_samples = 0
         self._relay_echo = {}
 
         self.wifi_networks = []
@@ -2996,25 +2994,6 @@ class PiTV:
         self.external_proc = proc
         self.external_kind = kind
         self.external_started_at = time.monotonic()
-        self._focus_probe_at = 0.0
-        self._pitv_focus_samples = 0
-
-    def _active_toplevels(self):
-        if shutil.which("wlrctl") is None:
-            return ""
-        try:
-            p = subprocess.run(
-                ["wlrctl", "toplevel", "list", "state:active"],
-                env=build_gui_env(),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=1.2,
-                check=False,
-            )
-            return (p.stdout or "").strip() if p.returncode == 0 else ""
-        except Exception:
-            return ""
 
     def _recover_external_focus(self):
         proc = self.external_proc
@@ -3022,9 +3001,11 @@ class PiTV:
         self.external_proc = None
         self.external_kind = None
         self.external_started_at = 0.0
-        self._pitv_focus_samples = 0
 
-        # PiTV is already the compositor's active window, so the external
+        # PiTV received a wtype echo, so its SDL window is active again and
+        # the external session marker is stale. Terminate the stale process
+        # group so it cannot steal future CEC input.
+        #
         # session has become stale/minimized/hidden. Terminate the stale
         # process group so it cannot steal future CEC input again.
         if proc and proc.poll() is None:
@@ -3049,43 +3030,12 @@ class PiTV:
         self._relay_echo.clear()
         self.show_toast("Ovládání PiTV obnoveno", 2.0)
 
-    def _external_focus_watchdog(self):
-        if not self.external_kind:
-            self._pitv_focus_samples = 0
-            return
-
-        now = time.monotonic()
-        # Give a newly launched client time to create/focus its toplevel.
-        if now - self.external_started_at < 3.0:
-            return
-        if now < self._focus_probe_at:
-            return
-        self._focus_probe_at = now + 0.5
-
-        active = self._active_toplevels()
-        pitv_active = False
-        for line in active.splitlines():
-            lower = line.lower()
-            # wlrctl emits "app_id: title". SDL's app_id can vary, but PiTV's
-            # window caption is stable: "PiTV <version>".
-            if re.search(r"(?:^|:\s*)pitv(?:\s|$)", lower):
-                pitv_active = True
-                break
-
-        if pitv_active:
-            self._pitv_focus_samples += 1
-            if self._pitv_focus_samples >= 2:
-                self._recover_external_focus()
-        else:
-            self._pitv_focus_samples = 0
-
     def stop_external(self):
         proc = self.external_proc
         kind = self.external_kind
         self.external_proc = None
         self.external_kind = None
         self.external_started_at = 0.0
-        self._pitv_focus_samples = 0
         if proc and proc.poll() is None:
             try:
                 os.killpg(os.getpgid(proc.pid), 15)
@@ -3706,6 +3656,11 @@ class PiTV:
                     # on-screen keyboard legend and common media-center UX.
                     key = normalize_input_key(event.key)
                     if self.external_kind == "linux" and self._consume_relay_echo(key):
+                        # The synthetic key came back to PiTV, therefore the
+                        # launcher owns keyboard focus again. Clear the stale
+                        # external session and apply this physical key once.
+                        self._recover_external_focus()
+                        self.handle_key(key)
                         continue
                     self.handle_key(key)
 
@@ -3719,7 +3674,6 @@ class PiTV:
                     self.apps = load_apps()
                     self.refresh_store_async()
 
-            self._external_focus_watchdog()
             self.update_idle_state()
             if self.external_kind:
                 # The external client owns the visible surface. Keep PiTV's
