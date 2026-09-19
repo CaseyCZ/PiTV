@@ -9,6 +9,24 @@ fi
 OFFICIAL_BOOTSTRAP_URL="https://repo.waydro.id"
 FALLBACK_BASE="https://raw.githubusercontent.com/CaseyCZ/PiTV/Master/vendor/waydroid/noble"
 
+# Raspberry Pi-specific checks before downloading images. PiTV currently
+# targets Pi 4 first. A 4 KiB page-size kernel is the compatible baseline used
+# by working Raspberry Pi Waydroid setups; PSI is required by Android's memory
+# pressure handling. Do not rewrite boot files automatically here.
+if [ "$(dpkg --print-architecture 2>/dev/null || true)" = "arm64" ]; then
+  PAGE_SIZE="$(getconf PAGESIZE 2>/dev/null || true)"
+  if [ -n "$PAGE_SIZE" ] && [ "$PAGE_SIZE" != "4096" ]; then
+    echo "Waydroid na Raspberry Pi vyžaduje 4 KiB page-size kernel; nalezeno: $PAGE_SIZE." >&2
+    echo "Změň kernel na 4 KiB variantu, restartuj a instalaci spusť znovu." >&2
+    exit 3
+  fi
+  if [ ! -d /proc/pressure ]; then
+    echo "Waydroid vyžaduje PSI (/proc/pressure), ale kernel ho teď neposkytuje." >&2
+    echo "Zapni psi=1 v kernel command line, restartuj a instalaci spusť znovu." >&2
+    exit 4
+  fi
+fi
+
 apt-get update
 apt-get install -y curl ca-certificates
 
