@@ -648,6 +648,7 @@ class PiTV:
         # full Dark/Light design references; install.sh copies them next to
         # pitv.py on the device. CI can still load them from the repo root.
         self._home_hero_cache = {}
+        self._home_tile_cache = {}
 
         self.wifi_networks = []
         self.wifi_scanning = False
@@ -1442,20 +1443,81 @@ class PiTV:
             self.screen.blit(gear, (self.w-int(self.w*.037), int(self.h*.018)))
         return r
 
+    HOME_TILE_CROPS = {
+        # Approved Dark.jpg / Light.jpg reference coordinates, normalized from
+        # the 1536x864 mockups. Only the colored app cards are sampled; PiTV
+        # renders live labels and focus itself.
+        "kodi":       (.2298, .5394, .1094, .1065),
+        "smarttube":  (.3444, .5394, .1094, .1065),
+        "stremio":    (.4629, .5394, .1094, .1065),
+        "plex":       (.5807, .5394, .1094, .1065),
+        "youtube-tv": (.6992, .5394, .1094, .1065),
+        "spotify-tv": (.8164, .5394, .1113, .1065),
+        "homebridge": (.2292, .7361, .1094, .1065),
+        "tailscale":  (.3444, .7361, .1094, .1065),
+        "docker":     (.4635, .7361, .1087, .1065),
+        "atvloadly":  (.5814, .7361, .1094, .1065),
+        "android":    (.6999, .7361, .1094, .1065),
+        "settings":   (.8171, .7361, .1100, .1065),
+    }
+
+    def _home_tile_surface(self, tile_id, size):
+        key = (self.theme_name, tile_id, int(size[0]), int(size[1]))
+        cached = self._home_tile_cache.get(key)
+        if cached is not None:
+            return cached
+
+        crop_def = self.HOME_TILE_CROPS.get(tile_id)
+        path = self._home_reference_path()
+        if crop_def is None or path is None:
+            self._home_tile_cache[key] = False
+            return None
+
+        try:
+            source = pygame.image.load(str(path)).convert()
+            sw, sh = source.get_size()
+            x, y, w, h = crop_def
+            crop = pygame.Rect(
+                int(sw*x), int(sh*y), int(sw*w), int(sh*h)
+            ).clip(source.get_rect())
+            tile = source.subsurface(crop).copy()
+            tile = pygame.transform.smoothscale(tile, (int(size[0]), int(size[1])))
+            tile = tile.convert_alpha()
+            mask = pygame.Surface(tile.get_size(), pygame.SRCALPHA)
+            pygame.draw.rect(mask, (255,255,255,255), mask.get_rect(), border_radius=16)
+            tile.blit(mask, (0,0), special_flags=pygame.BLEND_RGBA_MIN)
+            self._home_tile_cache[key] = tile
+            return tile
+        except Exception:
+            self._home_tile_cache[key] = False
+            return None
+
     def draw_home_tile(self, item, rect, selected):
-        style = self.HOME_TILE_STYLE.get(
-            item.get("id", ""),
-            (self.t["accent2"], self.t["action"], item.get("name","?")[:1].upper())
-        )
-        top, bottom, icon_text = style
+        tile_art = self._home_tile_surface(item.get("id",""), rect.size)
 
         if selected:
             glow = rect.inflate(10, 10)
             halo = pygame.Surface((glow.w, glow.h), pygame.SRCALPHA)
-            pygame.draw.rect(halo, (*self.t["accent"], 42), halo.get_rect(), border_radius=18)
+            pygame.draw.rect(halo, (*self.t["accent"], 48), halo.get_rect(), border_radius=18)
             self.screen.blit(halo, glow.topleft)
 
-        self.gradient_rect(rect, top, bottom, radius=16)
+        if tile_art:
+            self.screen.blit(tile_art, rect.topleft)
+        else:
+            style = self.HOME_TILE_STYLE.get(
+                item.get("id", ""),
+                (self.t["accent2"], self.t["action"], item.get("name","?")[:1].upper())
+            )
+            top, bottom, icon_text = style
+            self.gradient_rect(rect, top, bottom, radius=16)
+
+            dark_icon = item.get("id") in ("youtube-tv", "settings")
+            icon_color = (239,35,45) if item.get("id") == "youtube-tv" else (
+                (51,65,85) if dark_icon else (255,255,255)
+            )
+            icon = self.font(rect.h*.36, True).render(str(icon_text), True, icon_color)
+            self.screen.blit(icon, icon.get_rect(center=rect.center))
+
         pygame.draw.rect(
             self.screen,
             self.t["accent"] if selected else self.t["border"],
@@ -1463,13 +1525,6 @@ class PiTV:
             3 if selected else 1,
             border_radius=16,
         )
-
-        dark_icon = item.get("id") in ("youtube-tv", "settings")
-        icon_color = (239, 35, 45) if item.get("id") == "youtube-tv" else (
-            (51,65,85) if dark_icon else (255,255,255)
-        )
-        icon = self.font(rect.h*.36, True).render(str(icon_text), True, icon_color)
-        self.screen.blit(icon, icon.get_rect(center=rect.center))
 
         label = self.font(self.h*.017, selected).render(item.get("name",""), True, self.t["text"])
         self.screen.blit(label, (rect.centerx-label.get_width()//2, rect.bottom+int(self.h*.010)))
