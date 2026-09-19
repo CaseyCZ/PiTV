@@ -51,6 +51,23 @@ Nelze věrohodně simulovat v GitHub Actions:
 
 Tyto body jsou poslední část před označením Raspberry Pi 4 build jako hardware-verified.
 
+## Windows SD Installer — stabilizační audit
+
+Po prvních fyzických testech na Windows byl SD Installer přezkoumán jako samostatný destruktivní nástroj, ne jen jako GUI skript.
+
+Ověřeno / zpřísněno:
+
+- Raspberry Pi Imager CLI parametry se kontrolují proti aktuálně instalované verzi,
+- Alpha release se publikuje až po Windows integrační validaci,
+- aktuální Ubuntu katalog se testuje online,
+- cílový disk se před formátem/zápisem znovu ověřuje podle čísla, kapacity, názvu a pokud Windows poskytne také `UniqueId` / `SerialNumber`,
+- systémový/boot disk je blokovaný fail-closed filtrem,
+- externí instalace mají timeout,
+- stderr Raspberry Pi Imageru jde do diagnostického logu,
+- posledních 5 lokálních logů se rotuje a GitHub error report rediguje citlivé údaje.
+
+Projekt Rufus (`pbatard/rufus`) byl použit pouze jako architektonická reference pro bezpečné zacházení s fyzickými disky, retry/error reporting a konzervativní UX. **Žádný Rufus GPLv3 kód není součástí PiTV**; PiTV zůstává pod MIT licencí.
+
 ## Rizika / další doporučení
 
 - **Self-update:** aktuálně důvěřuje mutable GitHub větvi a spouští stažený installer jako root. Pro veřejné release je vhodné přejít na tag/release + checksum/signature.
