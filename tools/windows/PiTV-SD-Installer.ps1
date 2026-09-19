@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.Net.Http
 
 $RepoListUrl = "https://downloads.raspberrypi.com/os_list_imagingutility_v4.json"
 $PiTVRepoUrl = "https://github.com/CaseyCZ/PiTV.git"
-$InstallerVersion = "0.25"
+$InstallerVersion = "0.26"
 
 $LogDir = Join-Path $env:LOCALAPPDATA "PiTV\SD-Installer\logs"
 $ImageCacheDir = Join-Path $env:LOCALAPPDATA "PiTV\images"
@@ -571,21 +571,31 @@ $form.Controls.Add($logPathLabel)
 $format = New-Object Windows.Forms.Button
 $format.Text = "NAFORMÁTOVAT SD"
 $format.Location = New-Object Drawing.Point(32,750)
-$format.Size = New-Object Drawing.Size(245,52)
+$format.Size = New-Object Drawing.Size(190,52)
 $format.BackColor = [Drawing.Color]::FromArgb(23,32,51)
 $format.ForeColor = [Drawing.Color]::White
 $format.FlatStyle = "Flat"
-$format.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
+$format.Font = New-Object Drawing.Font("Segoe UI",9,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($format)
+
+$repair = New-Object Windows.Forms.Button
+$repair.Text = "OPRAVIT / DOPLNIT PiTV"
+$repair.Location = New-Object Drawing.Point(232,750)
+$repair.Size = New-Object Drawing.Size(300,52)
+$repair.BackColor = [Drawing.Color]::FromArgb(15,48,73)
+$repair.ForeColor = [Drawing.Color]::FromArgb(186,230,253)
+$repair.FlatStyle = "Flat"
+$repair.Font = New-Object Drawing.Font("Segoe UI",10,[Drawing.FontStyle]::Bold)
+$form.Controls.Add($repair)
 
 $create = New-Object Windows.Forms.Button
 $create.Text = "VYTVOŘIT PiTV SD"
-$create.Location = New-Object Drawing.Point(290,750)
-$create.Size = New-Object Drawing.Size(515,52)
+$create.Location = New-Object Drawing.Point(542,750)
+$create.Size = New-Object Drawing.Size(263,52)
 $create.BackColor = [Drawing.Color]::FromArgb(2,132,199)
 $create.ForeColor = [Drawing.Color]::White
 $create.FlatStyle = "Flat"
-$create.Font = New-Object Drawing.Font("Segoe UI",12,[Drawing.FontStyle]::Bold)
+$create.Font = New-Object Drawing.Font("Segoe UI",11,[Drawing.FontStyle]::Bold)
 $form.Controls.Add($create)
 
 function Sanitize-LogText([string]$s) {
@@ -1130,6 +1140,7 @@ $format.Add_Click({
         if ($answer -ne [Windows.Forms.DialogResult]::Yes) { return }
 
         $format.Enabled = $false
+        $repair.Enabled = $false
         $create.Enabled = $false
         $refresh.Enabled = $false
         $wifiLoad.Enabled = $false
@@ -1161,11 +1172,124 @@ $format.Add_Click({
     }
     finally {
         $format.Enabled = $true
+        $repair.Enabled = $true
         $create.Enabled = $true
         $refresh.Enabled = $true
         $wifiLoad.Enabled = $true
         $imageBrowse.Enabled = $true
         $piModel.Enabled = $true
+    }
+})
+
+$repair.Add_Click({
+    $cloud = $null
+
+    try {
+        if (-not $disk.SelectedItem) { throw "Vyber microSD kartu." }
+
+        $d = $disk.SelectedItem
+        $piName = Get-SelectedPiName
+        $nl = [Environment]::NewLine
+
+        $warningText = $piName + $nl +
+            "Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size) + $nl + $nl +
+            "Image se NEBUDE znovu zapisovat. Installer pouze doplní nebo opraví PiTV cloud-init soubory na existujícím Ubuntu boot oddílu." +
+            $nl + $nl + "Pokračovat?"
+
+        $answer = [Windows.Forms.MessageBox]::Show(
+            $warningText,
+            "Opravit / doplnit PiTV SD",
+            [Windows.Forms.MessageBoxButtons]::YesNo,
+            [Windows.Forms.MessageBoxIcon]::Information
+        )
+        if ($answer -ne [Windows.Forms.DialogResult]::Yes) { return }
+
+        $format.Enabled = $false
+        $repair.Enabled = $false
+        $create.Enabled = $false
+        $refresh.Enabled = $false
+        $wifiLoad.Enabled = $false
+        $imageBrowse.Enabled = $false
+        $piModel.Enabled = $false
+        $os.Enabled = $false
+        $accountUser.Enabled = $false
+        $accountPass.Enabled = $false
+        $accountShow.Enabled = $false
+
+        Set-InstallerProgress "Kontroluji existující PiTV SD" 0
+        Log ("REPAIR MODE: Disk " + $d.Number + " · " + $d.Name + " · " + (Size-Text $d.Size))
+        $null = Get-VerifiedSafeDisk $d.Number $d.Size $d.Name $d.Identity
+
+        $ssid = $wifiSsid.Text.Trim()
+        $wifiPassword = $wifiPass.Text
+        if ([string]::IsNullOrWhiteSpace($ssid)) {
+            throw "Zadej název cílové Wi-Fi (SSID)."
+        }
+        if ([string]::IsNullOrWhiteSpace($wifiPassword)) {
+            throw "Zadej heslo cílové Wi-Fi."
+        }
+        if ($script:WifiPasswordSsid -and $script:WifiPasswordSsid -ne $ssid) {
+            throw "Wi-Fi byla změněna, ale heslo patří předchozí síti. Vyber síť znovu nebo zadej správné heslo."
+        }
+
+        $adminUser = $accountUser.Text.Trim().ToLowerInvariant()
+        $adminPass = $accountPass.Text
+        if ([string]::IsNullOrWhiteSpace($adminUser)) {
+            throw "Zadej uživatelské jméno pro PiTV."
+        }
+        if (-not [Text.RegularExpressions.Regex]::IsMatch($adminUser, "^[a-z_][a-z0-9_-]{0,31}$")) {
+            throw "PiTV uživatel může obsahovat jen malá písmena, čísla, _ a -. Musí začínat písmenem nebo _."
+        }
+        if ($adminUser -in @("root","ubuntu","pitv")) {
+            throw ("Jméno '" + $adminUser + "' je rezervované systémem. Zvol jiné uživatelské jméno.")
+        }
+        if ([string]::IsNullOrWhiteSpace($adminPass) -or $adminPass.Length -lt 8) {
+            throw "Zadej vlastní PiTV heslo o délce alespoň 8 znaků."
+        }
+        if ($adminPass.Contains([char]10) -or $adminPass.Contains([char]13)) {
+            throw "PiTV heslo nesmí obsahovat nový řádek."
+        }
+
+        Log ("REPAIR MODE: Wi-Fi a účet " + $adminUser + " potvrzeny; raw image se nepřepisuje.")
+        $cloud = New-CloudInit $ssid $wifiPassword $adminUser $adminPass
+        Install-PiTVCloudInitToBootPartition $d $cloud
+
+        [Windows.Forms.Clipboard]::SetText($cloud.Password)
+        Set-InstallerProgress "HOTOVO · PiTV cloud-init byl doplněn" 100
+        Log "REPAIR MODE HOTOVO. Cloud-init byl zapsán bez přepisování image."
+        Log "Po prvním startu Raspberry použije Wi-Fi, vytvoří zvolený účet a stáhne aktuální PiTV."
+
+        Show-PiTVCompletionDialog $piName $cloud.Username $cloud.Password
+    }
+    catch {
+        Log ("CHYBA OPRAVY: " + $_.Exception.Message)
+        Log-ExceptionDetails $_ "OPRAVA SD"
+        Set-InstallerProgress "CHYBA · oprava PiTV SD se nepodařila" 0
+
+        [Windows.Forms.MessageBox]::Show(
+            $_.Exception.Message + [Environment]::NewLine + [Environment]::NewLine +
+            "Image nebyla znovu zapisována. Podrobnosti jsou v diagnostickém logu.",
+            "PiTV SD Installer",
+            [Windows.Forms.MessageBoxButtons]::OK,
+            [Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+    }
+    finally {
+        if ($cloud -and $cloud.Dir) {
+            Remove-Item $cloud.Dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        $format.Enabled = $true
+        $repair.Enabled = $true
+        $create.Enabled = $true
+        $refresh.Enabled = $true
+        $wifiLoad.Enabled = $true
+        $imageBrowse.Enabled = $true
+        $piModel.Enabled = $true
+        $os.Enabled = $true
+        $accountUser.Enabled = $true
+        $accountPass.Enabled = $true
+        $accountShow.Enabled = $true
     }
 })
 
