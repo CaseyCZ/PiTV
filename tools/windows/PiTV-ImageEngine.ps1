@@ -344,7 +344,59 @@ function Set-PiTVTargetDiskOffline($d) {
 
         foreach ($part in @(Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue)) {
             $accesses = @($part.AccessPaths | Where-Object { $_ })
-            $lockPath = $accesses | Where-Object { $_ -match '^\\\\\?\\Volume\{.+\}\\
+            $lockPath = $null
+
+            foreach ($access in $accesses) {
+                $s = [string]$access
+                if ($s.StartsWith("\\?\Volume{",[StringComparison]::OrdinalIgnoreCase)) {
+                    $lockPath = $s
+                    break
+                }
+            }
+
+            if (-not $lockPath) {
+                foreach ($access in $accesses) {
+                    $s = [string]$access
+                    if ($s.Length -eq 3 -and $s[1] -eq ':' -and [int][char]$s[2] -eq 92) {
+                        $lockPath = $s
+                        break
+                    }
+                }
+            }
+
+            if (-not $lockPath) {
+                try {
+                    $vol = $part | Get-Volume -ErrorAction Stop
+                    if ($vol.DriveLetter) {
+                        $lockPath = ([string]$vol.DriveLetter) + ":\"
+                    }
+                }
+                catch {}
+            }
+
+            if ($lockPath) {
+                try {
+                    $guard = [PiTVNativeDisk]::LockAndDismount([string]$lockPath)
+                    [void]$locks.Add($guard)
+                    Log ("Svazek " + $guard.Path + " byl uzamčen a odpojen pro raw zápis.")
+                }
+                catch {
+                    foreach ($held in @($locks)) {
+                        try { $held.Dispose() } catch {}
+                    }
+                    throw ("Windows nepovolil bezpečné uzamčení svazku " + $lockPath + ": " + $_.Exception.Message)
+                }
+            }
+        }
+
+        Start-Sleep -Milliseconds 300
+        return [pscustomobject]@{
+            DiskOffline = $false
+            VolumeLocks = @($locks)
+        }
+    }
+}
+
 function Set-PiTVTargetDiskOnline([int]$number) {
     try {
         $state = Get-Disk -Number $number -ErrorAction Stop
