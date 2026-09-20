@@ -22,3 +22,15 @@ installation.
 No script in this experiment downloads arbitrary binaries or installs them
 automatically. That remains intentional until exact donor artifacts and their
 licenses/checksums are pinned.
+
+## Donor licensing rule
+
+Do not package or redistribute a third-party complete Android image as the PiTV
+codec donor. In particular, a donor whose image license forbids commercial use
+or redistribution is not an acceptable PiTV distribution source.
+
+The preferred path is reproducible compilation from the pinned upstream source
+repositories in `minimal-codec2-sources.lock.json`, retaining all required
+license/NOTICE material. FFmpeg configuration and resulting license obligations
+must be reviewed from the actual built configuration before distributing the
+binary payload.
