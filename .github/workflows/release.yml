@@ -116,6 +116,9 @@ jobs:
           grep -q 'loginctl enable-linger pitv' install.sh
           grep -q 'systemctl set-default pitv.target' install.sh
           grep -q 'systemctl mask getty@tty1.service' install.sh
+          grep -q 'PITV_LEGACY_LIVE=0' install.sh
+          grep -q 'pitv-shell-migration-' install.sh
+          grep -q -- '--on-active=3s' install.sh
           ! grep -q 'agetty --autologin' install.sh
           ! grep -q 'system/bash_profile /home/pitv/.bash_profile' install.sh
           grep -q 'legacy-android-media-v2.done' pitv/pitv.py
@@ -203,6 +206,12 @@ jobs:
           from pitv import CECReader, LEGACY_ANDROID_PACKAGES, PiTV, VERSION
 
           assert VERSION == "1.5.0"
+          import inspect
+          restart_src = inspect.getsource(PiTV.restart_ui_clean)
+          assert "self.running = False" in restart_src
+          assert "os.execv" not in restart_src
+          assert "tv-runtime-reset" not in restart_src
+
 
           # Regression: cec-ctl prints USER_CONTROL_PRESSED and ui-cmd on
           # separate lines. OK/Back must survive both decoded and raw formats.
