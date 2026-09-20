@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.28"
+VERSION = "1.4.29"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -3907,11 +3907,13 @@ class PiTV:
             self.cec.clear_key_state()
 
     def _refresh_cec_after_return(self):
-        """Re-open the kernel CEC monitor after leaving a foreground app.
+        """Restore CEC state without replacing a healthy input reader.
 
-        Physical testing showed CEC could be healthy after boot and later stop
-        reacting after app/session transitions. Re-registering the one PiTV
-        CEC owner here gives every return to the launcher a clean input state.
+        PiTV 1.4.10 kept one CECReader alive for the launcher lifetime. The
+        reader already reconnects itself after HDMI/CEC resets, so replacing a
+        healthy reader on every app return only creates a cec-ctl ownership
+        race. Preserve that last-known-good behavior and re-create the reader
+        only if it actually died.
         """
         if (not self.cfg.get("cec_enabled", True) or
                 not cec_available() or self._cec_refreshing):
@@ -3920,27 +3922,21 @@ class PiTV:
 
         def worker():
             try:
-                old = self.cec
-                if old is not None:
-                    try:
-                        old.stop()
-                        # _pick_device() can be inside a 4 s topology probe.
-                        # Wait longer than that before starting a new monitor so
-                        # two cec-ctl owners never overlap during app return.
-                        old.join(timeout=6.0)
-                    except Exception:
-                        pass
+                reader = self.cec
+                if reader is None or not reader.is_alive():
+                    reader = CECReader(self.cec_queue)
+                    self.cec = reader
+                    reader.start()
+                else:
+                    reader.clear_key_state()
 
-                fresh = CECReader(self.cec_queue)
-                self.cec = fresh
-                fresh.start()
-
-                # Wait for register + monitor so Active Source is sent through
-                # the adapter PiTV actually selected, not an arbitrary /dev/cec.
+                # Re-announce PiTV after the foreground app/workspace switch,
+                # but keep the same kernel monitor that owns remote input.
                 deadline = time.monotonic() + 3.0
-                while time.monotonic() < deadline and not fresh.is_ready():
+                while (time.monotonic() < deadline and reader.is_alive()
+                       and not reader.is_ready()):
                     time.sleep(0.10)
-                if fresh.is_ready():
+                if reader.is_ready():
                     cec_active_source()
             finally:
                 self._cec_refreshing = False
