@@ -50,4 +50,4 @@ bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null
 grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
-scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
+bash scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
