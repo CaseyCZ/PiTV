@@ -152,6 +152,15 @@ wait_package_visible() {
 
 start_package() {
   local package="$1"
+  log "launching Android TV activity: $package"
+  if printf '{"package":"%s"}' "$package" |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-app-launch         >>"$LOG" 2>&1; then
+    return 0
+  fi
+
+  # Fallback for unusual Android packages without a resolvable launcher
+  # activity. Keep Waydroid's generic Binder launch as a last resort.
+  log "explicit Android TV launch failed; falling back to waydroid app launch: $package"
   waydroid app launch "$package" >>"$LOG" 2>&1
 }
 
