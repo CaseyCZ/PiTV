@@ -12,6 +12,8 @@ allowed=(
 for rel in m.read_text().splitlines():
     rel=rel.strip()
     if not rel: continue
+    q=Path(rel)
+    if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe payload path: {rel}")
     if not rel.startswith(allowed):
         raise SystemExit(f"payload path outside minimal vendor scope: {rel}")
     low=rel.lower()
