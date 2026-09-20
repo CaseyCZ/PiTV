@@ -1605,7 +1605,7 @@ class PiTV:
             elif target == "store":
                 self.page = "store"
                 self.store_return_page = "home"
-                    self.store_return_settings_context = False
+                self.store_return_settings_context = False
                 self.store_selected = 0
                 self.refresh_store_async()
             elif target == "server_store":
@@ -1634,7 +1634,7 @@ class PiTV:
         if q >= len(shortcuts):
             self.page = "store"
             self.store_return_page = "home"
-                    self.store_return_settings_context = False
+            self.store_return_settings_context = False
             self.store_selected = 0
             self.refresh_store_async()
             return
@@ -1647,6 +1647,7 @@ class PiTV:
 
         self.page = "store"
         self.store_return_page = "home"
+        self.store_return_settings_context = False
         self.store_selected = next(
             (i for i, item in enumerate(self.store_catalog) if item.get("id") == store_id), 0
         )
@@ -4908,6 +4909,7 @@ class PiTV:
             elif kind in ("store", "store-root"):
                 self.page = "store"
                 self.store_return_page = "home"
+                self.store_return_settings_context = False
                 sid = item.get("id", "")
                 self.store_selected = next(
                     (i for i, x in enumerate(self.store_catalog) if x.get("id") == sid), 0
