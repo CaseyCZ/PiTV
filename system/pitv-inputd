@@ -20,6 +20,7 @@ import sys
 import time
 
 KEY_ESC = 1
+KEY_BACK = 158
 KEY_ENTER = 28
 KEY_HOME = 102
 KEY_UP = 103
@@ -91,7 +92,7 @@ class UInputSink:
             raise RuntimeError("python3-evdev není nainstalovaný") from exc
         self._ecodes = ecodes
         keys = sorted({
-            KEY_ESC, KEY_ENTER, KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN,
+            KEY_ESC, KEY_BACK, KEY_ENTER, KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN,
             KEY_MUTE, KEY_VOLUMEDOWN, KEY_VOLUMEUP, KEY_PLAYPAUSE,
             KEY_F13, KEY_F14,
         })
@@ -209,7 +210,12 @@ class CECTranslator:
                     # Each real short press remains an ordinary Back. Raw and
                     # decoded duplicates for the same press are suppressed by
                     # back_physical_down until USER_CONTROL_RELEASED.
-                    self.sink.tap(KEY_ESC)
+                    # Waydroid forwards the raw Linux evdev key code to
+                    # Android InputFlinger. KEY_ESC becomes Android ESCAPE,
+                    # while Linux KEY_BACK is the native Android Back key.
+                    # PiTV/SDL normalizes browser/AC Back to Escape itself, so
+                    # one mapping works correctly across both surfaces.
+                    self.sink.tap(KEY_BACK)
                     self.back_short_sent = True
 
             self.back_last_seen = now
@@ -408,7 +414,7 @@ def self_test():
         tr.feed(f"> 01:44:{back_code:02x}\n", base)
         tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 0.10)
         tr.tick(base + 5.00)
-        assert sink.events[before:] == [KEY_ESC], sink.events[before:]
+        assert sink.events[before:] == [KEY_BACK], sink.events[before:]
 
         # Universal fallback for TVs where hold duration is invisible:
         # three distinct Back presses inside 1.2 s => one global F14.
@@ -417,7 +423,7 @@ def self_test():
         for off in (0.00, 0.35, 0.70):
             tr.feed(f"> 01:44:{back_code:02x}\n", base + off)
             tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + off + 0.08)
-        assert sink.events[before:] == [KEY_ESC, KEY_ESC, KEY_F14], sink.events[before:]
+        assert sink.events[before:] == [KEY_BACK, KEY_BACK, KEY_F14], sink.events[before:]
 
         # Remotes that really repeat a held Back still keep the original
         # three-second long-hold behavior.
