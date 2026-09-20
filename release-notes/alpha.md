@@ -1,5 +1,18 @@
 # PiTV Alpha
 
+### PiTV 1.4.31 · SmartTube bez Android plochy + HDMI fullscreen recovery
+- běžná Android TV aplikace se už nespouští přes viditelné `waydroid show-full-ui`; Waydroid/Cage se připraví **skrytě na Android workspace** a spustí rovnou požadovaný package
+- PiTV zůstává během cold startu viditelné s hláškou „Připravuji …“ a na Android přepne až po potvrzení, že WindowManager/ActivityManager skutečně vidí okno cílové aplikace
+- celý Android launcher, boot animace, quick settings a notification shade se při běžném spuštění SmartTube/APK už nemají objevit; plné Android UI zůstává pouze jako výslovná diagnostická volba Android / APK
+- nested Cage se mapuje na Android workspace s `follow=no`, takže samotné vytvoření Android surface už uživatele nepřepne pryč z PiTV
+- Waydroid wrapper toleruje tři po sobě jdoucí readiness chyby; jeden přechodný timeout už neshodí SmartTube zpět do launcheru
+- přidána samostatná kontrola `waydroid-app-visible`; samotný existující Android proces už nestačí k označení aplikace jako spuštěné
+- PiTV po HDMI/EDID disconnect/reconnect sleduje skutečnou velikost desktopu, znovu vytvoří SDL fullscreen surface a přepočítá rozměry UI
+- labwc má navíc pravidlo pro okno `PiTV *`, které launcher maximalizuje a drží na PiTV workspace; tím se opravuje stav s titulkovým pruhem, černým okrajem a obrazem posunutým do části TV po opětovném zapnutí obrazovky
+- opravy 1.4.29–1.4.30 (persistentní CEC reader, OK-only Nastavení a Aktualizovat vše) zůstávají zachované
+
+
+
 ### PiTV 1.4.30 · jednotné Nastavení a jednoduché „Aktualizovat vše“
 - **Nastavení je OK-only**: ↑/↓ slouží jen k pohybu, OK otevře nabídku/provede akci a Back se vrací; pravá šipka už v Nastavení nespouští skryté funkce
 - vizuální chevrony „›“ byly z Nastavení odstraněny a nahrazeny jasným označením **OK**
