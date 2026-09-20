@@ -238,6 +238,9 @@ jobs:
           ! grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
           grep -q 'waydroid-user-ready' system/pitv-waydroid-launch
           grep -q 'waydroid-user-ready' system/pitv-helper
+          grep -q 'get-started-user-state' system/pitv-helper
+          grep -q 'RUNNING_UNLOCKED' system/pitv-helper
+          ! grep -q 'is-user-unlocked' system/pitv-helper
           grep -q 'systemctl", "start", "waydroid-container.service"' system/pitv-helper
           grep -q '/home/pitv/.local/share/waydroid/data/media/0/PiTV-Media' system/pitv-helper
           grep -q 'systemctl enable --now waydroid-container.service' scripts/install-waydroid.sh
