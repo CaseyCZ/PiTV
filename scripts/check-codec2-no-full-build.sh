@@ -5,7 +5,7 @@ PY=(
  scripts/collect-codec2-prebuilt.py
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
- scripts/verify-staged-codec2-payload.py
+ scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
@@ -52,3 +52,4 @@ grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/p
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
+grep -q '"backup_required":True\|"backup_required": True' scripts/make-codec2-rollback-manifest.py
