@@ -246,7 +246,7 @@ if [ "$MODE" = "client" ]; then
   log "hidden Android TV runtime ready"
 
   READY_MISSES=0
-  while kill -0 "$UI_PID" 2>/dev/null; do
+  while true; do
     if printf '{}' |
         sudo -n /usr/local/libexec/pitv-helper waydroid-ready           >/dev/null 2>&1; then
       READY_MISSES=0
