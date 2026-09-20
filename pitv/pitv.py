@@ -3591,14 +3591,31 @@ class PiTV:
             ],
         )
 
-    def update_items(self):
+    def _installed_store_apt_packages(self):
+        packages = []
+        for item in self.store_catalog:
+            ins = item.get("installer", {})
+            if ins.get("type") != "apt":
+                continue
+            try:
+                if store_state(item) == "installed" and ins.get("package"):
+                    packages.append(ins.get("package"))
+            except Exception:
+                pass
+        return packages
+
+    def update_status_items(self):
         if self.remote_pitv:
-            pitv_value = f"{VERSION} → {self.remote_pitv}" if is_newer(self.remote_pitv, VERSION) else f"{VERSION} · aktuální"
+            pitv_value = (
+                f"{VERSION} → {self.remote_pitv}"
+                if is_newer(self.remote_pitv, VERSION)
+                else f"{VERSION} · aktuální"
+            )
         else:
             pitv_value = f"{VERSION} · {self.updates_status}"
 
         ubuntu_value = "—" if self.update_count is None else f"{self.update_count} balíčků"
-        if self.update_checking:
+        if self.update_checking or self.updates_status == "Kontroluji…":
             ubuntu_value = "Kontroluji…"
 
         installed_linux = []
@@ -3607,46 +3624,226 @@ class PiTV:
             if ins.get("type") == "apt":
                 try:
                     if store_state(item) == "installed":
-                        installed_linux.append(item.get("name", ins.get("package","")))
+                        installed_linux.append(item.get("name", ins.get("package", "")))
                 except Exception:
                     pass
 
-        linux_value = ", ".join(installed_linux) if installed_linux else "žádné"
         return [
             ("PiTV", pitv_value),
-            ("Store + Server katalog", "GitHub · PiTV"),
-            ("Linux Store aplikace", linux_value),
+            ("Store katalogy", "PiTV Store + Server Store"),
+            ("Store aplikace", ", ".join(installed_linux) if installed_linux else "žádné"),
             ("Ubuntu", ubuntu_value),
-            ("Zkontrolovat vše", "OK"),
-            ("Aktualizovat PiTV", "OK" if not self.updates_busy else "Probíhá…"),
-            ("Aktualizovat Store katalog", "OK"),
-            ("Aktualizovat Linux Store aplikace", "OK"),
-            ("Aktualizovat Ubuntu", "OK"),
-            ("Restartovat PiTV UI", "OK"),
+        ]
+
+    def update_items(self):
+        busy = "Probíhá…" if self.updates_busy else "Doporučeno"
+        checked = self.updates_status if self.updates_status not in ("", "Nezkontrolováno") else "Zjistit stav"
+        return [
+            ("Aktualizovat vše", busy),
+            ("Zkontrolovat aktualizace", checked),
+            ("Pokročilé možnosti", "Jednotlivé části"),
+            ("Restartovat PiTV UI", "Server zůstane běžet"),
+        ]
+
+    def _updates_help_lines(self):
+        status = self.update_status_items()
+        return [
+            f"PiTV: {status[0][1]}",
+            f"Ubuntu: {status[3][1]}",
+            f"Store aplikace: {status[2][1]}",
+            "Aktualizovat vše je doporučená volba.",
+            "Nastavení a uživatelská data zůstanou zachována.",
         ]
 
     def draw_updates(self):
+        actions = self.update_items()
+        self.updates_selected = max(0, min(self.updates_selected, len(actions)-1))
+
+        if self.settings_context:
+            self.draw_rows(
+                "Aktualizace", "Jedno místo pro celé PiTV",
+                actions, self.updates_selected,
+                "OK = spustit • Pokročilé = jednotlivé části • Back návrat",
+                settings_index=8,
+                info_lines=self._updates_help_lines(),
+            )
+            return
+
         self.draw_sidebar("updates")
-        rows = self.update_items()
-        self.header("Aktualizace", "PiTV, Store a systém na jednom místě")
+        self.header("Aktualizace", "Jedno tlačítko pro PiTV, Store aplikace a Ubuntu")
 
-        x = self.main_left()+int(self.w*.02)
-        top = int(self.h*.165)
-        cols = 2
-        gap = int(self.w*.018)
-        tile_w = int((self.w-x-int(self.w*.05)-gap)/2)
-        tile_h = int(self.h*.115)
+        x = self.main_left()+int(self.w*.020)
+        width = self.w-x-int(self.w*.038)
+        top = int(self.h*.158)
 
-        for i,(label,value) in enumerate(rows):
-            rr = pygame.Rect(x+(i%cols)*(tile_w+gap),
-                             top+(i//cols)*(tile_h+int(self.h*.022)), tile_w, tile_h)
+        # One status panel instead of a grid of unrelated action cards.
+        status_panel = pygame.Rect(x, top, width, int(self.h*.245))
+        self.glass_panel(status_panel, False, 218, 22)
+        self.text("Stav aktualizací", status_panel.x+24, status_panel.y+18,
+                  self.h*.025, self.t["text"], True)
+        self.text(
+            "PiTV zkontroluje všechny části za vás.",
+            status_panel.x+24, status_panel.y+int(self.h*.058),
+            self.h*.015, self.t["muted"],
+        )
+
+        statuses = self.update_status_items()
+        col_gap = int(self.w*.014)
+        inner_w = status_panel.w-48
+        col_w = int((inner_w-col_gap)/2)
+        row_h = int(self.h*.066)
+        sy = status_panel.y+int(self.h*.092)
+        for i,(label,value) in enumerate(statuses):
+            col = i % 2
+            row = i // 2
+            rr = pygame.Rect(
+                status_panel.x+24+col*(col_w+col_gap),
+                sy+row*row_h, col_w, int(row_h*.80),
+            )
+            self.glass_panel(rr, False, 155, 12)
+            self.text(label, rr.x+14, rr.y+int(rr.h*.20),
+                      rr.h*.245, self.t["text"], True)
+            vf = self.font(rr.h*.205, False)
+            value_text = self._fit_ui_text(str(value), vf, int(rr.w*.58))
+            vs = vf.render(value_text, True, self.t["muted"])
+            self.screen.blit(vs, (
+                rr.right-vs.get_width()-14,
+                rr.y+(rr.h-vs.get_height())//2,
+            ))
+
+        action_y = status_panel.bottom+int(self.h*.030)
+
+        # The recommended action is intentionally dominant.
+        primary = pygame.Rect(x, action_y, width, int(self.h*.105))
+        primary_selected = self.updates_selected == 0
+        self.glass_panel(primary, primary_selected, 236, 18)
+        self.text("Aktualizovat vše", primary.x+24, primary.y+int(primary.h*.20),
+                  primary.h*.255, self.t["text"], True)
+        self.text(
+            "Store katalogy → Store aplikace → Ubuntu → PiTV",
+            primary.x+24, primary.y+int(primary.h*.57),
+            primary.h*.155,
+            self.t["accent"] if primary_selected else self.t["muted"],
+        )
+        badge = "PROBÍHÁ" if self.updates_busy else "DOPORUČENO"
+        self.pill(badge, primary.right-int(self.w*.112),
+                  primary.y+int(primary.h*.31), self.t["accent"])
+
+        y = primary.bottom+int(self.h*.024)
+        small_h = int(self.h*.078)
+        for i,(label,value) in enumerate(actions[1:], start=1):
+            rr = pygame.Rect(x, y, width, small_h)
             selected = i == self.updates_selected
-            self.glass_panel(rr, selected, 232, 18)
-            self.text(label, rr.x+20, rr.y+16, rr.h*.20, self.t["text"], True)
-            self.text(str(value), rr.x+20, rr.y+int(rr.h*.52), rr.h*.145,
-                      self.t["accent"] if selected else self.t["muted"])
-        self.text("OK = provést vybranou akci • aktualizace PiTV zachová nastavení",
-                  x, int(self.h*.91), self.h*.016, self.t["muted"])
+            self.glass_panel(rr, selected, 210, 15)
+            self.text(label, rr.x+22, rr.y+int(rr.h*.27),
+                      rr.h*.255, self.t["text"], selected)
+            vf = self.font(rr.h*.205, False)
+            vs = vf.render(str(value), True,
+                           self.t["accent"] if selected else self.t["muted"])
+            self.screen.blit(vs, (
+                rr.right-vs.get_width()-22,
+                rr.y+(rr.h-vs.get_height())//2,
+            ))
+            y += small_h+int(self.h*.014)
+
+        self.text(
+            "Aktualizovat vše = běžná volba • Pokročilé = jen jedna konkrétní část",
+            x, int(self.h*.920), self.h*.015, self.t["muted"],
+        )
+
+    def open_update_advanced_choice(self):
+        self.open_choice(
+            "Pokročilé aktualizace",
+            [
+                ("Pouze PiTV", "pitv"),
+                ("Pouze Store + Server katalog", "catalog"),
+                ("Pouze Linux Store aplikace", "linux"),
+                ("Pouze Ubuntu", "ubuntu"),
+            ],
+            "",
+            self._run_update_advanced,
+        )
+
+    def _run_update_advanced(self, action):
+        if action == "pitv":
+            self.open_confirm(
+                "Aktualizovat pouze PiTV",
+                "Stáhnout nejnovější PiTV a poté restartovat rozhraní?",
+                self.update_pitv_async,
+            )
+        elif action == "catalog":
+            self.update_store_catalog_async()
+        elif action == "linux":
+            self.open_confirm(
+                "Store aplikace",
+                "Aktualizovat nainstalované Linux aplikace z PiTV Store?",
+                self.update_linux_store_apps_async,
+            )
+        elif action == "ubuntu":
+            self.open_confirm(
+                "Aktualizovat Ubuntu",
+                "Nainstalovat dostupné systémové aktualizace Ubuntu?",
+                self.update_ubuntu_async,
+            )
+
+    def update_all_async(self):
+        if self.updates_busy:
+            return
+        self.updates_busy = True
+        self.set_operation("Aktualizovat vše · připravuji…", 5)
+        self.show_toast("Aktualizuji celé PiTV…", 5)
+
+        def fail(step, msg):
+            self.updates_busy = False
+            text = f"{step}: {msg}"
+            self.finish_operation(text, False, 7)
+            self.show_toast(text, 7)
+
+        def worker():
+            # 1) Catalogs first so the rest of the update uses current metadata.
+            self.set_operation("1/4 · Aktualizuji Store katalogy…", 15)
+            ok, msg = run_privileged("store-catalog-update", {}, 90)
+            if not ok:
+                fail("Store katalogy", msg)
+                return
+            self.store_catalog = load_store_catalog()
+            self.server_store_catalog = load_server_catalog()
+            self.store_states = {}
+
+            # 2) Update managed Linux Store apps when any are installed.
+            self.set_operation("2/4 · Aktualizuji Store aplikace…", 38)
+            packages = self._installed_store_apt_packages()
+            if packages:
+                ok, msg = run_privileged(
+                    "apt-store-upgrade", {"packages": packages}, 1800
+                )
+                if not ok:
+                    fail("Store aplikace", msg)
+                    return
+                self.apps = load_apps()
+
+            # 3) Ubuntu packages.
+            self.set_operation("3/4 · Aktualizuji Ubuntu…", 65)
+            ok, msg = run_privileged("apt-upgrade", {}, 1800)
+            if not ok:
+                fail("Ubuntu", msg)
+                return
+            self.update_count = count_updates()
+
+            # 4) PiTV itself is last because success requires a UI restart.
+            self.set_operation("4/4 · Aktualizuji PiTV…", 88)
+            ok, msg = run_privileged("pitv-self-update", {}, 1800)
+            if not ok:
+                fail("PiTV", msg)
+                return
+
+            self.updates_busy = False
+            self.finish_operation("Vše aktualizováno · restartuji PiTV UI", True, 5)
+            self.show_toast("Vše aktualizováno · restartuji PiTV UI", 4)
+            time.sleep(1)
+            self.restart_ui_clean()
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def check_updates_async(self):
         if self.updates_busy:
@@ -3785,10 +3982,8 @@ class PiTV:
             ("Disk /", get_disk()),
             ("Uptime", uptime()),
             ("Kernel", cmd_output(["uname", "-r"]) or "—"),
-            ("Aktualizace", upd),
-            ("Zkontrolovat aktualizace", "OK"),
-            ("Nainstalovat aktualizace", "OK"),
-            ("Restartovat PiTV UI", "OK"),
+            ("Dostupné aktualizace", upd),
+            ("Otevřít Aktualizace", "OK"),
         ]
 
     def draw_system(self):
@@ -4872,77 +5067,56 @@ class PiTV:
 
         elif self.page == "updates":
             rows = self.update_items()
-            cols = 2
+            self.updates_selected = min(self.updates_selected, len(rows)-1)
             if key == pygame.K_LEFT:
-                if self.updates_selected % cols == 0:
-                    self.focus_sidebar("updates")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 8
                 else:
-                    self.updates_selected = max(0, self.updates_selected-1)
-            elif key == pygame.K_RIGHT:
-                self.updates_selected = min(len(rows)-1, self.updates_selected+1)
+                    self.focus_sidebar("updates")
             elif key == pygame.K_UP:
-                self.updates_selected = max(0, self.updates_selected-cols)
+                self.updates_selected = max(0, self.updates_selected-1)
             elif key == pygame.K_DOWN:
-                self.updates_selected = min(len(rows)-1, self.updates_selected+cols)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                if self.updates_selected == 4:
+                self.updates_selected = min(len(rows)-1, self.updates_selected+1)
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+                if self.updates_selected == 0:
+                    self.open_confirm(
+                        "Aktualizovat vše",
+                        "Aktualizovat Store, aplikace, Ubuntu i PiTV jedním krokem?",
+                        self.update_all_async,
+                    )
+                elif self.updates_selected == 1:
                     self.check_updates_async()
-                elif self.updates_selected == 5:
+                elif self.updates_selected == 2:
+                    self.open_update_advanced_choice()
+                elif self.updates_selected == 3:
                     self.open_confirm(
-                        "Aktualizovat PiTV",
-                        "Stáhnout a nainstalovat nejnovější PiTV z GitHubu?",
-                        self.update_pitv_async,
+                        "Restartovat PiTV UI",
+                        "Restartovat pouze TV rozhraní? Serverové služby poběží dál.",
+                        self.restart_ui_clean,
                     )
-                elif self.updates_selected == 6:
-                    self.update_store_catalog_async()
-                elif self.updates_selected == 7:
-                    self.open_confirm(
-                        "Store aplikace",
-                        "Aktualizovat Linux aplikace nainstalované z PiTV Store?",
-                        self.update_linux_store_apps_async,
-                    )
-                elif self.updates_selected == 8:
-                    self.open_confirm(
-                        "Aktualizovat Ubuntu",
-                        "Nainstalovat dostupné systémové aktualizace?",
-                        self.update_ubuntu_async,
-                    )
-                elif self.updates_selected == 9:
-                    self.show_toast("Restartuji PiTV UI…")
-                    self.restart_ui_clean()
 
         elif self.page == "system":
             if key == pygame.K_LEFT:
-                self.focus_sidebar("system")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 9
+                else:
+                    self.focus_sidebar("system")
                 return
             rows = self.system_items()
             if key == pygame.K_UP:
                 self.system_selected = max(0, self.system_selected-1)
             elif key == pygame.K_DOWN:
                 self.system_selected = min(len(rows)-1, self.system_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
                 if self.system_selected == 7:
-                    if not self.update_checking:
-                        self.update_checking = True
-                        self.show_toast("Kontroluji aktualizace…")
-                        def worker():
-                            run_privileged("apt-update", {}, 900)
-                            self.update_count = count_updates()
-                            self.update_checking = False
-                            self.show_toast(f"Aktualizace: {self.update_count if self.update_count is not None else '—'}")
-                        threading.Thread(target=worker, daemon=True).start()
-                elif self.system_selected == 8:
-                    def upgrade():
-                        self.show_toast("Instaluji aktualizace…")
-                        ok, msg = run_privileged("apt-upgrade", {}, 1800)
-                        self.show_toast(msg, 5)
-                        self.update_count = count_updates()
-                    self.open_confirm("Aktualizace systému",
-                                      "Nainstalovat dostupné balíčky?", 
-                                      lambda: threading.Thread(target=upgrade, daemon=True).start())
-                elif self.system_selected == 9:
-                    self.show_toast("Restartuji PiTV UI…")
-                    self.restart_ui_clean()
+                    self.page = "updates"
+                    self.settings_context = True
+                    self.updates_selected = 0
+                    self.check_updates_async()
 
         elif self.page == "power":
             if key == pygame.K_LEFT:
