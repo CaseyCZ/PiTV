@@ -3,6 +3,24 @@
 PiTV is a TV appliance, not a Linux desktop with a launcher on top. This
 contract is the baseline for all future UI, Store and runtime changes.
 
+## 0. LibreELEC-style system architecture
+
+- PiTV follows the appliance model used by LibreELEC: the TV interface is a
+  supervised system service/target, not a shell started by tty autologin.
+- `pitv.target` is the TV-oriented boot target above `multi-user.target`.
+  Server services such as SSH, Tailscale, Homebridge and Docker remain normal
+  system services and are independent of the TV UI.
+- `pitv-shell.service` owns tty1 and the Wayland TV session and uses
+  `Restart=always`. A launcher/compositor failure is recovered by systemd,
+  not by rebooting Linux.
+- Optional heavy runtimes are separate services. In particular Android warm-up
+  must never be a child prerequisite of the Home launcher.
+- Hardware/input/display services must exist below the shell; applications must
+  not individually own or reinitialize the whole TV input/display stack.
+- The compositor is an implementation detail required by PiTV's multi-app and
+  Android overlay model. No desktop panels, window chrome or pointer-driven
+  workflow may be exposed to the user.
+
 ## 1. Immediate launcher
 
 - PiTV Home must become usable before optional application runtimes are warmed.
@@ -23,8 +41,8 @@ contract is the baseline for all future UI, Store and runtime changes.
 
 ## 3. Warm runtime lifecycle
 
-- The supervisor prewarms optional Android in the background after PiTV Home is
-  already running.
+- `pitv-android-warm.service` prewarms optional Android in the background
+  after the TV shell is started; PiTV Home never waits for it.
 - Closing one Android application stops only that package. It must not reboot
   Waydroid or stop the container.
 - Full Waydroid/Cage teardown is a recovery/session-restart operation, not an
