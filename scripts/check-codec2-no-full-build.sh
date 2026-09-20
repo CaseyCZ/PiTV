@@ -5,7 +5,7 @@ PY=(
  scripts/collect-codec2-prebuilt.py
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
- scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py
+ scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py scripts/preflight-codec2-overlay.py
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
@@ -59,3 +59,4 @@ bash scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
 grep -q '"backup_required":True\|"backup_required": True' scripts/make-codec2-rollback-manifest.py
 grep -q -- '--read-only' scripts/extract-codec2-donor-image.sh
 grep -q 'prepare-donor' scripts/codec2-no-full-build.sh
+grep -q 'Read-only' scripts/preflight-codec2-overlay.py
