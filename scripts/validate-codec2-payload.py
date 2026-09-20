@@ -18,10 +18,14 @@ for raw in manifest.read_text().splitlines():
     rel = raw.strip()
     if not rel:
         continue
-    if rel.startswith("/") or rel in seen:
+    q=Path(rel)
+    if q.is_absolute() or ".." in q.parts or rel in seen:
         raise SystemExit(f"invalid/duplicate manifest path: {rel}")
     seen.add(rel)
-    p = (root / rel).resolve()
+    rawp = root / q
+    if rawp.is_symlink():
+        raise SystemExit(f"manifest symlink rejected: {rel}")
+    p = rawp.resolve()
     try:
         p.relative_to(root)
     except ValueError:
