@@ -1,45 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-[ "$(id -un)" = "pitv" ] || exit 2
-command -v waydroid >/dev/null 2>&1 || exit 0
-[ -x /usr/local/bin/pitv-waydroid-launch ] || exit 0
-
-export HOME=/home/pitv
-export USER=pitv
-export LOGNAME=pitv
-export XDG_SESSION_TYPE=wayland
-export XDG_CURRENT_DESKTOP=labwc
-
-RUNTIME="/run/user/$(id -u)"
-export XDG_RUNTIME_DIR="$RUNTIME"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
-export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
-
-MARKER="$RUNTIME/pitv-wayland-display"
-WAYLAND=""
-
-# Home gets priority. Wait for the primary PiTV client to publish the exact
-# labwc display instead of selecting the first wayland-* socket and possibly
-# nesting Android into an older Cage compositor.
-for _ in $(seq 1 300); do
-  if [ -f "$MARKER" ]; then
-    candidate="$(head -n1 "$MARKER" 2>/dev/null || true)"
-    if [[ "$candidate" =~ ^wayland-[0-9]+$ ]] &&
-       [ -S "$RUNTIME/$candidate" ]; then
-      WAYLAND="$candidate"
-      break
-    fi
-  fi
-  sleep 0.1
-done
-
-[ -n "$WAYLAND" ] || {
-  echo "PiTV Android warm: hlavní Wayland display není připravený." >&2
-  exit 3
-}
-export WAYLAND_DISPLAY="$WAYLAND"
-
-# The PiTV primary client has already published the visible compositor.
-# Start optional Android immediately; do not add artificial first-app latency.
-exec /usr/local/bin/pitv-waydroid-launch --warm
+# Kept as a compatibility target for already-installed Alpha systems.
+# Android TV now starts on demand with the selected app. A permanently running
+# idle Waydroid session proved unstable on the physical Pi 4 and could steal
+# input/focus from PiTV. Exiting successfully here keeps old enabled units safe.
+exit 0
