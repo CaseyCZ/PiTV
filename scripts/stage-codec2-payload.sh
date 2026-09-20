@@ -10,5 +10,8 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dest="$STATE/staged/$stamp"
 mkdir -p "$dest"
 cp -a "$PAYLOAD/." "$dest/"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+python3 "$HERE/verify-staged-codec2-payload.py" "$dest" >/dev/null
+python3 "$HERE/make-codec2-rollback-manifest.py" "$dest" >/dev/null
 printf '%s\n' "$dest" > "$STATE/current-stage"
 echo "STAGED=$dest"
