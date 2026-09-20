@@ -7,6 +7,7 @@ set -euo pipefail
 STAGE="${1:?verified staged payload required}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 python3 "$SCRIPT_DIR/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
+python3 "$SCRIPT_DIR/check-codec2-payload-contract.py" "$STAGE" >/dev/null
 command -v waydroid >/dev/null
 command -v mount >/dev/null
 command -v umount >/dev/null
