@@ -36,12 +36,15 @@ set +u
 source build/envsetup.sh
 lunch "${PITV_CODEC2_LUNCH:-lineage_waydroid_arm64-userdebug}"
 m -j"$JOBS" \
-  android.hardware.media.c2@1.0-service-v4l2 \
+  android.hardware.media.c2@1.0-service-v4l2-64 \
   libc2plugin_store \
   android.hardware.media.c2@1.2-service-ffmpeg \
   android.hardware.media.c2@1.2-ffmpeg.policy \
   media_codecs_ffmpeg_c2.xml
 
+TREE="$(readlink -f "$TREE")"; SOURCES="$(readlink -f "$SOURCES")"; OUT="$(readlink -m "$OUT")"
+[ "$OUT" != "/" ] && [ "$OUT" != "$TREE" ] && [ "$OUT" != "$SOURCES" ] || { echo "unsafe output directory" >&2; exit 2; }
+case "$OUT/" in "$TREE/"*|"$SOURCES/"*) echo "output must not be inside build/source tree" >&2; exit 2;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
 PRODUCT_OUT="${ANDROID_PRODUCT_OUT:?ANDROID_PRODUCT_OUT missing after lunch/build}"
 VENDOR_OUT="$PRODUCT_OUT/vendor"
