@@ -151,12 +151,39 @@ def waydroid_packages():
     return packages
 
 
+def waydroid_package_installed(package):
+    package = str(package or '').strip()
+    if not package or not waydroid_available():
+        return False
+
+    helper = Path('/usr/local/libexec/pitv-helper')
+    if helper.is_file() and shutil.which('sudo'):
+        try:
+            p = subprocess.run(
+                ['sudo', '-n', str(helper), 'waydroid-package-installed'],
+                input=json.dumps({'package': package}),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            if p.returncode == 0:
+                return True
+            if p.returncode == 4:
+                return False
+        except Exception:
+            pass
+
+    return package in waydroid_packages()
+
+
 def ensure_apk_installed(app):
     if not waydroid_available():
         return False, 'Waydroid není nainstalovaný'
     package = app.get('package','')
     apk = app.get('apk_path','')
-    if package and package in waydroid_packages():
+    if package and waydroid_package_installed(package):
         return True, 'APK je už nainstalované'
     if not apk or not Path(apk).is_file():
         return False, 'APK soubor nebyl nalezen'
@@ -164,14 +191,17 @@ def ensure_apk_installed(app):
     if rc != 0:
         return False, out[-250:] if out else 'Instalace APK selhala'
 
-    # waydroid app install can report success before the desktop-app cache sees
-    # the package. Verify against Android PackageManager, not the GUI app list.
+    # waydroid app install may return before Android PackageManager has
+    # published the new package. Poll the authoritative PackageManager for up
+    # to 30 seconds; return immediately once the package becomes visible.
     if package:
-        for _ in range(10):
-            if package in waydroid_packages():
+        for _ in range(60):
+            if waydroid_package_installed(package):
                 return True, f"{app.get('name','APK')} nainstalováno"
-            time.sleep(0.25)
-        return False, f"{app.get('name','APK')}: Android package po instalaci stále chybí"
+            time.sleep(0.5)
+        return False, (
+            f"{app.get('name','APK')}: Android package po 30 s stále chybí"
+        )
 
     return True, f"{app.get('name','APK')} nainstalováno"
 
