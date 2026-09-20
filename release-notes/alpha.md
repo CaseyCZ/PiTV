@@ -1,6 +1,14 @@
 # PiTV Alpha
 
-### PiTV 1.4.31 · SmartTube bez Android plochy + HDMI fullscreen recovery
+### PiTV 1.4.31 · TV-appliance runtime: rychlé aplikace, focus a globální stav
+- **nový výkonový základ PiTV**: Android/Waydroid už není spouštěn a vypínán s každou aplikací; supervisor po vykreslení Home asynchronně přednahřeje jeden skrytý persistentní Cage/Waydroid runtime
+- běžná Android TV aplikace používá už připravený runtime, spustí rovnou svůj package a PiTV přepne na Android workspace až po potvrzení skutečně viditelné aktivity; cílem je stejný princip jako Android TV / Google TV / Apple TV — uživatel čeká na aplikaci, ne na mezilehlý operační systém
+- dlouhé Zpět ukončí pouze aktuální Android aplikaci přes `waydroid-app-stop`; session, Cage a container zůstávají warm pro další rychlé spuštění
+- celý Android runtime se destruktivně čistí jen při restartu/recovery TV session, takže havárie se stále opraví deterministicky bez zásahu do Homebridge/Tailscale/Dockeru
+- ovládání Androidu má jednu trvalou FIFO frontu; D-pad/OK/Back se už neposílají přes samostatný thread pro každý stisk a zachovávají pořadí focus událostí
+- **globální activity banner** se kreslí úplně nahoře nad Home, Store, Settings, Updates i modal dialogy; instalace, aktualizace a start aplikace tak mají jednu společnou stavovou plochu všude v PiTV
+- během prvního cold startu banner rozlišuje „Startuji Android…“ a „Spouštím aplikaci…“; při warm runtime se přechází rovnou do druhé fáze
+- běžná Android TV aplikace se už nespouští přes viditelné `waydroid show-full-ui`; backing Android plocha existuje pouze skrytě na Android workspace
 - běžná Android TV aplikace se už nespouští přes viditelné `waydroid show-full-ui`; Waydroid/Cage se připraví **skrytě na Android workspace** a spustí rovnou požadovaný package
 - PiTV zůstává během cold startu viditelné s hláškou „Připravuji …“ a na Android přepne až po potvrzení, že WindowManager/ActivityManager skutečně vidí okno cílové aplikace
 - celý Android launcher, boot animace, quick settings a notification shade se při běžném spuštění SmartTube/APK už nemají objevit; plné Android UI zůstává pouze jako výslovná diagnostická volba Android / APK
