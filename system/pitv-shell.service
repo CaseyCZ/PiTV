@@ -11,13 +11,12 @@ User=pitv
 Group=pitv
 SupplementaryGroups=video render input audio tty
 PAMName=login
-# PiTV's visual session never needs Linux capabilities.  A local PAM seat can
-# grant CAP_WAKE_ALARM to regular users; descendants such as Flatpak/bwrap then
-# reject the unexpected inherited capability.  Drop the complete capability
-# set at the service boundary while device access remains group-based.
-CapabilityBoundingSet=
-AmbientCapabilities=
-NoNewPrivileges=yes
+# The PiTV launcher intentionally calls a narrow sudoers allowlist
+# (/usr/local/libexec/pitv-helper and pitv-cec-control) for system operations
+# such as Waydroid. Do not set NoNewPrivileges or an empty capability bounding
+# set on the whole TV shell: both would also constrain those privileged child
+# helpers. Capability isolation for Flatpak apps is handled outside this system
+# service so it cannot break PiTV's privileged boundary.
 TTYPath=/dev/tty1
 StandardInput=tty
 StandardOutput=journal
