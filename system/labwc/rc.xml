@@ -39,6 +39,17 @@
   </keyboard>
 
   <windowRules>
+    <!--
+      PiTV must behave like an appliance surface, not a desktop window. A
+      maximized rule is deliberately kept in addition to SDL fullscreen so a
+      HDMI disconnect/reconnect cannot leave the launcher decorated, offset or
+      at the temporary fallback output size.
+    -->
+    <windowRule title="PiTV *">
+      <action name="SendToDesktop" to="PiTV" follow="no" />
+      <action name="Maximize" />
+    </windowRule>
+
     <!-- Kodi also hosts Plex/PM4K, so both intentionally share one slot. -->
     <windowRule identifier="Kodi*">
       <action name="SendToDesktop" to="Kodi" follow="yes" />
@@ -55,9 +66,13 @@
       <action name="Maximize" />
     </windowRule>
 
-    <!-- Nested Cage/wlroots is the one Android TV surface. -->
+    <!--
+      Nested Cage/wlroots is the one Android TV surface. Do not follow it when
+      it maps: ordinary Android launches boot invisibly on the Android
+      workspace and PiTV switches there only after the requested app is ready.
+    -->
     <windowRule identifier="wlroots">
-      <action name="SendToDesktop" to="Android" follow="yes" />
+      <action name="SendToDesktop" to="Android" follow="no" />
       <action name="Maximize" />
     </windowRule>
   </windowRules>
