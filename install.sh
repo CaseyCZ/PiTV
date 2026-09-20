@@ -141,12 +141,12 @@ install -m 0755 system/pitv-android-warm /usr/local/libexec/pitv-android-warm
 install -m 0755 system/pitv-inputd /usr/local/libexec/pitv-inputd
 install -m 0755 system/pitv-cec-control /usr/local/libexec/pitv-cec-control
 install -m 0755 system/pitv-global-action /usr/local/libexec/pitv-global-action
-install -m 0755 system/pitv-display-watch /usr/local/libexec/pitv-display-watch
+install -m 0755 system/pitv-displayd /usr/local/libexec/pitv-displayd
 install -m 0644 system/pitv.target /etc/systemd/system/pitv.target
 install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
 install -m 0644 system/pitv-android-warm.service /etc/systemd/system/pitv-android-warm.service
 install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service
-install -m 0644 system/pitv-display.service /etc/systemd/system/pitv-display.service
+install -m 0644 system/pitv-displayd.service /etc/systemd/system/pitv-displayd.service
 
 # The virtual PiTV TV Remote uses Linux uinput. Load it during every boot
 # before pitv-inputd and load it now as well for an in-place upgrade.
@@ -231,16 +231,22 @@ Type=oneshot
 ExecStart=/usr/bin/systemctl restart pitv-shell.service
 EOF
 
+# Remove the short-lived intermediate HDMI watcher from early 1.5 builds.
+# Only pitv-displayd may own HDMI/EDID recovery.
+systemctl disable --now pitv-display.service >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/pitv-display.service
+rm -f /usr/local/libexec/pitv-display-watch
+
 systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
-systemctl enable pitv-inputd.service pitv-shell.service pitv-android-warm.service pitv-display.service
+systemctl enable pitv-inputd.service pitv-displayd.service pitv-shell.service pitv-android-warm.service
 systemctl set-default pitv.target
 
 # On an in-place 1.5 update the target is already active, so a newly added
 # WantedBy unit is not pulled in automatically until the next boot. Start the
 # display repair layer now only when the TV shell already exists.
 if systemctl is-active --quiet pitv-shell.service; then
-  systemctl restart pitv-display.service >/dev/null 2>&1 || true
+  systemctl restart pitv-displayd.service >/dev/null 2>&1 || true
 fi
 
 # A 1.4.x in-UI updater is still running inside getty@tty1 at this point.
