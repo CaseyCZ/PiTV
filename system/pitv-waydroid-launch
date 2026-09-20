@@ -112,9 +112,8 @@ wait_ready() {
 
 package_installed() {
   local package="$1"
-  waydroid app list 2>>"$LOG" |
-    awk -F': *' '/^packageName:/ {print $2}' |
-    grep -Fxq "$package"
+  printf '{"package":"%s"}' "$package" |
+    sudo -n /usr/local/libexec/pitv-helper waydroid-package-installed       >/dev/null 2>&1
 }
 
 wait_package_visible() {
