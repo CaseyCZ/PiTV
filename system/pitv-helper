@@ -23,6 +23,14 @@ def out(msg, code=0):
     raise SystemExit(code)
 
 def run(args, timeout=600, stdin=None, env=None):
+    args = list(args)
+    # All APT actions launched from PiTV must coexist with Ubuntu's automatic
+    # unattended-upgrades. Wait for the package-manager lock instead of failing
+    # immediately with code 100 or deleting lock files.
+    if args and os.path.basename(args[0]) == "apt-get":
+        has_lock_timeout = any("DPkg::Lock::Timeout=" in str(x) for x in args)
+        if not has_lock_timeout:
+            args[1:1] = ["-o", "DPkg::Lock::Timeout=600"]
     p = subprocess.run(args, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        text=True, timeout=timeout, check=False, env=env)
     text = (p.stdout or "").strip()
