@@ -20,7 +20,8 @@ index={}
 for root in [payload,*targets]:
     if not root.is_dir(): continue
     for p in root.rglob("*"):
-        if p.is_file(): index.setdefault(p.name,[]).append(p)
+        if p.is_symlink(): continue
+        if p.is_file() and iself(p): index.setdefault(p.name,[]).append(p)
 bad=[]; checked=0
 for p in payload.rglob("*"):
     if not p.is_file(): continue
@@ -33,7 +34,8 @@ for p in payload.rglob("*"):
     for dep in needed(p):
         name=os.path.basename(dep)
         if "/" in dep: bad.append(f"ABSOLUTE_NEEDED {p.relative_to(payload)} -> {dep}")
-        if name not in index: bad.append(f"MISSING {p.relative_to(payload)} -> {name}")
+        candidates=index.get(name,[])
+        if not candidates: bad.append(f"MISSING {p.relative_to(payload)} -> {name}")
 print(f"AUDITED_ELF={checked}")
 for x in bad: print(x)
 if checked==0: raise SystemExit("payload contains no AArch64 ELF files")
