@@ -56,7 +56,7 @@ fi
 # socket name from a previous shell generation.
 rm -f "$RUNTIME/pitv-wayland-display" "$RUNTIME/pitv-global-action"
 
-# labwc has a native TV-session lifecycle: -S starts one primary client only
+# labwc has a native TV-session lifecycle: -s starts one primary client only
 # after the compositor/Wayland socket is ready and terminates the compositor
 # when that client exits. systemd Restart=always then recreates the whole shell.
-exec labwc -S /usr/local/bin/pitv-launcher-run
+exec labwc -s /usr/local/bin/pitv-launcher-run
