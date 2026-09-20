@@ -270,3 +270,5 @@ grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-from-donor.sh
 grep -q 'payload_rel="vendor/$rel"' scripts/build-minimal-codec2-modules.sh
 grep -q 'upstream FFmpeg Codec2 registry missing' scripts/add-pitv-codec2-config-to-payload.sh
 ! grep -q '^copy android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml' scripts/add-pitv-codec2-config-to-payload.sh
+grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/prepare-codec2-overlay.sh
+grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-overlay.sh
