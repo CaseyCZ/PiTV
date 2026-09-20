@@ -4908,6 +4908,8 @@ class PiTV:
                 self.page = self.store_return_page
                 return
             if self.page == "server_store":
+                if self.server_store_return_page == "settings":
+                    self.settings_context = False
                 self.page = self.server_store_return_page
                 return
             if self.page == "settings":
