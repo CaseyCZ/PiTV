@@ -3140,6 +3140,31 @@ class PiTV:
         rows.append({"name": "Obnovit seznam aplikací", "refresh": True, "visible": True})
         return rows
 
+    def set_app_visibility(self, name, visible):
+        hidden = set(self.cfg.get("hidden_apps", []))
+        if visible:
+            hidden.discard(name)
+        else:
+            hidden.add(name)
+        self.cfg["hidden_apps"] = sorted(hidden)
+        save_user_config(self.cfg)
+        self.mark_activity()
+
+    def open_app_visibility_choice(self, item):
+        name = item.get("name", "Aplikace")
+        visible = bool(item.get("visible", True))
+        self.open_choice(
+            name,
+            [
+                ("Zobrazit na ploše", True),
+                ("Skrýt z plochy", False),
+            ],
+            visible,
+            lambda value, app_name=name: self.set_app_visibility(
+                app_name, bool(value)
+            ),
+        )
+
     def draw_apps_settings(self):
         items = self.app_items()
         self.apps_selected = max(0, min(self.apps_selected, max(0, len(items)-1)))
@@ -3161,7 +3186,7 @@ class PiTV:
         selected = self.apps_selected-start if subset else 0
         self.draw_rows(
             "Aplikace", "Store + aplikace dostupné PiTV", subset, selected,
-            "↑/↓ vybere • OK zobrazit/skrýt • → odinstalovat • Back návrat",
+            "↑/↓ vybere • OK otevře volby • → odinstalovat • Back návrat",
             settings_index=5,
             info_lines=[
                 "OK zobrazí nebo skryje aplikaci na ploše.",
@@ -5094,12 +5119,7 @@ class PiTV:
                     self.apps_selected = min(self.apps_selected, max(0, len(self.app_items())-1))
                     self.show_toast("Seznam aplikací obnoven")
                 else:
-                    hidden = set(self.cfg.get("hidden_apps", []))
-                    name = item["name"]
-                    if name in hidden: hidden.remove(name)
-                    else: hidden.add(name)
-                    self.cfg["hidden_apps"] = sorted(hidden)
-                    save_user_config(self.cfg)
+                    self.open_app_visibility_choice(item)
 
         elif self.page == "store":
             items = self.store_catalog
