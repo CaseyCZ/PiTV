@@ -6,10 +6,12 @@ if len(sys.argv)!=2: raise SystemExit("usage: inventory-codec2-payload.py PAYLOA
 root=Path(sys.argv[1]).resolve()
 manifest=root/"PITV-CODEC2-PAYLOAD.txt"
 if not manifest.is_file(): raise SystemExit("missing payload manifest")
-entries=[]
+entries=[]; seen=set()
 for rel in manifest.read_text().splitlines():
     rel=rel.strip()
     if not rel: continue
+    if rel in seen: raise SystemExit(f"duplicate inventory path: {rel}")
+    seen.add(rel)
     q=Path(rel)
     if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe inventory path: {rel}")
     raw=root/q
