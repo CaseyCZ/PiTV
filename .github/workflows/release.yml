@@ -42,6 +42,7 @@ jobs:
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
           bash -n system/pitv-cec-control
+          bash -n system/pitv-display-watch
           ! grep -q 'dbus-run-session' system/pitv-session
           ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
           grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
@@ -169,6 +170,16 @@ jobs:
           grep -q '^TTYPath=/dev/tty1$' system/pitv-shell.service
           grep -q '^Restart=always$' system/pitv-shell.service
           grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
+          grep -q 'wlr-randr' install.sh
+          grep -q 'system/pitv-display-watch /usr/local/libexec/pitv-display-watch' install.sh
+          grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
+          grep -q 'pitv-display.service' system/pitv.target
+          grep -q '^Restart=always$' system/pitv-display.service
+          grep -q -- '--on --preferred --pos 0,0 --transform normal --scale 1' system/pitv-display-watch
+          grep -q 'pitv-display-repair' system/pitv-display-watch
+          grep -q 'pitv-display-repair' pitv/pitv.py
+          grep -q '<reuseOutputMode>yes</reuseOutputMode>' system/labwc/rc.xml
+          grep -q '<action name="MoveTo" x="0" y="0" />' system/labwc/rc.xml
           grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
           grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
           ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
@@ -442,6 +453,9 @@ jobs:
           assert isinstance(app._desktop_size(), tuple)
           assert len(app._desktop_size()) == 2
           assert app._repair_fullscreen(force=True) is False
+          assert app._display_repair_event_file().name == "pitv-display-repair"
+          assert isinstance(app._display_repair_event_token(), int)
+          assert hasattr(app, "_last_display_repair_event")
           assert hasattr(app, "android_pending_proc")
           assert app._android_ready_file().name == "pitv-waydroid-app-ready"
 
