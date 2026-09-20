@@ -56,6 +56,7 @@ mkdir "$BACKUP"
 cp --reflink=auto --sparse=always "$SYSTEM" "$BACKUP/system.img"
 cp --reflink=auto --sparse=always "$VENDOR" "$BACKUP/vendor.img"
 sha256sum "$BACKUP/system.img" "$BACKUP/vendor.img" >"$BACKUP/SHA256SUMS"
+printf '%s\n' "$VENDOR" >"$BACKUP/vendor.path"
 cp --reflink=auto --sparse=always "$VENDOR" "$TMP/vendor.img"
 
 stop_android(){
