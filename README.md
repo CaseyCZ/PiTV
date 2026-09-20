@@ -161,8 +161,8 @@ TV ovladač komunikuje s Raspberry Pi přes HDMI-CEC.
 |---|---|
 | Šipky | navigace |
 | OK / Enter | potvrzení |
-| Back | zpět |
-| Home / Menu | návrat do PiTV |
+| Back | krátce = zpět v aplikaci · podržet 3 s = návrat do PiTV |
+| Home / Menu | návrat do PiTV, pokud ho TV/ovladač podporuje |
 | Volume ± | TV / receiver |
 | Mute | ztlumení |
 
