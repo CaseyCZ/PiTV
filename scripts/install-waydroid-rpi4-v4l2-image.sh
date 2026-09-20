@@ -126,6 +126,7 @@ restore_previous() {
   systemctl stop pitv-android-warm.service >/dev/null 2>&1 || true
   timeout 20s waydroid session stop >/dev/null 2>&1 || true
   timeout 20s waydroid container stop >/dev/null 2>&1 || true
+  systemctl stop waydroid-container.service >/dev/null 2>&1 || true
   mkdir -p "$EXTRA"
   cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
   cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
@@ -161,6 +162,14 @@ echo "Stopping the persistent Android runtime..."
 systemctl stop pitv-android-warm.service >/dev/null 2>&1 || true
 timeout 20s waydroid session stop >/dev/null 2>&1 || true
 timeout 20s waydroid container stop >/dev/null 2>&1 || true
+systemctl stop waydroid-container.service >/dev/null 2>&1 || true
+
+# Re-run the reversible host-node extension before the manager is imported
+# again. The systemd drop-in runs the same helper as ExecStartPre.
+if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
+  PITV_WAYDROID_PATCH_STRICT=1 /usr/local/libexec/pitv-waydroid-device-patch \
+    || fail_and_restore "Waydroid /dev/media* passthrough patch failed"
+fi
 
 mkdir -p "$EXTRA"
 cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
