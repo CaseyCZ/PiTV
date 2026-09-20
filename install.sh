@@ -139,6 +139,7 @@ install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
 install -m 0755 system/pitv-android-warm /usr/local/libexec/pitv-android-warm
 install -m 0755 system/pitv-inputd /usr/local/libexec/pitv-inputd
+install -m 0755 system/pitv-cec-control /usr/local/libexec/pitv-cec-control
 install -m 0755 system/pitv-global-action /usr/local/libexec/pitv-global-action
 install -m 0644 system/pitv.target /etc/systemd/system/pitv.target
 install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
@@ -181,53 +182,9 @@ if command -v kodi >/dev/null 2>&1; then
   apt_run install -y kodi-eventclients-kodi-send
   echo '{}' | /usr/local/libexec/pitv-helper kodi-appliance-defaults
 fi
-cat >/usr/local/libexec/pitv-cec-monitor <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-DEV="${1:-}"
-MODE="${2:-monitor}"
-[[ "$DEV" =~ ^/dev/cec[0-9]+$ ]] || exit 2
-[ -c "$DEV" ] || exit 2
-case "$MODE" in
-  register)
-    exec /usr/bin/cec-ctl -d "$DEV" --no-rc-passthrough --playback -o PiTV
-    ;;
-  monitor)
-    # One persistent monitor per physical adapter. The lock survives exec
-    # because fd 9 stays open in cec-ctl and prevents duplicate root monitors
-    # after launcher crashes/restarts.
-    LOCK="/run/lock/pitv-cec-monitor-${DEV##*/}.lock"
-    exec 9>"$LOCK"
-    /usr/bin/flock -n 9 || exit 11
-    exec /usr/bin/cec-ctl -d "$DEV" --monitor --show-raw
-    ;;
-  on)
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --image-view-on
-    ;;
-  standby)
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --standby
-    ;;
-  active)
-    PA="$(/usr/bin/cec-ctl -d "$DEV" 2>/dev/null |
-      sed -n 's/^[[:space:]]*Physical Address[[:space:]]*:[[:space:]]*//p' |
-      head -n1 | tr -d '[:space:]')"
-    [[ "$PA" =~ ^[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]$ ]] || exit 4
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --active-source "phys-addr=$PA"
-    ;;
-  volup|voldown|mute)
-    case "$MODE" in
-      volup) UI_CMD="volume-up" ;;
-      voldown) UI_CMD="volume-down" ;;
-      mute) UI_CMD="mute" ;;
-    esac
-    /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-pressed "ui-cmd=$UI_CMD"
-    sleep 0.05
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-released
-    ;;
-  *) exit 2 ;;
-esac
-EOF
-chmod 0755 /usr/local/libexec/pitv-cec-monitor
+# PiTV 1.5 input is owned only by pitv-inputd. Remove the old 1.4 monitor
+# helper during upgrades; CEC output uses the static output-only helper.
+rm -f /usr/local/libexec/pitv-cec-monitor
 install -m 0755 scripts/install-waydroid.sh /usr/local/libexec/pitv-install-waydroid
 
 install -d -o pitv -g pitv /home/pitv/.config/pitv
@@ -240,11 +197,11 @@ chown -R pitv:pitv /home/pitv/.config/labwc
 # start a second compositor/session.
 rm -f /home/pitv/.bash_profile
 
-# PiTV privileged boundary: power, the validated root helper, and kernel CEC.
-# cec-ctl monitor mode needs CAP_NET_ADMIN; expose only the fixed cec-ctl binary
-# to the dedicated local pitv account, never a shell.
+# PiTV privileged boundary: power, the validated root helper, and the fixed
+# output-only CEC helper. Remote input itself runs as pitv-inputd system service
+# and is never started through sudo from the GUI.
 cat >/etc/sudoers.d/pitv-power <<'EOF'
-pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/local/libexec/pitv-cec-monitor *
+pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/local/libexec/pitv-cec-control *
 EOF
 chmod 0440 /etc/sudoers.d/pitv-power
 
