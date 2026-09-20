@@ -25,7 +25,8 @@ platform_allow={
 "libcutils.so","libbinder.so","libhidlbase.so","libfmq.so","libhardware.so",
 "libion.so","libsync.so","libui.so","libgui.so","libnativewindow.so",
 "libmedia.so","libmedia_omx.so","libstagefright_foundation.so",
-"libcodec2.so","libcodec2_vndk.so","libcodec2_hidl@1.0.so",
+"libcodec2.so","libcodec2_vndk.so","libcodec2_hidl@1.0.so","libcodec2_hidl@1.2.so",
+"android.hardware.media.c2@1.0.so","android.hardware.media.c2@1.1.so","android.hardware.media.c2@1.2.so","libavservices_minijail.so",
 "libcodec2_soft_common.so","libbufferpool@2.0.so","libgralloctypes.so",
 "libprocessgroup.so","libvndksupport.so","libz.so",
 }
