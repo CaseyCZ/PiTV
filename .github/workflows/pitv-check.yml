@@ -111,8 +111,13 @@ jobs:
           grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
           grep -q 'waydroid-app-uninstall' system/pitv-helper
           grep -q 'waydroid-clean-legacy' system/pitv-helper
-          ! grep -q '"com.stremio.one"' system/pitv-helper
+          grep -q '"com.stremio.one"' system/pitv-helper
           grep -q 'com.plexapp.android' system/pitv-helper
+          grep -q '"type": "flatpak"' store/catalog.json
+          grep -q '"app_id": "com.stremio.Stremio"' store/catalog.json
+          grep -q 'flatpak run com.stremio.Stremio' config/apps.d/stremio.json
+          ! grep -q 'stremio_tv_apk' store/catalog.json
+          ! grep -q 'stremio_tv_apk' pitv/store_backend.py
           grep -q 'waydroid-keyevent' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
