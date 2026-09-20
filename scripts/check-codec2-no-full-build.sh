@@ -62,3 +62,6 @@ grep -q 'prepare-donor' scripts/codec2-no-full-build.sh
 grep -q 'Read-only' scripts/preflight-codec2-overlay.py
 grep -q 'media_codecs_ffmpeg_c2.xml' scripts/add-pitv-codec2-config-to-payload.sh
 grep -q 'codec2.vendor.ext.policy' scripts/add-pitv-codec2-config-to-payload.sh
+grep -q 'dumpsys media.codec' scripts/accept-codec2-overlay-runtime.sh
+grep -q 'c2.v4l2.avc.decoder' scripts/accept-codec2-overlay-runtime.sh
+grep -q 'c2.ffmpeg.hevc.decoder' scripts/accept-codec2-overlay-runtime.sh
