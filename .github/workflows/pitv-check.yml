@@ -193,6 +193,9 @@ jobs:
           grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
           grep -Fq 'printf '\''%s\n'\'' "${BASHPID:-0}" >"$RUNTIME_READY"' system/pitv-waydroid-launch
           grep -q 'Never trust only the exit status' system/pitv-waydroid-launch
+          grep -q 'forcing explicit Android TV launcher Activity' system/pitv-waydroid-launch
+          grep -q 'official launch returned but Android Home is still foreground' system/pitv-waydroid-launch
+          grep -q 'application failed to create a visible TV surface after explicit Activity launch' system/pitv-waydroid-launch
           grep -q 'maintenance must never block an app launch' pitv/pitv.py
           python3 - <<'PYLIFECYCLE'
           from pathlib import Path
@@ -227,6 +230,11 @@ jobs:
           assert 'waydroid app install "$APK"' in launch
           assert 'start_package "$TARGET"' in launch
           assert 'wait_package_visible "$TARGET"' in launch
+          retry = launch.split('if ! wait_package_visible "$TARGET"; then', 1)[1]
+          retry = retry.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          assert 'start_explicit_tv_activity "$TARGET"' in retry
+          assert 'start_package "$TARGET"' not in retry
+          assert 'official launch returned but Android Home is still foreground' in retry
           assert wrapper.index('waydroid app launch "$package"') < wrapper.index('waydroid-app-launch')
           print("PiTV 1.5 on-demand Android lifecycle OK")
           PYLIFECYCLE
