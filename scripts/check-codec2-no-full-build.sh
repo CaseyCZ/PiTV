@@ -5,7 +5,7 @@ PY=(
  scripts/collect-codec2-prebuilt.py
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
- scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py scripts/preflight-codec2-overlay.py scripts/test-codec2-no-full-build.py scripts/plan-codec2-backup.py
+ scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py scripts/preflight-codec2-overlay.py scripts/test-codec2-no-full-build.py scripts/plan-codec2-backup.py scripts/check-codec2-payload-contract.py
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
@@ -60,3 +60,5 @@ grep -q '"backup_required":True\|"backup_required": True' scripts/make-codec2-ro
 grep -q -- '--read-only' scripts/extract-codec2-donor-image.sh
 grep -q 'prepare-donor' scripts/codec2-no-full-build.sh
 grep -q 'Read-only' scripts/preflight-codec2-overlay.py
+grep -q 'media_codecs_ffmpeg_c2.xml' scripts/add-pitv-codec2-config-to-payload.sh
+grep -q 'codec2.vendor.ext.policy' scripts/add-pitv-codec2-config-to-payload.sh
