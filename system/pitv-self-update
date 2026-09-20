@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
 import json
 import os
+import pwd
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
 
 COMMIT_API = "https://api.github.com/repos/CaseyCZ/PiTV/commits/Master"
+COMPARE_API = "https://api.github.com/repos/CaseyCZ/PiTV/compare/{base}...{head}"
+RAW_BASE = "https://raw.githubusercontent.com/CaseyCZ/PiTV/{sha}/{path}"
 USER_AGENT = "PiTV-Updater/1.5.0"
+STATE_FILE = Path("/var/lib/pitv/update-state.json")
 MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 250 * 1024 * 1024
+MAX_DELTA_FILE_BYTES = 20 * 1024 * 1024
+MAX_DELTA_TOTAL_BYTES = 60 * 1024 * 1024
 
 
 def progress(percent, message):
@@ -61,13 +69,363 @@ def validate_zip(z):
             fail("Rozbalená aktualizace je neočekávaně velká")
 
 
+SYSTEM_BIN = {
+    "system/pitv-session": "/usr/local/bin/pitv-session",
+    "system/pitv-session-run": "/usr/local/bin/pitv-session-run",
+    "system/pitv-launcher-run": "/usr/local/bin/pitv-launcher-run",
+    "system/pitv-waydroid-launch": "/usr/local/bin/pitv-waydroid-launch",
+    "system/pitv-kodi-launch": "/usr/local/bin/pitv-kodi-launch",
+    "system/pitv-kodi-addon": "/usr/local/bin/pitv-kodi-addon",
+}
+LIBEXEC_BIN = {
+    "system/pitv-helper": "/usr/local/libexec/pitv-helper",
+    "system/pitv-self-update": "/usr/local/libexec/pitv-self-update",
+    "system/pitv-android-warm": "/usr/local/libexec/pitv-android-warm",
+    "system/pitv-inputd": "/usr/local/libexec/pitv-inputd",
+    "system/pitv-cec-control": "/usr/local/libexec/pitv-cec-control",
+    "system/pitv-global-action": "/usr/local/libexec/pitv-global-action",
+    "system/pitv-displayd": "/usr/local/libexec/pitv-displayd",
+}
+SYSTEMD_FILES = {
+    "system/pitv.target": "/etc/systemd/system/pitv.target",
+    "system/pitv-shell.service": "/etc/systemd/system/pitv-shell.service",
+    "system/pitv-android-warm.service": "/etc/systemd/system/pitv-android-warm.service",
+    "system/pitv-inputd.service": "/etc/systemd/system/pitv-inputd.service",
+    "system/pitv-displayd.service": "/etc/systemd/system/pitv-displayd.service",
+}
+
+
+def installed_sha():
+    try:
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    sha = str(data.get("sha", "")).strip().lower()
+    return sha if re.fullmatch(r"[0-9a-f]{40}", sha) else ""
+
+
+def save_installed_sha(sha):
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ValueError("invalid installed SHA")
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_FILE.with_name(f".{STATE_FILE.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps({"sha": sha}, separators=(",", ":")) + "\n",
+                   encoding="utf-8")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, STATE_FILE)
+
+
+def delta_target(path):
+    """Map one repository runtime file to its installed path and restart class.
+
+    Return None for repository-only files. Raise ValueError for runtime-sensitive
+    files that are intentionally not safe for an incremental update.
+    """
+    path = str(path or "").replace("\\", "/").lstrip("/")
+    if not path or ".." in Path(path).parts:
+        raise ValueError("invalid delta path")
+
+    if path == "install.sh":
+        raise ValueError("installer changed")
+
+    if path.startswith("pitv/"):
+        rel = path[len("pitv/"):]
+        if not rel:
+            raise ValueError("invalid PiTV runtime path")
+        mode = 0o755 if rel == "pitv.py" else 0o644
+        return Path("/opt/pitv/pitv") / rel, mode, None, {"shell"}
+
+    if path == "config/config.json":
+        return Path("/etc/pitv/config.json"), 0o644, None, {"shell"}
+    if path.startswith("config/apps.d/"):
+        rel = path[len("config/apps.d/"):]
+        if not rel:
+            raise ValueError("invalid launcher path")
+        return Path("/etc/pitv/apps.d") / rel, 0o644, None, {"shell"}
+
+    if path == "store/catalog.json":
+        return Path("/etc/pitv/store/catalog.json"), 0o644, None, {"shell"}
+    if path == "store/server_catalog.json":
+        return Path("/etc/pitv/store/server_catalog.json"), 0o644, None, {"shell"}
+
+    if path == "system/kodi/appliance.xml":
+        return Path("/etc/pitv/kodi-appliance.xml"), 0o644, None, {"kodi-defaults"}
+
+    if path.startswith("system/labwc/"):
+        rel = path[len("system/labwc/"):]
+        if not rel:
+            raise ValueError("invalid labwc path")
+        return Path("/home/pitv/.config/labwc") / rel, 0o644, "pitv", {"shell"}
+
+    if path in SYSTEM_BIN:
+        restarts = set()
+        if path in {
+            "system/pitv-session",
+            "system/pitv-session-run",
+            "system/pitv-launcher-run",
+        }:
+            restarts.add("shell")
+        elif path == "system/pitv-waydroid-launch":
+            restarts.add("android")
+        return Path(SYSTEM_BIN[path]), 0o755, None, restarts
+
+    if path in LIBEXEC_BIN:
+        restarts = set()
+        if path == "system/pitv-android-warm":
+            restarts.add("android")
+        elif path == "system/pitv-inputd":
+            restarts.add("inputd")
+        elif path == "system/pitv-displayd":
+            restarts.add("displayd")
+        # helper/self-update/CEC output/global action are short-lived tools:
+        # replacing them atomically is enough for the next invocation.
+        return Path(LIBEXEC_BIN[path]), 0o755, None, restarts
+
+    if path in SYSTEMD_FILES:
+        restarts = {"daemon-reload"}
+        if path == "system/pitv-shell.service":
+            restarts.add("shell")
+        elif path == "system/pitv-android-warm.service":
+            restarts.add("android")
+        elif path == "system/pitv-inputd.service":
+            restarts.add("inputd")
+        elif path == "system/pitv-displayd.service":
+            restarts.add("displayd")
+        return Path(SYSTEMD_FILES[path]), 0o644, None, restarts
+
+    if path == "scripts/install-waydroid.sh":
+        return Path("/usr/local/libexec/pitv-install-waydroid"), 0o755, None, set()
+
+    # These trees affect the installed appliance. Unknown files inside them
+    # deliberately force the safe full installer instead of being guessed.
+    if path.startswith(("pitv/", "config/", "store/", "system/", "scripts/")):
+        raise ValueError(f"unknown runtime path: {path}")
+
+    # Docs, CI, release notes, Windows installer and repository metadata do not
+    # change an already-installed PiTV appliance.
+    return None
+
+
+def fetch_compare(base, head):
+    url = COMPARE_API.format(base=base, head=head)
+    with request(url, timeout=30) as src:
+        data = json.load(src)
+    status = str(data.get("status", ""))
+    if status not in ("ahead", "identical"):
+        raise RuntimeError(f"compare status {status or 'unknown'}")
+    files = list(data.get("files") or [])
+    # GitHub compare caps the file list. Never risk a partial delta.
+    if len(files) >= 300:
+        raise RuntimeError("too many changed files for delta update")
+    return files
+
+
+def build_delta_plan(files):
+    plan = []
+    restart_classes = set()
+    for item in files:
+        status = str(item.get("status", ""))
+        path = str(item.get("filename", ""))
+        if status == "renamed":
+            raise ValueError(f"renamed runtime file: {path}")
+        mapped = delta_target(path)
+        if mapped is None:
+            continue
+        target, mode, owner, restarts = mapped
+        if status not in ("added", "modified", "removed", "changed"):
+            raise ValueError(f"unsupported delta status {status}: {path}")
+        plan.append({
+            "repo_path": path,
+            "status": status,
+            "target": target,
+            "mode": mode,
+            "owner": owner,
+        })
+        restart_classes.update(restarts)
+    return plan, restart_classes
+
+
+def download_delta(sha, plan, staging):
+    total = 0
+    for index, item in enumerate(plan, 1):
+        if item["status"] == "removed":
+            continue
+        path = item["repo_path"]
+        url = RAW_BASE.format(
+            sha=sha,
+            path=urllib.parse.quote(path, safe="/"),
+        )
+        dest = staging / f"{index:04d}.bin"
+        with request(url, timeout=45) as src, dest.open("wb") as out:
+            length = int(src.headers.get("Content-Length", "0") or 0)
+            if length and length > MAX_DELTA_FILE_BYTES:
+                raise RuntimeError(f"delta file too large: {path}")
+            copied = 0
+            while True:
+                chunk = src.read(256 * 1024)
+                if not chunk:
+                    break
+                copied += len(chunk)
+                total += len(chunk)
+                if copied > MAX_DELTA_FILE_BYTES or total > MAX_DELTA_TOTAL_BYTES:
+                    raise RuntimeError("delta update exceeded size limit")
+                out.write(chunk)
+        item["staged"] = dest
+
+
+def atomic_install_file(source, target, mode, owner=None):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.parent / f".{target.name}.pitv-update-{os.getpid()}"
+    shutil.copyfile(source, tmp)
+    os.chmod(tmp, mode)
+    if owner:
+        account = pwd.getpwnam(owner)
+        os.chown(tmp, account.pw_uid, account.pw_gid)
+    os.replace(tmp, target)
+
+
+def apply_delta(plan, restart_classes):
+    for item in plan:
+        target = item["target"]
+        if item["status"] == "removed":
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                pass
+            continue
+        atomic_install_file(
+            item["staged"], target, item["mode"], item["owner"]
+        )
+
+    if "daemon-reload" in restart_classes:
+        subprocess.run(["systemctl", "daemon-reload"], check=True)
+
+    if "kodi-defaults" in restart_classes and shutil.which("kodi"):
+        subprocess.run(
+            ["/bin/sh", "-c",
+             "printf '{}' | /usr/local/libexec/pitv-helper kodi-appliance-defaults"],
+            check=False,
+        )
+
+
+def schedule_targeted_restarts(restart_classes):
+    units = []
+    if "inputd" in restart_classes:
+        units.append("pitv-inputd.service")
+    if "displayd" in restart_classes:
+        units.append("pitv-displayd.service")
+    # A shell restart propagates to pitv-android-warm through PartOf=.
+    if "android" in restart_classes and "shell" not in restart_classes:
+        units.append("pitv-android-warm.service")
+    if "shell" in restart_classes:
+        units.append("pitv-shell.service")
+    if not units:
+        return []
+
+    commands = [
+        f"/usr/bin/systemctl try-restart {unit}"
+        for unit in units
+    ]
+    command = " ; ".join(commands)
+    subprocess.run(
+        [
+            "systemd-run", "--quiet", "--collect",
+            f"--unit=pitv-delta-restart-{os.getpid()}",
+            "--on-active=1s",
+            "/bin/sh", "-c", command,
+        ],
+        check=False,
+    )
+    return units
+
+
+def try_delta_update(base, head):
+    progress(15, f"Porovnávám {base[:8]} → {head[:8]}…")
+    try:
+        files = fetch_compare(base, head)
+        plan, restart_classes = build_delta_plan(files)
+    except Exception as e:
+        print(f"PiTV [ ... ] Rychlá aktualizace není bezpečná: {e}", flush=True)
+        return False
+
+    if not plan:
+        save_installed_sha(head)
+        progress(100, f"Aktuální revize {head[:12]} (bez runtime změn).")
+        return True
+
+    progress(30, f"Stahuji jen {len(plan)} změněných runtime souborů…")
+    try:
+        with tempfile.TemporaryDirectory(prefix="pitv-delta-") as td_raw:
+            staging = Path(td_raw)
+            download_delta(head, plan, staging)
+            progress(70, "Instaluji změněné soubory…")
+            apply_delta(plan, restart_classes)
+    except Exception as e:
+        print(f"PiTV [ ... ] Delta selhala, přecházím na plnou instalaci: {e}",
+              flush=True)
+        return False
+
+    save_installed_sha(head)
+    units = schedule_targeted_restarts(restart_classes)
+    if units:
+        progress(95, "Restartuji jen: " + ", ".join(units))
+    else:
+        progress(95, "Restart není potřeba.")
+    progress(100, f"Rychle aktualizováno na {head[:12]}")
+    return True
+
+
+def updater_self_test():
+    target = delta_target("pitv/pitv.py")
+    assert str(target[0]) == "/opt/pitv/pitv/pitv.py"
+    assert "shell" in target[3]
+    target = delta_target("system/pitv-helper")
+    assert str(target[0]) == "/usr/local/libexec/pitv-helper"
+    assert not target[3]
+    target = delta_target("system/pitv-inputd")
+    assert target[3] == {"inputd"}
+    target = delta_target("system/pitv-waydroid-launch")
+    assert target[3] == {"android"}
+    target = delta_target("system/pitv-shell.service")
+    assert target[3] == {"daemon-reload", "shell"}
+    plan, restarts = build_delta_plan([
+        {"filename": "system/pitv-helper", "status": "modified"},
+        {"filename": "README.md", "status": "modified"},
+    ])
+    assert len(plan) == 1 and not restarts
+    try:
+        delta_target("install.sh")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("install.sh must force full update")
+    print("PiTV incremental updater self-test OK")
+
+
+if "--self-test" in sys.argv:
+    updater_self_test()
+    raise SystemExit(0)
+
 if os.geteuid() != 0:
     fail("PiTV self updater musí běžet jako root")
 
 progress(5, "Kontroluji novou verzi…")
 sha = resolve_master_sha()
+base_sha = installed_sha()
+
+if base_sha == sha:
+    progress(100, f"PiTV už je aktuální ({sha[:12]}).")
+    raise SystemExit(0)
+
+if base_sha and try_delta_update(base_sha, sha):
+    raise SystemExit(0)
+
+if not base_sha:
+    print("PiTV [ ... ] První update ukládá výchozí revizi; používám plnou instalaci.",
+          flush=True)
+
 archive_url = f"https://codeload.github.com/CaseyCZ/PiTV/zip/{sha}"
-progress(10, f"Stahuji commit {sha[:12]}…")
+progress(10, f"Stahuji celý commit {sha[:12]}…")
 
 with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
     td = Path(td_raw)
@@ -176,6 +534,7 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
         )
 
     progress(95, "Instalace dokončena.")
+    save_installed_sha(sha)
     # Restart the supervised TV shell only after this updater has returned.
     # A transient root unit survives GUI/SSH caller teardown and avoids the old
     # getty restart path, which is intentionally masked in PiTV 1.5.
