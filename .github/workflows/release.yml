@@ -148,6 +148,7 @@ jobs:
             python3 - <<'PY'
           import time
           import pygame
+          import pitv as pitv_module
           from queue import Queue
           from pitv import CECReader, LEGACY_ANDROID_PACKAGES, PiTV, VERSION
 
@@ -185,6 +186,41 @@ jobs:
 
           assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
           assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
+
+          # PiTV 1.4.10 regression contract: returning from an app must keep
+          # one healthy CEC reader alive instead of replacing the kernel
+          # monitor. The reader itself owns hotplug/reconnect recovery.
+          class HealthyCEC:
+              def __init__(self):
+                  self.clears = 0
+              def is_alive(self):
+                  return True
+              def is_ready(self):
+                  return True
+              def clear_key_state(self):
+                  self.clears += 1
+
+          probe = PiTV.__new__(PiTV)
+          probe.cfg = {"cec_enabled": True}
+          probe._cec_refreshing = False
+          probe.cec_queue = Queue()
+          healthy = HealthyCEC()
+          probe.cec = healthy
+          old_available = pitv_module.cec_available
+          old_active_source = pitv_module.cec_active_source
+          pitv_module.cec_available = lambda: True
+          pitv_module.cec_active_source = lambda: (True, "test")
+          try:
+              probe._refresh_cec_after_return()
+              deadline = time.monotonic() + 2.0
+              while probe._cec_refreshing and time.monotonic() < deadline:
+                  time.sleep(0.01)
+              assert probe.cec is healthy
+              assert healthy.clears == 1
+              assert not probe._cec_refreshing
+          finally:
+              pitv_module.cec_available = old_available
+              pitv_module.cec_active_source = old_active_source
 
           # Sencor/other TVs may expose the Home key as any CEC menu command.
           for raw_home in ("0a", "0c", "11"):
