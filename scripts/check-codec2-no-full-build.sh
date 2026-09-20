@@ -265,3 +265,6 @@ grep -q 'kNumAudioComponents = 0' scripts/build-minimal-codec2-modules.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/build-minimal-codec2-modules.sh
 grep -q 'kH264Decoder' scripts/build-minimal-codec2-modules.sh
 grep -q 'unexpected V4L2 Codec2 component store' scripts/build-minimal-codec2-modules.sh
+grep -q 'payload_rel=Path("vendor")/rel' scripts/collect-codec2-prebuilt.py
+grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-from-donor.sh
+grep -q 'payload_rel="vendor/$rel"' scripts/build-minimal-codec2-modules.sh
