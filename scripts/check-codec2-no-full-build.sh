@@ -235,3 +235,5 @@ grep -q 'metadata symlink rejected' scripts/check-codec2-service-metadata.py
 grep -q 'forcing waydroid init here can replace them' scripts/install-codec2-overlay.sh
 grep -q 'AMBIGUOUS' scripts/audit-codec2-payload-deps.py
 grep -q 'byte-identical' scripts/audit-codec2-payload-deps.py
+grep -q 'insufficient free space for rollback-safe Codec2 install' scripts/install-codec2-overlay.sh
+grep -q 'STAGE="$(readlink -f' scripts/install-codec2-overlay.sh
