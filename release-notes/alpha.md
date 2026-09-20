@@ -7,6 +7,8 @@
 - po návratu do launcheru PiTV znovu otevře jediný kernel CEC monitor, zaregistruje se a znovu oznámí Active Source; tím se opravuje stav, kdy CEC fungovalo po rebootu a později po přechodu aplikací přestalo reagovat
 - známé staré Android instalace z vlastních historických PiTV katalogů se jednorázově migračně odstraní: `com.stremio.one` a starý Android Plex `com.plexapp.android`; cizí uživatelské Android balíčky se nemažou
 - staré Store receipts těchto Android variant se také vyčistí, takže se po refreshi nevracejí do stavu „nainstalováno“
+- Kodi dostává PiTV appliance defaults pro oba fyzicky ověřené DRM PRIME přepínače (`videoplayer.useprimedecoder=true` + `videoplayer.useprimedecoderforhw=true`); PiTV mění výchozí hodnoty, ne uživatelovy uložené volby
+- instalace Kodi z PiTV Store zároveň instaluje `kodi-eventclients-kodi-send`, takže graceful Quit/Plex ovládání už není závislé na tom, zda balíček náhodou existoval
 - zachovány jsou opravy z 1.4.20–1.4.25: odinstalace aplikací, glass UI, Kodi-style seznamové Nastavení, Cage fullscreen Waydroid, root-safe Android DPAD relay a persistentní Kodi lifecycle wrapper
 - tato verze už nemá žádnou další plánovanou softwarovou opravu z incidentů 2026-09-19/20; další krok je **fyzický regresní test na Raspberry Pi 4**
 
