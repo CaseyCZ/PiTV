@@ -1,5 +1,15 @@
 # PiTV Alpha
 
+### PiTV 1.4.27 · spolehlivá aktualizace při APT locku
+- self-update už neselže kódem 100 jen proto, že Ubuntu právě spustilo `unattended-upgrades`
+- nový instalátor používá `DPkg::Lock::Timeout=600` a bezpečně čeká až 10 minut na dokončení existující APT/DPKG transakce; lock soubory nemaže a cizí procesy nezabíjí
+- `add-apt-repository` už nespouští vlastní neřízené APT update; všechny balíčkové operace procházejí stejným lock-aware tokem
+- stejné čekání platí pro aktualizaci Ubuntu, Linux Store aplikací a APT instalace z PiTV
+- self-updater zachytává výstup instalátoru a při chybě vrací krátkou smysluplnou zprávu místo celého terminálového logu
+- toast a horní stavová hláška se nově ořezávají na šířku TV, takže dlouhý APT výstup už nepřetéká přes obrazovku
+- oprava funguje i při přechodu ze starého PiTV, protože starý updater vždy stahuje aktuální `install.sh` z Master
+
+
 ### PiTV 1.4.26 · uzavření runtime oprav před fyzickým testem
 - **3 s podržení Zpět je univerzální ukončení aplikace** i na starých TV bez Home; krátké Zpět zůstává normální Back uvnitř aplikace
 - CEC long-press nově funguje i na televizích, které při držení tlačítka posílají opakované dvojice Press/Release místo jednoho dlouhého Press
