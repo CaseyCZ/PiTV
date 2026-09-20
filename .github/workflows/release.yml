@@ -37,6 +37,7 @@ jobs:
           bash -n system/pitv-session
           bash -n system/pitv-session-run
           bash -n system/pitv-waydroid-launch
+          bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
           ! grep -q 'dbus-run-session' system/pitv-session
           ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
@@ -45,6 +46,9 @@ jobs:
           grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-kodi-addon
           grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
           grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
+          grep -q 'Kodi musí běžet v TV session uživatele pitv' system/pitv-kodi-launch
+          grep -q 'pitv-kodi-launch' config/apps.d/kodi.json
+          grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
           grep -q 'waydroid-app-uninstall' system/pitv-helper
           grep -q 'waydroid-keyevent' system/pitv-helper
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
@@ -146,8 +150,8 @@ jobs:
 
           app = PiTV()
 
-          # TV remote contract: Home, when available, and the global long-Back
-          # gesture both return to PiTV without destroying the foreground app.
+          # TV remote contract: Home remains optional multitasking on TVs that
+          # have it, but 3-second Back is the universal EXIT for old remotes.
           demo_app = {"name": "Demo", "command": "demo-player"}
           demo_key = app._task_key(demo_app, "linux")
           app.external_kind = "linux"
@@ -167,8 +171,8 @@ jobs:
           app._keyboard_back_down_at = time.monotonic() - 3.1
           app._check_global_back_hold()
           assert app.external_kind is None
-          assert demo_key in app.background_tasks
-          app.background_tasks.clear()
+          assert app.page == "home"
+          assert demo_key not in app.background_tasks
 
           # Regression: a legacy Android Stremio APK must stay removable and
           # must not be mistaken for today's native Linux Stremio Flatpak just
@@ -192,7 +196,8 @@ jobs:
           assert app.app_can_uninstall(native_stremio)
 
           # Built-in media runtimes have stable multitasking slots.
-          kodi_app = {"name":"Kodi", "kind":"linux", "command":"kodi"}
+          kodi_app = {"name":"Kodi", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-launch"}
           plex_app = {"name":"Plex Player", "kind":"linux",
                       "command":"/usr/local/bin/pitv-kodi-addon run script.plexmod"}
           android_app = {"name":"SmartTube", "kind":"apk",
