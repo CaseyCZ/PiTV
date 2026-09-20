@@ -241,7 +241,6 @@ jobs:
           from store_backend import (
               download_direct_apk,
               download_github_apk,
-              download_stremio_tv_apk,
           )
 
           catalog = json.loads(Path("store/catalog.json").read_text(encoding="utf-8"))
@@ -254,8 +253,6 @@ jobs:
                   path, version = download_github_apk(item)
               elif kind == "direct_apk":
                   path, version = download_direct_apk(item)
-              elif kind == "stremio_tv_apk":
-                  path, version = download_stremio_tv_apk(item)
               else:
                   continue
 
@@ -281,7 +278,7 @@ jobs:
               tested.append(item["id"])
 
           assert "smarttube" in tested
-          assert "stremio" in tested
+          assert "stremio" not in tested
 
           play_entries = {
               x["id"]: x["installer"].get("package")
@@ -293,9 +290,8 @@ jobs:
 
           by_id = {x["id"]: x for x in catalog["apps"]}
           stremio = by_id["stremio"]["installer"]
-          assert stremio["type"] == "stremio_tv_apk"
-          assert stremio["expected_package"] == "com.stremio.one"
-          assert stremio["expected_abi"] == "arm64-v8a"
+          assert stremio["type"] == "flatpak"
+          assert stremio["app_id"] == "com.stremio.Stremio"
 
           plex = by_id["plex"]["installer"]
           assert plex["type"] == "kodi_addon"
