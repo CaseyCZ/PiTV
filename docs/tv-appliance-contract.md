@@ -56,9 +56,18 @@ contract is the baseline for all future UI, Store and runtime changes.
   ordinary app-exit operation.
 - A transient readiness timeout must not immediately throw the user back to
   PiTV.
+- Warm readiness is a local liveness contract, not a synchronous status
+  probe on every launch. The persistent Cage client writes its PID to
+  `pitv-waydroid-runtime-ready` only after Android reaches `boot_completed`;
+  app launch validates that PID locally.
+- A normal installed APK launch must go directly to `waydroid app launch`.
+  It must not enumerate the complete Android app catalog first. APK
+  installation/listing is fallback or management work, not part of warm launch.
+- PiTV stays visible until the requested package owns a visible Android
+  activity; only then is the Android workspace revealed.
 - One-time migrations may run only against an already-ready warm runtime.
-  They must never start/stop the Waydroid container or compete with an app
-  launch.
+  They must never start/stop the Waydroid container, block an app launch or
+  compete with an active/pending Android application.
 
 ## 4. Remote and focus
 
