@@ -37,6 +37,7 @@ jobs:
           bash -n system/pitv-session
           bash -n system/pitv-session-run
           bash -n system/pitv-launcher-run
+          bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
@@ -62,12 +63,25 @@ jobs:
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
           grep -q 'tv-runtime-reset' system/pitv-launcher-run
+          grep -q '^Requires=multi-user.target pitv-shell.service$' system/pitv.target
+          grep -q '^AllowIsolate=yes$' system/pitv.target
+          grep -q '^PAMName=login$' system/pitv-shell.service
+          grep -q '^TTYPath=/dev/tty1$' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-shell.service
+          grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-android-warm.service
+          grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
+          ! grep -q 'start_android_warmer' system/pitv-launcher-run
+          ! grep -q 'agetty --autologin' install.sh
+          ! grep -q 'system/bash_profile /home/pitv/.bash_profile' install.sh
+          grep -q 'systemctl set-default pitv.target' install.sh
+          grep -q 'systemctl mask getty@tty1.service' install.sh
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
           grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
           test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
           grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
           grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
-          grep -q 'pitv-waydroid-launch --warm' system/pitv-launcher-run
+          grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
           grep -q 'waydroid-app-visible' system/pitv-helper
           grep -q 'waydroid-app-stop' system/pitv-helper
@@ -80,7 +94,7 @@ jobs:
           grep -q 'labwc cage wtype' install.sh
           grep -q 'pitv-launcher-run' install.sh
           grep -q 'pitv-launcher.service' install.sh
-          grep -q 'ExecStart=/usr/bin/systemctl restart getty@tty1.service' install.sh
+          grep -q 'ExecStart=/usr/bin/systemctl restart pitv-shell.service' install.sh
           grep -q 'legacy-android-media-v2.done' pitv/pitv.py
           grep -q 'DPkg::Lock::Timeout' scripts/install-waydroid.sh
           grep -q 'identifier="wlroots"' system/labwc/rc.xml
@@ -164,6 +178,8 @@ jobs:
           import pitv as pitv_module
           from queue import Queue
           from pitv import CECReader, LEGACY_ANDROID_PACKAGES, PiTV, VERSION
+
+          assert VERSION == "1.5.0"
 
           # Regression: cec-ctl prints USER_CONTROL_PRESSED and ui-cmd on
           # separate lines. OK/Back must survive both decoded and raw formats.
