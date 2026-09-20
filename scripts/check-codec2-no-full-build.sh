@@ -22,6 +22,8 @@ SH=(
  scripts/build-minimal-codec2-modules.sh
  scripts/codec2-no-full-build.sh
  scripts/verify-codec2-runtime.sh
+ scripts/extract-codec2-donor-image.sh
+ scripts/prepare-codec2-from-donor.sh
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
@@ -55,3 +57,5 @@ echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
 grep -q '"backup_required":True\|"backup_required": True' scripts/make-codec2-rollback-manifest.py
+grep -q -- '--read-only' scripts/extract-codec2-donor-image.sh
+grep -q 'prepare-donor' scripts/codec2-no-full-build.sh
