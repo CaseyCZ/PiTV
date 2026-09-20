@@ -224,3 +224,5 @@ grep -q 'missing upstream FFmpeg Codec2 media registry' scripts/assemble-codec2-
 grep -q 'staged payload contains symlink' scripts/stage-codec2-payload.sh
 grep -q 'invalid rollback manifest schema' scripts/preflight-codec2-overlay.py
 grep -q 'duplicate preflight target' scripts/plan-codec2-backup.py
+grep -q 'rollback payload symlink rejected' scripts/make-codec2-rollback-manifest.py
+grep -q 'duplicate rollback path' scripts/make-codec2-rollback-manifest.py
