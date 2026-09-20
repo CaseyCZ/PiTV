@@ -1,21 +1,29 @@
 # No-full-build Codec2 experiment status
 
 ## Completed gates
-- isolated experiment branch; Master/full-image preparation untouched;
-- pinned Android 13 ARM64 V4L2/FFmpeg Codec2 sources;
-- donor extraction and dependency audit path;
-- minimal payload collection and PiTV-owned config reuse;
-- payload checksums, path-safety checks, staging and preflight;
-- rollback planning and full vendor-image backup/restore safety net;
-- RPi4, Android 13, /dev/video* and /dev/media* runtime guards;
-- AVC c2.v4l2.avc.decoder and HEVC c2.ffmpeg.hevc.decoder acceptance checks;
-- reduced-module build path that never runs repo init/sync;
-- CI/static self-tests.
+- isolated experiment branch; Master and Alpha remain untouched;
+- exact pinned Android 13 ARM64 V4L2/FFmpeg Codec2 source lock, commit/origin/dirty-tree verification;
+- verified FFmpeg HEVC V4L2 Request support and the upstream V4L2 seccomp contract;
+- exact 64-bit V4L2 service plus FFmpeg HEVC service metadata/VINTF validation;
+- H.264-only V4L2 store and HEVC-only reduced FFmpeg store for the reduced-build path;
+- canonical vendor-root payload layout with DT_NEEDED closure and ambiguity checks;
+- upstream FFmpeg codec registry preserved; PiTV AVC registry is merged without replacing the target registry;
+- base, extension and FFmpeg seccomp policies required;
+- payload checksum, inventory, manifest, symlink, size and path-safety gates;
+- donor extraction supports raw/sparse/partitioned/dynamic-super images with bounded decompression;
+- reduced-module build never runs repo init/sync and restores every Android source directory it temporarily replaces;
+- rollback-safe staging, preflight, free-space check, exact active vendor-image backup/activation/rollback;
+- no forced `waydroid init -f` during overlay activation or rollback;
+- RPi4, Android 13, /dev/video*, /dev/media*, Codec2 service and runtime-property acceptance;
+- FFmpeg HEVC Request API runtime property is explicitly enabled and verified;
+- CI/static self-tests green at the current branch tip.
 
-## Remaining before physical install
-1. Obtain or build the actual pinned Android 13 ARM64 codec service payload.
-2. Run ELF dependency audit against the exact PiTV Waydroid system/vendor.
-3. Install only after the audit passes.
-4. Validate SmartTube H.264 and HEVC playback, CPU load, A/V sync and reboot recovery.
+## External gate before physical install
+1. Produce the actual ARM64 payload from the pinned sources in an existing compatible Android 13 build tree, or supply a compatible Android 13 RPi4 donor image.
+2. Run the dependency audit against the exact PiTV Waydroid system/vendor on the Raspberry Pi.
+3. Install the staged overlay only after those checks pass.
+4. Validate SmartTube H.264/HEVC playback, CPU load, A/V sync, reboot/session recovery and rollback.
 
-The full ~300GB build remains a fallback only.
+The previously published KonstaKANG Android 13 RPi4 builds documented the required H.264 V4L2 and HEVC V4L2 Request implementation, but the Android 13 download is discontinued. The experiment therefore does not depend on that donor being available and keeps the pinned reduced-source build as the reproducible path.
+
+A full Android image build is not part of this experiment path.
