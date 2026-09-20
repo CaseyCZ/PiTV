@@ -15,6 +15,7 @@ case "$cmd" in
   build-modules) exec bash "$HERE/build-minimal-codec2-modules.sh" "$@";;
   add-config) exec bash "$HERE/add-pitv-codec2-config-to-payload.sh" "$@";;
   prepare) exec bash "$HERE/prepare-codec2-overlay.sh" "$@";;
+  readiness) exec python3 "$HERE/codec2-payload-readiness.py" "$@";;
   stage) exec bash "$HERE/stage-codec2-payload.sh" "$@";;
   plan) exec bash "$HERE/plan-codec2-overlay-install.sh" "$@";;
   install) exec bash "$HERE/install-codec2-overlay.sh" "$@";;
@@ -40,6 +41,7 @@ PiTV Codec2 no-full-build experiment
   build-modules ANDROID13_TREE SOURCES_DIR PAYLOAD_OUT
   add-config PAYLOAD
   prepare DONOR_TREE PAYLOAD_OUT ROOT_ELF...
+  readiness PAYLOAD
   stage PAYLOAD [STATE]
   plan STAGE
   install STAGE                 (root, RPi4 only)
