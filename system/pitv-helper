@@ -548,6 +548,43 @@ elif action == "waydroid-keyevent":
     run(["waydroid", "shell", "input", "keyevent", code], timeout=10)
     out("keyevent sent")
 
+elif action == "waydroid-package-installed":
+    package = str(payload.get("package", "")).strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+        out("Neplatný Android package ID", 2)
+    p = subprocess.run(
+        ["waydroid", "shell", "pm", "path", package],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=15, check=False,
+    )
+    installed = (
+        p.returncode == 0
+        and any(line.strip().startswith("package:")
+                for line in (p.stdout or "").splitlines())
+    )
+    if installed:
+        out("installed")
+    out("missing", 4)
+
+elif action == "waydroid-packages":
+    p = subprocess.run(
+        ["waydroid", "shell", "pm", "list", "packages"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=20, check=False,
+    )
+    if p.returncode != 0:
+        out((p.stdout or "").strip() or "Android package manager není dostupný", 4)
+    packages = []
+    for line in (p.stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("package:"):
+            continue
+        package = line.split(":", 1)[1].strip()
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+            packages.append(package)
+    print("\n".join(sorted(set(packages))))
+    raise SystemExit(0)
+
 elif action == "waydroid-app-stop":
     package = str(payload.get("package", "")).strip()
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
