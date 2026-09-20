@@ -19,8 +19,9 @@ if [ -f "$release_file" ] && ! grep -Eq 'PLATFORM_VERSION.*13|PLATFORM_VERSION_L
 fi
 
 SRC_BACKUP="$(mktemp -d /tmp/pitv-codec2-src-backup.XXXXXX)"
+MODIFIED=()
 restore_sources(){
-  for dst in external/v4l2_codec2 external/ffmpeg external/ffmpeg_codec2 external/libudev-zero; do
+  for dst in "${MODIFIED[@]}"; do
     target="$TREE/$dst"; key="${dst//\//__}"
     rm -rf "$target"
     [ ! -e "$SRC_BACKUP/$key" ] || mv "$SRC_BACKUP/$key" "$target"
@@ -34,6 +35,7 @@ install_src(){
   case "$target/" in "$TREE/external/"*) ;; *) echo "unsafe source install target: $target" >&2; exit 2;; esac
   key="${dst//\//__}"
   if [ -e "$target" ] || [ -L "$target" ]; then mv "$target" "$SRC_BACKUP/$key"; fi
+  MODIFIED+=("$dst")
   mkdir -p "$(dirname "$target")"
   cp -a "$SOURCES/$src" "$target"
 }
