@@ -672,6 +672,37 @@ elif action == "apt-store-upgrade":
     run(["apt-get", "-y", "install", "--only-upgrade"] + packages, timeout=1200, env=env)
     out("Linux Store aplikace aktualizovány")
 
+elif action == "flatpak-store-upgrade":
+    app_ids = payload.get("app_ids", [])
+    if not isinstance(app_ids, list):
+        out("Neplatný seznam Flatpak aplikací", 2)
+    app_ids = [str(x).strip() for x in app_ids if str(x).strip()]
+    if any(app_id not in ALLOWED_STORE_FLATPAK for app_id in app_ids):
+        out("Seznam obsahuje nepovolenou Flatpak aplikaci", 2)
+    if not app_ids:
+        out("Žádné Flatpak Store aplikace k aktualizaci")
+    if shutil.which("flatpak") is None:
+        out("Flatpak není nainstalovaný", 2)
+
+    installed = []
+    for app_id in app_ids:
+        p = subprocess.run(
+            ["flatpak", "info", "--system", app_id],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if p.returncode == 0:
+            installed.append(app_id)
+    if not installed:
+        out("Žádné Flatpak Store aplikace k aktualizaci")
+
+    run(
+        ["flatpak", "update", "--system", "-y", "--noninteractive", *installed],
+        timeout=1800,
+    )
+    out("Flatpak Store aplikace aktualizovány")
+
 elif action == "background-status":
     def svc(name):
         p = subprocess.run(["systemctl", "is-active", name], stdout=subprocess.PIPE,
