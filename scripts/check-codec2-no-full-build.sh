@@ -166,3 +166,10 @@ grep -q 'init metadata missing exact service path' scripts/check-codec2-service-
 grep -q 'check-codec2-service-metadata.py' scripts/prepare-codec2-from-donor.sh
 grep -q 'check-codec2-service-metadata.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'v4l2_instances_property' scripts/accept-codec2-overlay-runtime.sh
+grep -q 'source commit mismatch' scripts/verify-minimal-codec2-sources.py
+grep -q 'source origin mismatch' scripts/verify-minimal-codec2-sources.py
+grep -q 'refusing dirty source checkout' scripts/fetch-minimal-codec2-sources.py
+grep -q 'android_video_nodes' scripts/accept-codec2-overlay-runtime.sh
+grep -q 'v4l2_instances=' scripts/verify-codec2-runtime.sh
+grep -q '/dev/video not visible in Android' scripts/install-codec2-overlay.sh
+grep -q 'unsafe output directory' scripts/prepare-codec2-overlay.sh
