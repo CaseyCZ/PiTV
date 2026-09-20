@@ -17,9 +17,17 @@ if [ "${1:-}" = "--cage-client" ]; then
 fi
 
 ACTION="${PITV_WAYDROID_ACTION:-launch}"
-if [ "$MODE" = "outer" ] && [ "${1:-}" = "--install-only" ]; then
-  ACTION="install"
-  shift
+if [ "$MODE" = "outer" ]; then
+  case "${1:-}" in
+    --install-only)
+      ACTION="install"
+      shift
+      ;;
+    --uninstall-only)
+      ACTION="uninstall"
+      shift
+      ;;
+  esac
 fi
 
 TARGET="${1:-}"
@@ -326,6 +334,49 @@ fi
 # From here the Cage client owns the complete on-demand Android lifecycle.
 # cleanup_runtime stops the user session and container when the TV flow exits.
 TRACK_PACKAGE=""
+
+if [ "$ACTION" = "uninstall" ]; then
+  valid_package "$TARGET" || {
+    log "invalid package ID for uninstall: $TARGET"
+    exit 2
+  }
+  if ! package_installed "$TARGET"; then
+    log "uninstall-only: package already absent: $TARGET"
+    exit 0
+  fi
+
+  log "uninstalling through official Waydroid app controller: $TARGET"
+  set +e
+  timeout --signal=TERM --kill-after=5s 30s     waydroid app remove "$TARGET" >>"$LOG" 2>&1
+  rc=$?
+  set -e
+
+  for _ in $(seq 1 40); do
+    package_installed "$TARGET" || {
+      log "uninstall-only completed: $TARGET"
+      exit 0
+    }
+    sleep 0.5
+  done
+
+  log "official uninstall incomplete rc=$rc; trying PackageManager fallback: $TARGET"
+  if ! printf '{"package":"%s"}' "$TARGET" |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-app-uninstall         >>"$LOG" 2>&1; then
+    diagnostics "$TARGET"
+    exit 6
+  fi
+
+  for _ in $(seq 1 20); do
+    package_installed "$TARGET" || {
+      log "uninstall-only fallback completed: $TARGET"
+      exit 0
+    }
+    sleep 0.5
+  done
+  diagnostics "$TARGET"
+  log "uninstall-only failed; package still present: $TARGET"
+  exit 6
+fi
 
 if [ "$TARGET" = "--full-ui" ]; then
   # Explicit diagnostics only. This on-demand Cage/session already exists;
