@@ -8,6 +8,7 @@ PY=(
  scripts/verify-staged-codec2-payload.py
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
+ scripts/audit-codec2-payload-deps.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -17,6 +18,7 @@ SH=(
  scripts/prepare-codec2-overlay.sh
  scripts/install-codec2-overlay.sh
  scripts/rollback-codec2-overlay.sh
+ scripts/build-minimal-codec2-modules.sh
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
@@ -28,6 +30,7 @@ grep -q 'only reads state' scripts/probe-waydroid-codec2-target.sh
 grep -q 'refusing full-build workspace' scripts/guard-codec2-build-workspace.sh
 grep -q 'DRY RUN ONLY' scripts/plan-codec2-overlay-install.sh
 grep -q 'restore; RESTORE=0; exit 20' scripts/install-codec2-overlay.sh
+grep -q 'audit-codec2-payload-deps.py' scripts/install-codec2-overlay.sh
 grep -q 'dumpsys media.codec' scripts/install-codec2-overlay.sh
 grep -q 'c2.v4l2.avc.decoder' scripts/install-codec2-overlay.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/install-codec2-overlay.sh
@@ -45,3 +48,4 @@ python3 scripts/verify-staged-codec2-payload.py "$tmp/payload" >/dev/null
 bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null
 grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
 echo "Codec2 no-full-build helper checks OK"
+grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
