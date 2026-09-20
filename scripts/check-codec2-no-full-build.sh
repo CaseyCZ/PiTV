@@ -19,6 +19,7 @@ SH=(
  scripts/install-codec2-overlay.sh
  scripts/rollback-codec2-overlay.sh
  scripts/build-minimal-codec2-modules.sh
+ scripts/codec2-no-full-build.sh
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
@@ -49,3 +50,4 @@ bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null
 grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
+scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
