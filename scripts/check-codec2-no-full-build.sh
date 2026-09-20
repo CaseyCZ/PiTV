@@ -13,6 +13,7 @@ PY=(
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
  scripts/make-codec2-rollback-manifest.py
+ scripts/register-pitv-codec2-config.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -73,3 +74,4 @@ grep -q 'dumpsys media.codec' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'c2.v4l2.avc.decoder' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'vendor.prop.*pitv-codec2.prop' scripts/assemble-codec2-overlay.py
+grep -q 'register-pitv-codec2-config.py' scripts/add-pitv-codec2-config-to-payload.sh
