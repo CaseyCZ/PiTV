@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.25"
+VERSION = "1.4.26"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -846,6 +846,12 @@ class CECReader(threading.Thread):
         self.last_key_at = 0.0
         self.press_started_at = 0.0
         self.key_released = True
+        # Some older TVs represent one long CEC hold as repeated
+        # press/release pairs instead of one press followed by a late release.
+        # Keep a short continuity window so "Back held 3 s" works in both forms.
+        self.gesture_key = None
+        self.gesture_started_at = 0.0
+        self.gesture_last_seen_at = 0.0
         self._awaiting_ui_cmd = False
         self._stop_event = threading.Event()
 
@@ -888,11 +894,26 @@ class CECReader(threading.Thread):
         now = time.monotonic()
         same_hold = mapped == self.last_key and not self.key_released
 
-        # Back has a global PiTV long-press gesture. Send the first Back to the
-        # foreground app normally, but suppress its repeat frames so a 3-second
-        # hold does not walk backwards through several app screens before PiTV
-        # returns to the launcher.
-        if same_hold and mapped == pygame.K_ESCAPE:
+        # Gesture continuity survives a short CEC release/re-press cycle.
+        # This is required by older TVs which synthesize a held remote button
+        # as repeated USER_CONTROL_PRESSED / USER_CONTROL_RELEASED pairs.
+        continuing_gesture = (
+            mapped == self.gesture_key and
+            self.gesture_started_at > 0 and
+            (now - self.gesture_last_seen_at) <= 0.80
+        )
+        if not continuing_gesture:
+            self.gesture_key = mapped
+            self.gesture_started_at = now
+        self.gesture_last_seen_at = now
+
+        # Back has a global PiTV long-press gesture. Send only the first Back to
+        # the foreground app. All repeat frames belong to the 3-second escape
+        # gesture and must not walk backwards through multiple app screens.
+        if continuing_gesture and mapped == pygame.K_ESCAPE:
+            self.last_key = mapped
+            self.last_key_at = now
+            self.key_released = False
             return
 
         # A short TV remote press must produce exactly one UI step. Some TVs
@@ -908,16 +929,33 @@ class CECReader(threading.Thread):
         self.event_queue.put(mapped)
 
     def held_for(self, mapped):
-        if (self.key_released or self.last_key != mapped or
-                self.press_started_at <= 0):
-            return 0.0
-        return max(0.0, time.monotonic() - self.press_started_at)
+        now = time.monotonic()
+
+        # Standard CEC behavior: one Press, then a Release when the button is
+        # physically released.
+        if (not self.key_released and self.last_key == mapped and
+                self.press_started_at > 0):
+            continuous = max(0.0, now - self.press_started_at)
+        else:
+            continuous = 0.0
+
+        # Older-TV behavior: repeated press/release pairs. Consider them one
+        # gesture while the next frame arrives within 800 ms.
+        repeated = 0.0
+        if (self.gesture_key == mapped and self.gesture_started_at > 0 and
+                (now - self.gesture_last_seen_at) <= 0.80):
+            repeated = max(0.0, now - self.gesture_started_at)
+
+        return max(continuous, repeated)
 
     def clear_key_state(self):
         self.last_key = None
         self.last_key_at = 0.0
         self.press_started_at = 0.0
         self.key_released = True
+        self.gesture_key = None
+        self.gesture_started_at = 0.0
+        self.gesture_last_seen_at = 0.0
         self._awaiting_ui_cmd = False
 
     def _emit(self, name):
@@ -950,6 +988,8 @@ class CECReader(threading.Thread):
             self.last_key = None
             self.last_key_at = 0.0
             self.press_started_at = 0.0
+            # Deliberately keep gesture_* until its 800 ms continuity window
+            # expires; held_for() then supports TVs that repeat press/release.
             return
 
         # Raw frame fallback is version-independent:
