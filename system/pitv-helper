@@ -31,6 +31,11 @@ def run(args, timeout=600, stdin=None, env=None):
         has_lock_timeout = any("DPkg::Lock::Timeout=" in str(x) for x in args)
         if not has_lock_timeout:
             args[1:1] = ["-o", "DPkg::Lock::Timeout=600"]
+        # The process timeout must be longer than APT's own 600 s lock wait,
+        # otherwise PiTV would abort while apt-get is still correctly waiting
+        # for unattended-upgrades. Keep another five minutes for the actual
+        # update/install/remove work after the lock becomes available.
+        timeout = max(timeout, 900)
     p = subprocess.run(args, input=stdin, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                        text=True, timeout=timeout, check=False, env=env)
     text = (p.stdout or "").strip()
