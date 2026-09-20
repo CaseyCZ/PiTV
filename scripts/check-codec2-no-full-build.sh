@@ -134,7 +134,7 @@ grep -q 'check-codec2-service-metadata.py' scripts/install-codec2-overlay.sh
 grep -q 'check-codec2-service-metadata.py' scripts/codec2-install-readiness.sh
 grep -q 'check-codec2-manifest-closure.py' scripts/install-codec2-overlay.sh
 grep -q 'check-codec2-manifest-closure.py' scripts/prepare-codec2-overlay.sh
-grep -q 'missing Codec2 service metadata' scripts/check-codec2-service-metadata.py
+grep -q 'VINTF metadata missing service' scripts/check-codec2-service-metadata.py
 grep -q 'check-codec2-manifest-closure.py' scripts/stage-codec2-payload.sh
 grep -q 'check-codec2-payload-size.py' scripts/stage-codec2-payload.sh
 grep -q 'check-codec2-manifest-closure.py' scripts/plan-codec2-overlay-install.sh
