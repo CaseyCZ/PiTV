@@ -9,6 +9,11 @@ fi
 OFFICIAL_BOOTSTRAP_URL="https://repo.waydro.id"
 FALLBACK_BASE="https://raw.githubusercontent.com/CaseyCZ/PiTV/Master/vendor/waydroid/noble"
 
+APT_LOCK_TIMEOUT="${APT_LOCK_TIMEOUT:-600}"
+apt_run() {
+  apt-get -o "DPkg::Lock::Timeout=$APT_LOCK_TIMEOUT" "$@"
+}
+
 # Raspberry Pi-specific checks before downloading images. PiTV currently
 # targets Pi 4 first. A 4 KiB page-size kernel is the compatible baseline used
 # by working Raspberry Pi Waydroid setups; PSI is required by Android's memory
@@ -27,8 +32,8 @@ if [ "$(dpkg --print-architecture 2>/dev/null || true)" = "arm64" ]; then
   fi
 fi
 
-apt-get update
-apt-get install -y curl ca-certificates
+apt_run update
+apt_run install -y curl ca-certificates
 
 TMP_DIR="$(mktemp -d /tmp/pitv-waydroid.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -44,8 +49,8 @@ install_official() {
   curl_get "$OFFICIAL_BOOTSTRAP_URL" -o "$bootstrap" || return 1
   chmod 0700 "$bootstrap"
   bash "$bootstrap" || return 1
-  apt-get update || return 1
-  apt-get install -y waydroid || return 1
+  apt_run update || return 1
+  apt_run install -y waydroid || return 1
 }
 
 manifest_value() {
@@ -65,7 +70,7 @@ install_fallback() {
   echo "Používám PiTV fallback snapshot z GitHubu…"
 
   rm -f /etc/apt/sources.list.d/waydroid.list
-  apt-get update
+  apt_run update
 
   manifest="$TMP_DIR/packages.env"
   sums="$TMP_DIR/SHA256SUMS"
@@ -91,7 +96,7 @@ install_fallback() {
     sha256sum -c SHA256SUMS
   )
 
-  apt-get install -y \
+  apt_run install -y \
     "$TMP_DIR/$libglibutil" \
     "$TMP_DIR/$libgbinder" \
     "$TMP_DIR/$pygbinder" \
