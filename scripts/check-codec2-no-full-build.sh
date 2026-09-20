@@ -261,3 +261,5 @@ grep -q 'ffmpeg_hevc_v4l2_request=' scripts/verify-codec2-runtime.sh
 grep -q 'ffmpeg_hevc_v4l2_request_property' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'persist.ffmpeg_codec2.v4l2.h265=1' scripts/codec2-payload-readiness.py
 grep -q 'payload properties incomplete' scripts/codec2-payload-readiness.py
+grep -q 'kNumAudioComponents = 0' scripts/build-minimal-codec2-modules.sh
+grep -q 'c2.ffmpeg.hevc.decoder' scripts/build-minimal-codec2-modules.sh
