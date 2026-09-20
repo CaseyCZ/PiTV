@@ -147,6 +147,7 @@ install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.servi
 
 # The virtual PiTV TV Remote uses Linux uinput. Load it during every boot
 # before pitv-inputd and load it now as well for an in-place upgrade.
+install -d -m 0755 /etc/modules-load.d
 printf '%s\n' "uinput" >/etc/modules-load.d/pitv-uinput.conf
 modprobe uinput >/dev/null 2>&1 || true
 
