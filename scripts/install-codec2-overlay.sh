@@ -8,6 +8,7 @@ STAGE="${1:?verified staged payload required}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 python3 "$SCRIPT_DIR/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/check-codec2-payload-contract.py" "$STAGE" >/dev/null
+python3 "$SCRIPT_DIR/enforce-codec2-payload-scope.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/inventory-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/make-codec2-rollback-manifest.py" "$STAGE" >/dev/null
 command -v waydroid >/dev/null
