@@ -78,6 +78,11 @@ jobs:
           grep -q 'flatpak-uninstall' system/pitv-helper
           grep -q 'apt-remove' system/pitv-helper
           grep -q 'pitv-session-run' install.sh
+          grep -q 'DPkg::Lock::Timeout=' install.sh
+          grep -q -- '--no-update universe' install.sh
+          grep -q 'DPkg::Lock::Timeout=600' system/pitv-helper
+          grep -q 'APT_LOCK_TIMEOUT' system/pitv-self-update
+          grep -q 'stdout=subprocess.PIPE' system/pitv-self-update
           bash -n scripts/install-waydroid.sh
           grep -q 'getconf PAGESIZE' scripts/install-waydroid.sh
           grep -q '/proc/pressure' scripts/install-waydroid.sh
