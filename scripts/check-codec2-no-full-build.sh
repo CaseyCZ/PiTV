@@ -263,3 +263,5 @@ grep -q 'persist.ffmpeg_codec2.v4l2.h265=1' scripts/codec2-payload-readiness.py
 grep -q 'payload properties incomplete' scripts/codec2-payload-readiness.py
 grep -q 'kNumAudioComponents = 0' scripts/build-minimal-codec2-modules.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/build-minimal-codec2-modules.sh
+grep -q 'kH264Decoder' scripts/build-minimal-codec2-modules.sh
+grep -q 'unexpected V4L2 Codec2 component store' scripts/build-minimal-codec2-modules.sh
