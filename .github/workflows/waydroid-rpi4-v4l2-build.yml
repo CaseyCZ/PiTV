@@ -37,51 +37,9 @@ jobs:
           test -s dist/waydroid-rpi4-v4l2/build-info.env
           test -s dist/waydroid-rpi4-v4l2/SHA256SUMS
           grep -q '^ANDROID_RELEASE=13$' dist/waydroid-rpi4-v4l2/build-info.env
-          grep -q '^HW_DECODER_AVC=c2.v4l2.avc.decoder            cd dist/waydroid-rpi4-v4l2
-            sha256sum -c SHA256SUMS
-          )
-
-      - name: Upload RPi4 hardware-decode vendor artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pitv-waydroid-rpi4-avc-hevc-lineage20
-          path: |
-            dist/waydroid-rpi4-v4l2/vendor.img.xz
-            dist/waydroid-rpi4-v4l2/build-info.env
-            dist/waydroid-rpi4-v4l2/SHA256SUMS
-          if-no-files-found: error
-          retention-days: 30
- dist/waydroid-rpi4-v4l2/build-info.env
-          grep -q '^HW_DECODER_HEVC=c2.ffmpeg.hevc.decoder            cd dist/waydroid-rpi4-v4l2
-            sha256sum -c SHA256SUMS
-          )
-
-      - name: Upload RPi4 hardware-decode vendor artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pitv-waydroid-rpi4-avc-hevc-lineage20
-          path: |
-            dist/waydroid-rpi4-v4l2/vendor.img.xz
-            dist/waydroid-rpi4-v4l2/build-info.env
-            dist/waydroid-rpi4-v4l2/SHA256SUMS
-          if-no-files-found: error
-          retention-days: 30
- dist/waydroid-rpi4-v4l2/build-info.env
-          grep -q '^HEVC_V4L2_REQUEST=compiled            cd dist/waydroid-rpi4-v4l2
-            sha256sum -c SHA256SUMS
-          )
-
-      - name: Upload RPi4 hardware-decode vendor artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pitv-waydroid-rpi4-avc-hevc-lineage20
-          path: |
-            dist/waydroid-rpi4-v4l2/vendor.img.xz
-            dist/waydroid-rpi4-v4l2/build-info.env
-            dist/waydroid-rpi4-v4l2/SHA256SUMS
-          if-no-files-found: error
-          retention-days: 30
- dist/waydroid-rpi4-v4l2/build-info.env
+          grep -q '^HW_DECODER_AVC=c2.v4l2.avc.decoder$' dist/waydroid-rpi4-v4l2/build-info.env
+          grep -q '^HW_DECODER_HEVC=c2.ffmpeg.hevc.decoder$' dist/waydroid-rpi4-v4l2/build-info.env
+          grep -q '^HEVC_V4L2_REQUEST=compiled$' dist/waydroid-rpi4-v4l2/build-info.env
           (
             cd dist/waydroid-rpi4-v4l2
             sha256sum -c SHA256SUMS
