@@ -44,6 +44,25 @@ install_src ffmpeg external/ffmpeg
 install_src ffmpeg_codec2 external/ffmpeg_codec2
 install_src libudev_zero external/libudev-zero
 
+python3 - "$TREE/external/ffmpeg_codec2/service.cpp" <<'PY'
+import sys
+from pathlib import Path
+p=Path(sys.argv[1]); s=p.read_text()
+start=s.find("static const C2FFMPEGComponentInfo kFFMPEGVideoComponents[] = {")
+end=s.find("\n};",start)
+if start<0 or end<0: raise SystemExit("unexpected FFmpeg Codec2 video component table")
+end+=3
+table='''static const C2FFMPEGComponentInfo kFFMPEGVideoComponents[] = {
+    { "c2.ffmpeg.hevc.decoder"  , MEDIA_MIMETYPE_VIDEO_HEVC  , AV_CODEC_ID_HEVC },
+};'''
+s=s[:start]+table+s[end:]
+old='''static const size_t kNumAudioComponents =
+    (sizeof(kFFMPEGAudioComponents) / sizeof(kFFMPEGAudioComponents[0]));'''
+if old not in s: raise SystemExit("unexpected FFmpeg Codec2 audio component count")
+s=s.replace(old,"static const size_t kNumAudioComponents = 0;",1)
+p.write_text(s)
+PY
+
 cd "$TREE"
 # Android envsetup/lunch scripts are not guaranteed to be nounset-clean.
 set +u
