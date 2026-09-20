@@ -567,11 +567,16 @@ elif action == "waydroid-open-play-store":
     out("Google Play detail otevřen")
 
 elif action == "waydroid-warm-start":
-    # Compatibility API for older launcher builds. Current PiTV deliberately
-    # has no persistent warm Android session; the app wrapper owns its runtime.
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
-    out("Android běží na vyžádání")
+    p = subprocess.run(
+        ["systemctl", "start", "pitv-android-warm.service"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=30, check=False,
+    )
+    if p.returncode != 0:
+        out((p.stdout or "").strip() or "Persistentní Android runtime nelze spustit", 3)
+    out("Persistentní Android runtime spuštěn")
 
 elif action == "waydroid-container-start":
     if shutil.which("waydroid") is None:
