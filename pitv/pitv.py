@@ -4843,7 +4843,9 @@ class PiTV:
 
         def worker():
             started = time.monotonic()
-            deadline = started + 95.0
+            # Physical Pi 4 cold Waydroid startup has taken ~85 s. Give the
+            # runtime enough headroom to become ready and still launch the app.
+            deadline = started + 180.0
             last_stage = ""
             last_focus_guard = 0.0
             while time.monotonic() < deadline:
