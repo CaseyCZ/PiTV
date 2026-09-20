@@ -37,6 +37,2289 @@ jobs:
           bash -n uninstall.sh
           bash -n system/pitv-session
           bash -n system/pitv-session-run
+          grep -q '^CapabilityBoundingSet=          bash -n system/pitv-launcher-run
+          bash -n system/pitv-android-warm
+          bash -n system/pitv-waydroid-launch
+          sudo python3 system/pitv-helper self-test </dev/null
+          bash -n system/pitv-kodi-launch
+          bash -n system/pitv-kodi-addon
+          bash -n system/pitv-cec-control
+          ! grep -q 'dbus-run-session' system/pitv-session
+          ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-waydroid-launch
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-kodi-addon
+          grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
+          grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
+          grep -q 'Kodi musí běžet v TV session uživatele pitv' system/pitv-kodi-launch
+          grep -q 'pitv-kodi-launch' config/apps.d/kodi.json
+          grep -q 'kodi-appliance-defaults' system/pitv-helper
+          grep -q 'system/kodi/appliance.xml /etc/pitv/kodi-appliance.xml' install.sh
+          grep -q 'videoplayer.useprimedecoder' system/kodi/appliance.xml
+          grep -q 'videoplayer.useprimedecoderforhw' system/kodi/appliance.xml
+          grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
+          grep -q 'waydroid-app-uninstall' system/pitv-helper
+          grep -q 'waydroid-clean-legacy' system/pitv-helper
+          grep -q 'com.stremio.one' system/pitv-helper
+          grep -q 'com.plexapp.android' system/pitv-helper
+          grep -q 'waydroid-keyevent' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-session
+          python3 system/pitv-inputd --self-test
+          python3 system/pitv-displayd --self-test
+          ! grep -q 'class CECReader' pitv/pitv.py
+          ! grep -q 'cec_queue' pitv/pitv.py
+          ! grep -q '_CEC_MANAGER' pitv/pitv.py
+          grep -q 'python3-evdev' install.sh
+          grep -q 'system/pitv-inputd /usr/local/libexec/pitv-inputd' install.sh
+          grep -q 'system/pitv-cec-control /usr/local/libexec/pitv-cec-control' install.sh
+          grep -q '/usr/local/libexec/pitv-cec-control' pitv/pitv.py
+          ! grep -q '/usr/local/libexec/pitv-cec-monitor' pitv/pitv.py
+          ! grep -q "cat >/usr/local/libexec/pitv-cec-monitor" install.sh
+          ! grep -q 'register)' system/pitv-cec-control
+          ! grep -q 'monitor)' system/pitv-cec-control
+          grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
+          grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
+          grep -q 'systemctl enable pitv-inputd.service pitv-displayd.service pitv-shell.service pitv-android-warm.service' install.sh
+          grep -q 'pitv-inputd.service' system/pitv.target
+          grep -q 'After=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q '^ConditionPathExists=!/var/lib/pitv/cec-disabled$' system/pitv-inputd.service
+          grep -q '^Restart=always$' system/pitv-inputd.service
+          grep -q 'PiTV TV Remote' system/pitv-inputd
+          grep -q -- '--no-rc-passthrough' system/pitv-inputd
+          grep -q 'KEY_F13' system/pitv-inputd
+          grep -q 'KEY_F14' system/pitv-inputd
+          grep -q 'key="F13"' system/labwc/rc.xml
+          grep -q 'key="F14"' system/labwc/rc.xml
+          grep -q 'pitv-global-action home' system/labwc/rc.xml
+          grep -q 'pitv-global-action close' system/labwc/rc.xml
+          grep -q 'tv-input-enable' system/pitv-helper
+          grep -q 'system_input_managed' pitv/pitv.py
+          grep -q '_consume_global_tv_action' pitv/pitv.py
+          grep -q 'if not system_input_managed()' pitv/pitv.py
+          ! grep -q 'tv-runtime-reset' system/pitv-launcher-run
+          grep -q '^exec labwc -s /usr/local/bin/pitv-launcher-run$' system/pitv-session
+          grep -q 'pitv-wayland-display' system/pitv-session
+          grep -q 'pitv-wayland-display' system/pitv-launcher-run
+          grep -q 'pitv-wayland-display' system/pitv-android-warm
+          grep -q 'pitv-wayland-display' system/pitv-session-run
+          grep -q 'pitv-wayland-display' system/pitv-kodi-launch
+          grep -q 'pitv-wayland-display' system/pitv-kodi-addon
+          grep -q 'pitv-wayland-display' system/pitv-waydroid-launch
+          grep -q 'pitv-wayland-display' pitv/pitv.py
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-session-run
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-launch
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-addon
+          ! grep -q 'glob("wayland-\*")' pitv/pitv.py
+          grep -q 'if \[ "$MODE" = "client" \]' system/pitv-waydroid-launch
+          grep -q 'CANDIDATE=.*pitv-wayland-display\|MARKER=.*pitv-wayland-display' system/pitv-waydroid-launch
+          ! grep -q 'pitv-launcher-run' system/labwc/autostart
+          grep -q '^exec /usr/bin/python3 /opt/pitv/pitv/pitv.py$' system/pitv-launcher-run
+          ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
+          grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
+          test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
+          grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
+          grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
+          grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
+          ! grep -q '^sleep 2$' system/pitv-android-warm
+          grep -q 'def _android_runtime_ready(self)' pitv/pitv.py
+          grep -q 'pid = int(raw)' pitv/pitv.py
+          grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
+          grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
+          grep -q 'Fast TV path' system/pitv-waydroid-launch
+          grep -q 'maintenance must never block an app launch' pitv/pitv.py
+          python3 - <<'PYLIFECYCLE'
+          from pathlib import Path
+          helper = Path("system/pitv-helper").read_text(encoding="utf-8")
+          block = helper.split('elif action == "waydroid-clean-legacy":', 1)[1]
+          block = block.split('elif action == "waydroid-app-uninstall":', 1)[0]
+          assert '"container", "start"' not in block
+          assert '"container", "stop"' not in block
+          wrapper = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
+          warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
+          warm = warm.split('MODE="command"', 1)[0]
+          assert 'waydroid session stop' not in warm
+          assert 'printf \'%s\\n\' "$$" >"$RUNTIME_READY"' in wrapper
+          assert 'waydroid app list' in wrapper  # diagnostics/Play Store only
+          fast = wrapper.split('# Fast TV path:', 1)[1]
+          fast = fast.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          assert 'package_installed "$TARGET"' not in fast
+          assert 'start_package "$TARGET"' in fast
+          assert 'wait_package_visible "$TARGET"' in fast
+          print("PiTV 1.5 warm lifecycle OK")
+          PYLIFECYCLE
+          grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
+          grep -q 'waydroid-app-visible' system/pitv-helper
+          grep -q 'waydroid-app-session-active' system/pitv-helper
+          grep -q 'waydroid-app-session-active' system/pitv-waydroid-launch
+          grep -q 'Android TV session returned Home' system/pitv-waydroid-launch
+          grep -q 'com.android.launcher3' system/pitv-helper
+          ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
+          grep -q '"dumpsys", "activity", "top"' system/pitv-helper
+          ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
+          grep -q 'for _ in $(seq 1 50)' system/pitv-waydroid-launch
+          grep -q 'sleep 0.20' system/pitv-waydroid-launch
+          grep -q 'waydroid-app-stop' system/pitv-helper
+          grep -q 'waydroid-app-stop' pitv/pitv.py
+          ! grep -q '\["waydroid", "session", "stop"\]' pitv/pitv.py
+          grep -q 'android_key_queue' pitv/pitv.py
+          grep -q 'One global activity banner' pitv/pitv.py
+          grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
+          grep -q 'exec cage -d' system/pitv-waydroid-launch
+          grep -q 'labwc cage wtype' install.sh
+          grep -q 'pitv-launcher-run' install.sh
+          grep -q 'pitv-launcher.service' install.sh
+          grep -q 'ExecStart=/usr/bin/systemctl restart pitv-shell.service' install.sh
+          grep -q '^Requires=multi-user.target pitv-shell.service$' system/pitv.target
+          grep -q '^AllowIsolate=yes$' system/pitv.target
+          grep -q '^PAMName=login$' system/pitv-shell.service
+          grep -q '^TTYPath=/dev/tty1$' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-shell.service
+          grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
+          grep -q 'wlr-randr' install.sh
+          grep -q 'system/pitv-displayd /usr/local/libexec/pitv-displayd' install.sh
+          grep -q 'system/pitv-displayd.service /etc/systemd/system/pitv-displayd.service' install.sh
+          grep -q 'pitv-displayd.service' system/pitv.target
+          ! grep -q 'pitv-display.service' system/pitv.target
+          grep -q 'After=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-displayd.service
+          grep -q 'connector_snapshot' system/pitv-displayd
+          grep -q 'snapshot_fingerprint' system/pitv-displayd
+          grep -q 'DRIFT_CHECK_SECONDS' system/pitv-displayd
+          grep -q '"--preferred"' system/pitv-displayd
+          grep -q '"--pos", "0,0"' system/pitv-displayd
+          grep -q 'force_notify=True' system/pitv-displayd
+          grep -q 'allow_enable=False' system/pitv-displayd
+          grep -q 'try-restart.*pitv-shell.service' system/pitv-displayd
+          grep -q 'home|close|display' system/pitv-global-action
+          grep -q 'action == "display"' pitv/pitv.py
+          ! grep -q 'pitv-display-repair' pitv/pitv.py
+          ! test -e system/pitv-display-watch
+          ! test -e system/pitv-display.service
+          ! grep -q 'system/pitv-display-watch /usr/local/libexec/pitv-display-watch' install.sh
+          ! grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
+          grep -q '<reuseOutputMode>yes</reuseOutputMode>' system/labwc/rc.xml
+          grep -q '<action name="MoveTo" x="0" y="0" />' system/labwc/rc.xml
+          grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
+          ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^Restart=on-failure$' system/pitv-android-warm.service
+          grep -q 'hidden Android TV runtime lost; systemd will restart warm service' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-helper
+          ! grep -q '"$0" --warm >>/tmp/pitv-waydroid-warm.log' system/pitv-waydroid-launch
+          grep -q 'systemctl", "restart", "pitv-android-warm.service"' system/pitv-helper
+          grep -q 'loginctl enable-linger pitv' install.sh
+          grep -q 'systemctl set-default pitv.target' install.sh
+          grep -q 'systemctl mask getty@tty1.service' install.sh
+          grep -q 'PITV_LEGACY_LIVE=0' install.sh
+          grep -q 'pitv-shell-migration-' install.sh
+          grep -q -- '--on-active=3s' install.sh
+          ! grep -q 'agetty --autologin' install.sh
+          ! grep -q 'system/bash_profile /home/pitv/.bash_profile' install.sh
+          grep -q 'legacy-android-media-v2.done' pitv/pitv.py
+          grep -q 'DPkg::Lock::Timeout' scripts/install-waydroid.sh
+          grep -q 'identifier="wlroots"' system/labwc/rc.xml
+          grep -q 'title="PiTV \*"' system/labwc/rc.xml
+          grep -q 'SendToDesktop" to="Android" follow="no"' system/labwc/rc.xml
+          grep -q '<name>PiTV</name>' system/labwc/rc.xml
+          grep -q '<name>Kodi</name>' system/labwc/rc.xml
+          grep -q '<name>Stremio</name>' system/labwc/rc.xml
+          grep -q '<name>Android</name>' system/labwc/rc.xml
+          grep -q 'GoToDesktop" to="PiTV"' system/labwc/rc.xml
+          grep -q '"127".*KEYCODE_MEDIA_PAUSE' system/pitv-helper
+          python3 - <<'PYXML'
+          import xml.etree.ElementTree as ET
+          ET.parse("system/labwc/rc.xml")
+          print("labwc rc.xml OK")
+          PYXML
+          grep -q 'flatpak-uninstall' system/pitv-helper
+          grep -q 'apt-remove' system/pitv-helper
+          grep -q 'pitv-session-run' install.sh
+          grep -q 'DPkg::Lock::Timeout=' install.sh
+          grep -q -- '--no-update universe' install.sh
+          grep -q 'DPkg::Lock::Timeout=600' system/pitv-helper
+          grep -q 'APT_LOCK_TIMEOUT' system/pitv-self-update
+          grep -q 'stdout=subprocess.PIPE' system/pitv-self-update
+          bash -n scripts/install-waydroid.sh
+          grep -q 'getconf PAGESIZE' scripts/install-waydroid.sh
+          grep -q '/proc/pressure' scripts/install-waydroid.sh
+          bash -n tools/pitv-flasher.sh
+
+      - name: Flasher dry run
+        shell: bash
+        run: |
+          bash tools/pitv-flasher.sh --dry-run
+          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
+
+      - name: Waydroid fallback snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/waydroid/noble
+          test -s packages.env
+          test -s SHA256SUMS
+          sha256sum -c SHA256SUMS
+          for pkg in *.deb; do
+            dpkg-deb --info "$pkg" >/dev/null
+          done
+
+      - name: Store JSON
+        run: |
+          python3 - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          for path in (
+              "store/catalog.json",
+              "store/server_catalog.json",
+              "config/config.json",
+          ):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+              print("OK", path)
+
+          root = ET.parse("system/kodi/appliance.xml").getroot()
+          values = {}
+          for node in root.iter("setting"):
+              default = node.find("default")
+              if node.get("id") and default is not None:
+                  values[node.get("id")] = (default.text or "").strip().lower()
+          assert values["videoplayer.useprimedecoder"] == "true"
+          assert values["videoplayer.useprimedecoderforhw"] == "true"
+          print("Kodi DRM PRIME appliance defaults OK")
+          PY
+
+      - name: Runtime render with Ubuntu Pygame
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pygame
+          PYTHONPATH=pitv SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            python3 - <<'PY'
+          import time
+          import pygame
+          import pitv as pitv_module
+          from pitv import LEGACY_ANDROID_PACKAGES, PiTV, VERSION
+
+          assert VERSION == "1.5.0"
+          import inspect
+          restart_src = inspect.getsource(PiTV.restart_ui_clean)
+          assert "self.running = False" in restart_src
+          assert "os.execv" not in restart_src
+          assert "tv-runtime-reset" not in restart_src
+
+          # Universal foreground lifecycle: the watcher must remain attached
+          # after startup and Android must use the same exit-to-PiTV path.
+          watch_src = inspect.getsource(PiTV._watch_launch)
+          assert "already_started=False" in watch_src
+          assert "rc = proc.wait()" in watch_src
+          assert "self._return_to_launcher" in watch_src
+          run_src = inspect.getsource(PiTV.run)
+          assert "if self.external_kind and system_input_managed()" not in run_src
+          android_src = inspect.getsource(PiTV._watch_android_launch)
+          assert "already_started=True" in android_src
+          assert "self._watch_launch" in android_src
+
+
+          # CEC wire parsing and long-hold semantics live exclusively in
+          # system/pitv-inputd and are covered by its self-test above. The UI
+          # must never grow a second CEC monitor again.
+          assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
+          assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
+
+          # PiTV 1.5 CEC parsing/hold behavior is tested exclusively by
+          # system/pitv-inputd --self-test. The GUI has no CEC reader.
+
+          app = PiTV()
+
+          # TV remote contract: Home remains optional multitasking on TVs that
+          # have it, but 3-second Back is the universal EXIT for old remotes.
+          demo_app = {"name": "Demo", "command": "demo-player"}
+          demo_key = app._task_key(demo_app, "linux")
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app.handle_key(pygame.K_HOME)
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key in app.background_tasks
+          app.background_tasks.clear()
+
+          # Every app exit converges on the same visible PiTV workspace.
+          app.cfg["cec_enabled"] = False
+          app.page = "settings"
+          app._return_to_launcher("test", refresh_cec=False)
+          assert app.page == "home"
+          assert not app.sidebar_focus
+
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app._keyboard_back_down_at = time.monotonic() - 3.1
+          app._check_global_back_hold()
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key not in app.background_tasks
+
+          # Regression: a legacy Android Stremio APK must stay removable and
+          # must not be mistaken for today's native Linux Stremio Flatpak just
+          # because both can share the same visible app name.
+          legacy_stremio = {
+              "name": "Stremio",
+              "kind": "apk",
+              "package": "com.stremio.legacy",
+              "apk_path": "/home/pitv/PiTV/APKs/stremio-old.apk",
+          }
+          assert app.app_can_uninstall(legacy_stremio)
+          assert app._store_item_for_app(legacy_stremio) is None
+          native_stremio = {
+              "name": "Stremio",
+              "kind": "linux",
+              "command": "flatpak run com.stremio.Stremio",
+          }
+          native_item = app._store_item_for_app(native_stremio)
+          assert native_item
+          assert native_item["installer"]["type"] == "flatpak"
+          assert app.app_can_uninstall(native_stremio)
+
+          # Built-in media runtimes have stable multitasking slots.
+          kodi_app = {"name":"Kodi", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-launch"}
+          plex_app = {"name":"Plex Player", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-addon run script.plexmod"}
+          android_app = {"name":"SmartTube", "kind":"apk",
+                         "package":"com.teamsmart.videomanager.tv"}
+          assert app._task_key(kodi_app, "linux") == "kodi"
+          assert app._task_key(plex_app, "linux") == "kodi"
+          assert app._task_key(native_stremio, "linux") == "stremio"
+          assert app._task_key(android_app, "apk") == (
+              "android:com.teamsmart.videomanager.tv"
+          )
+          second_android = {
+              "name": "Second APK", "kind": "apk",
+              "package": "com.example.second",
+          }
+          assert app._task_key(second_android, "apk") != app._task_key(
+              android_app, "apk"
+          )
+          assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
+          assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
+          assert app._workspace_for_app(android_app, "apk") == "Android"
+
+          # Settings are OK-only: Right must not trigger a hidden
+          # action. OK opens the visible list, then Up/Down + OK chooses.
+          app.page = "appearance"
+          app.sidebar_focus = False
+          app.sub_selected = 2
+          app.cfg["tile_scale"] = 1.15
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.15) < 0.001
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Velikost dlaždic"
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.30) < 0.001
+
+          # Theme selector exposes both values and can be cancelled with Back.
+          app.sub_selected = 0
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          # Regression: if a key relayed with wtype comes back into PiTV,
+          # the external app no longer owns focus. Recover without wlrctl.
+          app.external_kind = "linux"
+          app.external_proc = None
+          app._mark_relay_echo(pygame.K_LEFT)
+          assert app._consume_relay_echo(pygame.K_LEFT)
+          app._recover_external_focus()
+          assert app.external_kind is None
+
+          # Screensaver values use the same visible list model.
+          app.page = "screensaver"
+          app.sub_selected = 1
+          app.cfg["screensaver_after_min"] = 1
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Spustit po"
+          assert app.choice_options[app.choice_selected][1] == 1
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert app.cfg["screensaver_after_min"] == 2
+
+          # PiTV 1.4.30: every section opened from Settings uses the
+          # same three-column Settings list model; Updates exposes one
+          # recommended action instead of a 10-card action grid.
+          app.settings_context = True
+          for detail_page in (
+              "screensaver", "network", "audio", "cec", "apps",
+              "server_store", "android", "updates", "system", "power", "about",
+          ):
+              app.page = detail_page
+              app.draw()
+              print("settings detail OK", detail_page)
+
+          update_actions = app.update_items()
+          assert len(update_actions) == 4
+          assert update_actions[0][0] == "Aktualizovat vše"
+          assert update_actions[1][0] == "Zkontrolovat aktualizace"
+          assert update_actions[2][0] == "Pokročilé možnosti"
+          assert app.system_items()[-1][0] == "Otevřít Aktualizace"
+          assert hasattr(app, "_installed_store_flatpak_ids")
+          assert hasattr(app, "_android_runtime_ready_file")
+          assert hasattr(app, "android_key_queue")
+          app.set_operation("Globální test", 42)
+          app.page = "home"
+          app.draw()
+          assert app.operation_text == "Globální test"
+          assert app.operation_progress == 42
+
+          # PiTV 1.5 HDMI recovery contract. Output recovery lives below
+          # the UI; the daemon notifies PiTV through the global appliance
+          # action channel and SDL rebind stays main-thread safe.
+          assert isinstance(app._desktop_size(), tuple)
+          assert len(app._desktop_size()) == 2
+          assert app._repair_fullscreen(force=True) is False
+          assert not hasattr(app, "_display_repair_event_file")
+          app._fullscreen_repair_requested = False
+          pitv_module.GLOBAL_ACTION_FILE.write_text("display\n", encoding="utf-8")
+          app._consume_global_tv_action()
+          assert app._fullscreen_repair_requested
+          try:
+              pitv_module.GLOBAL_ACTION_FILE.unlink()
+          except FileNotFoundError:
+              pass
+          assert hasattr(app, "android_pending_proc")
+          assert app._android_ready_file().name == "pitv-waydroid-app-ready"
+
+          # Application management is a fixed Settings menu. No Right
+          # action is allowed; visibility and uninstall each open a list.
+          app.apps = [dict(native_stremio), dict(legacy_stremio)]
+          app.page = "apps"
+          app.settings_context = True
+          app.apps_selected = 1
+          app_menu = app.app_items()
+          assert [x["kind"] for x in app_menu] == [
+              "store", "visibility", "uninstall", "refresh"
+          ]
+          assert app_menu[1]["name"] == "Zobrazení aplikací"
+          assert app_menu[2]["name"] == "Odinstalovat aplikace"
+
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Zobrazení aplikací"
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title in ("Stremio",)
+          assert [x[1] for x in app.choice_options] == [True, False]
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          app.apps_selected = 2
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Odinstalovat aplikace"
+          assert len(app.choice_options) >= 1
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          # CEC and other configuration values must use a visible choice list,
+          # not blind left/right toggling.
+          app.page = "cec"
+          app.open_cec_choice(1)
+          assert app.choice_active
+          assert app.choice_title == "Probudit TV při startu"
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+          app.settings_context = False
+
+          pages = (
+              "home", "settings", "appearance", "screensaver", "network",
+              "audio", "cec", "apps", "store", "server_store", "android",
+              "updates", "system", "power", "about",
+          )
+          for theme in ("apple_dark", "apple_light"):
+              app.cfg["theme"] = theme
+              for page in pages:
+                  app.page = page
+                  app.draw()
+                  print("render OK", theme, page)
+
+          assert len(app.SETTINGS) == 12
+          pygame.quit()
+          print("PiTV runtime render OK", VERSION)
+          PY
+
+  windows-check:
+    name: PiTV SD Installer Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer and engine
+        shell: powershell
+        run: |
+          foreach ($file in @(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              exit 1
+            }
+            Write-Host ("PowerShell syntax OK: " + $file)
+          }
+
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
+      - name: Compile native raw disk helper
+        shell: powershell
+        run: |
+          Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
+          if (-not ("PiTVNativeDisk" -as [type])) {
+            throw "PiTVNativeDisk.cs did not compile."
+          }
+          if (-not ([PiTVNativeDisk].GetMethod("LockVolume"))) {
+            throw "PiTVNativeDisk LockVolume helper is missing."
+          }
+          Write-Host "PiTVNativeDisk C# helper compiles"
+
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure for PiTV-XZ failed." }
+
+          cmake --build $build --config Release --target PiTV-XZ
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ build failed." }
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) { throw "PiTV-XZ.exe was not produced." }
+
+          $bin = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify PiTV XZ extraction
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dir = Join-Path $env:RUNNER_TEMP "pitv-xz-release-test"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $src = Join-Path $dir "sample.img"
+          $xz = Join-Path $dir "sample.img.xz"
+          $out = Join-Path $dir "expanded.img"
+          $decoder = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+
+          python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to create XZ test fixture." }
+
+          & $decoder $xz $out
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ failed to expand the test image." }
+
+          if ((Get-FileHash -Algorithm SHA256 $src).Hash -ne (Get-FileHash -Algorithm SHA256 $out).Hash) {
+            throw "PiTV-XZ output is not byte-identical."
+          }
+          Write-Host "PiTV-XZ raw XZ extraction OK"
+
+      - name: Verify PiTV writer contract
+        shell: powershell
+        run: |
+          $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
+
+          if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
+            throw "Legacy Raspberry Pi Imager dependency is still present."
+          }
+
+          foreach ($required in @(
+            "Get-PiTVOnlineImageFile",
+            "Prepare-PiTVRawImage",
+            "Write-PiTVRawImageToDisk",
+            "Install-PiTVCloudInitToBootPartition"
+          )) {
+            if ($installer -notmatch [regex]::Escape($required)) {
+              throw "Installer write flow is missing $required"
+            }
+          }
+
+          foreach ($required in @(
+            "PiTVNativeDisk",
+            "PhysicalDrive",
+            "CACHE HIT",
+            "image_download_sha256",
+            "Get-PiTVDeviceSha256",
+            "Wait-PiTVTargetDiskReadyAfterRawWrite",
+            "DiskPartRescan",
+            "Write-PiTVBytesDurable",
+            "FINALIZE RETRY",
+            "PiTV-XZ.exe",
+            "LockVolume"
+          )) {
+            if ($engine -notmatch [regex]::Escape($required)) {
+              throw "Image engine is missing contract item $required"
+            }
+          }
+
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/volume-lock contract OK"
+
+      - name: Upload PiTV XZ decoder
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows/PiTV-XZ.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"
+
+  release:
+    name: Publish Alpha
+    needs:
+      - pitv-check
+      - windows-check
+    if: ${{ needs.pitv-check.result == 'success' && needs.windows-check.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download PiTV XZ decoder
+        uses: actions/download-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows
+
+      - name: Release checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s tools/windows/PiTV-XZ.exe
+          test -s tools/windows/THIRD-PARTY-NOTICES.txt
+
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-ImageEngine.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+
+      - name: Build Windows installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p "dist/PiTV-SD-Installer-Windows"
+          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-ImageEngine.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTVNativeDisk.cs "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-XZ.exe "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/THIRD-PARTY-NOTICES.txt "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
+          cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
+          (
+            cd dist
+            zip -9 -r "PiTV-SD-Installer-Windows.zip" "PiTV-SD-Installer-Windows" >/dev/null
+          )
+          test -s dist/PiTV-SD-Installer-Windows.zip
+          ls -lh dist/PiTV-SD-Installer-Windows.zip
+
+      - name: Publish rolling Alpha release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f alpha "$GITHUB_SHA"
+          git push -f origin refs/tags/alpha
+
+          if gh release view alpha >/dev/null 2>&1; then
+            gh release edit alpha --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          else
+            gh release create alpha --target "$GITHUB_SHA" --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          fi
+
+          while IFS= read -r asset; do
+            if [ -n "$asset" ] && [ "$asset" != "PiTV-SD-Installer-Windows.zip" ]; then
+              gh release delete-asset alpha "$asset" -y
+            fi
+          done < <(gh release view alpha --json assets --jq '.assets[].name')
+
+          gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
+          gh release view alpha --json url,tagName,name,isDraft,isPrerelease,assets
+ system/pitv-shell.service
+          grep -q '^AmbientCapabilities=          bash -n system/pitv-launcher-run
+          bash -n system/pitv-android-warm
+          bash -n system/pitv-waydroid-launch
+          sudo python3 system/pitv-helper self-test </dev/null
+          bash -n system/pitv-kodi-launch
+          bash -n system/pitv-kodi-addon
+          bash -n system/pitv-cec-control
+          ! grep -q 'dbus-run-session' system/pitv-session
+          ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-waydroid-launch
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-kodi-addon
+          grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
+          grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
+          grep -q 'Kodi musí běžet v TV session uživatele pitv' system/pitv-kodi-launch
+          grep -q 'pitv-kodi-launch' config/apps.d/kodi.json
+          grep -q 'kodi-appliance-defaults' system/pitv-helper
+          grep -q 'system/kodi/appliance.xml /etc/pitv/kodi-appliance.xml' install.sh
+          grep -q 'videoplayer.useprimedecoder' system/kodi/appliance.xml
+          grep -q 'videoplayer.useprimedecoderforhw' system/kodi/appliance.xml
+          grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
+          grep -q 'waydroid-app-uninstall' system/pitv-helper
+          grep -q 'waydroid-clean-legacy' system/pitv-helper
+          grep -q 'com.stremio.one' system/pitv-helper
+          grep -q 'com.plexapp.android' system/pitv-helper
+          grep -q 'waydroid-keyevent' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-session
+          python3 system/pitv-inputd --self-test
+          python3 system/pitv-displayd --self-test
+          ! grep -q 'class CECReader' pitv/pitv.py
+          ! grep -q 'cec_queue' pitv/pitv.py
+          ! grep -q '_CEC_MANAGER' pitv/pitv.py
+          grep -q 'python3-evdev' install.sh
+          grep -q 'system/pitv-inputd /usr/local/libexec/pitv-inputd' install.sh
+          grep -q 'system/pitv-cec-control /usr/local/libexec/pitv-cec-control' install.sh
+          grep -q '/usr/local/libexec/pitv-cec-control' pitv/pitv.py
+          ! grep -q '/usr/local/libexec/pitv-cec-monitor' pitv/pitv.py
+          ! grep -q "cat >/usr/local/libexec/pitv-cec-monitor" install.sh
+          ! grep -q 'register)' system/pitv-cec-control
+          ! grep -q 'monitor)' system/pitv-cec-control
+          grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
+          grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
+          grep -q 'systemctl enable pitv-inputd.service pitv-displayd.service pitv-shell.service pitv-android-warm.service' install.sh
+          grep -q 'pitv-inputd.service' system/pitv.target
+          grep -q 'After=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q '^ConditionPathExists=!/var/lib/pitv/cec-disabled$' system/pitv-inputd.service
+          grep -q '^Restart=always$' system/pitv-inputd.service
+          grep -q 'PiTV TV Remote' system/pitv-inputd
+          grep -q -- '--no-rc-passthrough' system/pitv-inputd
+          grep -q 'KEY_F13' system/pitv-inputd
+          grep -q 'KEY_F14' system/pitv-inputd
+          grep -q 'key="F13"' system/labwc/rc.xml
+          grep -q 'key="F14"' system/labwc/rc.xml
+          grep -q 'pitv-global-action home' system/labwc/rc.xml
+          grep -q 'pitv-global-action close' system/labwc/rc.xml
+          grep -q 'tv-input-enable' system/pitv-helper
+          grep -q 'system_input_managed' pitv/pitv.py
+          grep -q '_consume_global_tv_action' pitv/pitv.py
+          grep -q 'if not system_input_managed()' pitv/pitv.py
+          ! grep -q 'tv-runtime-reset' system/pitv-launcher-run
+          grep -q '^exec labwc -s /usr/local/bin/pitv-launcher-run$' system/pitv-session
+          grep -q 'pitv-wayland-display' system/pitv-session
+          grep -q 'pitv-wayland-display' system/pitv-launcher-run
+          grep -q 'pitv-wayland-display' system/pitv-android-warm
+          grep -q 'pitv-wayland-display' system/pitv-session-run
+          grep -q 'pitv-wayland-display' system/pitv-kodi-launch
+          grep -q 'pitv-wayland-display' system/pitv-kodi-addon
+          grep -q 'pitv-wayland-display' system/pitv-waydroid-launch
+          grep -q 'pitv-wayland-display' pitv/pitv.py
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-session-run
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-launch
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-addon
+          ! grep -q 'glob("wayland-\*")' pitv/pitv.py
+          grep -q 'if \[ "$MODE" = "client" \]' system/pitv-waydroid-launch
+          grep -q 'CANDIDATE=.*pitv-wayland-display\|MARKER=.*pitv-wayland-display' system/pitv-waydroid-launch
+          ! grep -q 'pitv-launcher-run' system/labwc/autostart
+          grep -q '^exec /usr/bin/python3 /opt/pitv/pitv/pitv.py$' system/pitv-launcher-run
+          ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
+          grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
+          test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
+          grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
+          grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
+          grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
+          ! grep -q '^sleep 2$' system/pitv-android-warm
+          grep -q 'def _android_runtime_ready(self)' pitv/pitv.py
+          grep -q 'pid = int(raw)' pitv/pitv.py
+          grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
+          grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
+          grep -q 'Fast TV path' system/pitv-waydroid-launch
+          grep -q 'maintenance must never block an app launch' pitv/pitv.py
+          python3 - <<'PYLIFECYCLE'
+          from pathlib import Path
+          helper = Path("system/pitv-helper").read_text(encoding="utf-8")
+          block = helper.split('elif action == "waydroid-clean-legacy":', 1)[1]
+          block = block.split('elif action == "waydroid-app-uninstall":', 1)[0]
+          assert '"container", "start"' not in block
+          assert '"container", "stop"' not in block
+          wrapper = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
+          warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
+          warm = warm.split('MODE="command"', 1)[0]
+          assert 'waydroid session stop' not in warm
+          assert 'printf \'%s\\n\' "$$" >"$RUNTIME_READY"' in wrapper
+          assert 'waydroid app list' in wrapper  # diagnostics/Play Store only
+          fast = wrapper.split('# Fast TV path:', 1)[1]
+          fast = fast.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          assert 'package_installed "$TARGET"' not in fast
+          assert 'start_package "$TARGET"' in fast
+          assert 'wait_package_visible "$TARGET"' in fast
+          print("PiTV 1.5 warm lifecycle OK")
+          PYLIFECYCLE
+          grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
+          grep -q 'waydroid-app-visible' system/pitv-helper
+          grep -q 'waydroid-app-session-active' system/pitv-helper
+          grep -q 'waydroid-app-session-active' system/pitv-waydroid-launch
+          grep -q 'Android TV session returned Home' system/pitv-waydroid-launch
+          grep -q 'com.android.launcher3' system/pitv-helper
+          ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
+          grep -q '"dumpsys", "activity", "top"' system/pitv-helper
+          ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
+          grep -q 'for _ in $(seq 1 50)' system/pitv-waydroid-launch
+          grep -q 'sleep 0.20' system/pitv-waydroid-launch
+          grep -q 'waydroid-app-stop' system/pitv-helper
+          grep -q 'waydroid-app-stop' pitv/pitv.py
+          ! grep -q '\["waydroid", "session", "stop"\]' pitv/pitv.py
+          grep -q 'android_key_queue' pitv/pitv.py
+          grep -q 'One global activity banner' pitv/pitv.py
+          grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
+          grep -q 'exec cage -d' system/pitv-waydroid-launch
+          grep -q 'labwc cage wtype' install.sh
+          grep -q 'pitv-launcher-run' install.sh
+          grep -q 'pitv-launcher.service' install.sh
+          grep -q 'ExecStart=/usr/bin/systemctl restart pitv-shell.service' install.sh
+          grep -q '^Requires=multi-user.target pitv-shell.service$' system/pitv.target
+          grep -q '^AllowIsolate=yes$' system/pitv.target
+          grep -q '^PAMName=login$' system/pitv-shell.service
+          grep -q '^TTYPath=/dev/tty1$' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-shell.service
+          grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
+          grep -q 'wlr-randr' install.sh
+          grep -q 'system/pitv-displayd /usr/local/libexec/pitv-displayd' install.sh
+          grep -q 'system/pitv-displayd.service /etc/systemd/system/pitv-displayd.service' install.sh
+          grep -q 'pitv-displayd.service' system/pitv.target
+          ! grep -q 'pitv-display.service' system/pitv.target
+          grep -q 'After=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-displayd.service
+          grep -q 'connector_snapshot' system/pitv-displayd
+          grep -q 'snapshot_fingerprint' system/pitv-displayd
+          grep -q 'DRIFT_CHECK_SECONDS' system/pitv-displayd
+          grep -q '"--preferred"' system/pitv-displayd
+          grep -q '"--pos", "0,0"' system/pitv-displayd
+          grep -q 'force_notify=True' system/pitv-displayd
+          grep -q 'allow_enable=False' system/pitv-displayd
+          grep -q 'try-restart.*pitv-shell.service' system/pitv-displayd
+          grep -q 'home|close|display' system/pitv-global-action
+          grep -q 'action == "display"' pitv/pitv.py
+          ! grep -q 'pitv-display-repair' pitv/pitv.py
+          ! test -e system/pitv-display-watch
+          ! test -e system/pitv-display.service
+          ! grep -q 'system/pitv-display-watch /usr/local/libexec/pitv-display-watch' install.sh
+          ! grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
+          grep -q '<reuseOutputMode>yes</reuseOutputMode>' system/labwc/rc.xml
+          grep -q '<action name="MoveTo" x="0" y="0" />' system/labwc/rc.xml
+          grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
+          ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^Restart=on-failure$' system/pitv-android-warm.service
+          grep -q 'hidden Android TV runtime lost; systemd will restart warm service' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-helper
+          ! grep -q '"$0" --warm >>/tmp/pitv-waydroid-warm.log' system/pitv-waydroid-launch
+          grep -q 'systemctl", "restart", "pitv-android-warm.service"' system/pitv-helper
+          grep -q 'loginctl enable-linger pitv' install.sh
+          grep -q 'systemctl set-default pitv.target' install.sh
+          grep -q 'systemctl mask getty@tty1.service' install.sh
+          grep -q 'PITV_LEGACY_LIVE=0' install.sh
+          grep -q 'pitv-shell-migration-' install.sh
+          grep -q -- '--on-active=3s' install.sh
+          ! grep -q 'agetty --autologin' install.sh
+          ! grep -q 'system/bash_profile /home/pitv/.bash_profile' install.sh
+          grep -q 'legacy-android-media-v2.done' pitv/pitv.py
+          grep -q 'DPkg::Lock::Timeout' scripts/install-waydroid.sh
+          grep -q 'identifier="wlroots"' system/labwc/rc.xml
+          grep -q 'title="PiTV \*"' system/labwc/rc.xml
+          grep -q 'SendToDesktop" to="Android" follow="no"' system/labwc/rc.xml
+          grep -q '<name>PiTV</name>' system/labwc/rc.xml
+          grep -q '<name>Kodi</name>' system/labwc/rc.xml
+          grep -q '<name>Stremio</name>' system/labwc/rc.xml
+          grep -q '<name>Android</name>' system/labwc/rc.xml
+          grep -q 'GoToDesktop" to="PiTV"' system/labwc/rc.xml
+          grep -q '"127".*KEYCODE_MEDIA_PAUSE' system/pitv-helper
+          python3 - <<'PYXML'
+          import xml.etree.ElementTree as ET
+          ET.parse("system/labwc/rc.xml")
+          print("labwc rc.xml OK")
+          PYXML
+          grep -q 'flatpak-uninstall' system/pitv-helper
+          grep -q 'apt-remove' system/pitv-helper
+          grep -q 'pitv-session-run' install.sh
+          grep -q 'DPkg::Lock::Timeout=' install.sh
+          grep -q -- '--no-update universe' install.sh
+          grep -q 'DPkg::Lock::Timeout=600' system/pitv-helper
+          grep -q 'APT_LOCK_TIMEOUT' system/pitv-self-update
+          grep -q 'stdout=subprocess.PIPE' system/pitv-self-update
+          bash -n scripts/install-waydroid.sh
+          grep -q 'getconf PAGESIZE' scripts/install-waydroid.sh
+          grep -q '/proc/pressure' scripts/install-waydroid.sh
+          bash -n tools/pitv-flasher.sh
+
+      - name: Flasher dry run
+        shell: bash
+        run: |
+          bash tools/pitv-flasher.sh --dry-run
+          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
+
+      - name: Waydroid fallback snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/waydroid/noble
+          test -s packages.env
+          test -s SHA256SUMS
+          sha256sum -c SHA256SUMS
+          for pkg in *.deb; do
+            dpkg-deb --info "$pkg" >/dev/null
+          done
+
+      - name: Store JSON
+        run: |
+          python3 - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          for path in (
+              "store/catalog.json",
+              "store/server_catalog.json",
+              "config/config.json",
+          ):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+              print("OK", path)
+
+          root = ET.parse("system/kodi/appliance.xml").getroot()
+          values = {}
+          for node in root.iter("setting"):
+              default = node.find("default")
+              if node.get("id") and default is not None:
+                  values[node.get("id")] = (default.text or "").strip().lower()
+          assert values["videoplayer.useprimedecoder"] == "true"
+          assert values["videoplayer.useprimedecoderforhw"] == "true"
+          print("Kodi DRM PRIME appliance defaults OK")
+          PY
+
+      - name: Runtime render with Ubuntu Pygame
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pygame
+          PYTHONPATH=pitv SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            python3 - <<'PY'
+          import time
+          import pygame
+          import pitv as pitv_module
+          from pitv import LEGACY_ANDROID_PACKAGES, PiTV, VERSION
+
+          assert VERSION == "1.5.0"
+          import inspect
+          restart_src = inspect.getsource(PiTV.restart_ui_clean)
+          assert "self.running = False" in restart_src
+          assert "os.execv" not in restart_src
+          assert "tv-runtime-reset" not in restart_src
+
+          # Universal foreground lifecycle: the watcher must remain attached
+          # after startup and Android must use the same exit-to-PiTV path.
+          watch_src = inspect.getsource(PiTV._watch_launch)
+          assert "already_started=False" in watch_src
+          assert "rc = proc.wait()" in watch_src
+          assert "self._return_to_launcher" in watch_src
+          run_src = inspect.getsource(PiTV.run)
+          assert "if self.external_kind and system_input_managed()" not in run_src
+          android_src = inspect.getsource(PiTV._watch_android_launch)
+          assert "already_started=True" in android_src
+          assert "self._watch_launch" in android_src
+
+
+          # CEC wire parsing and long-hold semantics live exclusively in
+          # system/pitv-inputd and are covered by its self-test above. The UI
+          # must never grow a second CEC monitor again.
+          assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
+          assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
+
+          # PiTV 1.5 CEC parsing/hold behavior is tested exclusively by
+          # system/pitv-inputd --self-test. The GUI has no CEC reader.
+
+          app = PiTV()
+
+          # TV remote contract: Home remains optional multitasking on TVs that
+          # have it, but 3-second Back is the universal EXIT for old remotes.
+          demo_app = {"name": "Demo", "command": "demo-player"}
+          demo_key = app._task_key(demo_app, "linux")
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app.handle_key(pygame.K_HOME)
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key in app.background_tasks
+          app.background_tasks.clear()
+
+          # Every app exit converges on the same visible PiTV workspace.
+          app.cfg["cec_enabled"] = False
+          app.page = "settings"
+          app._return_to_launcher("test", refresh_cec=False)
+          assert app.page == "home"
+          assert not app.sidebar_focus
+
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app._keyboard_back_down_at = time.monotonic() - 3.1
+          app._check_global_back_hold()
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key not in app.background_tasks
+
+          # Regression: a legacy Android Stremio APK must stay removable and
+          # must not be mistaken for today's native Linux Stremio Flatpak just
+          # because both can share the same visible app name.
+          legacy_stremio = {
+              "name": "Stremio",
+              "kind": "apk",
+              "package": "com.stremio.legacy",
+              "apk_path": "/home/pitv/PiTV/APKs/stremio-old.apk",
+          }
+          assert app.app_can_uninstall(legacy_stremio)
+          assert app._store_item_for_app(legacy_stremio) is None
+          native_stremio = {
+              "name": "Stremio",
+              "kind": "linux",
+              "command": "flatpak run com.stremio.Stremio",
+          }
+          native_item = app._store_item_for_app(native_stremio)
+          assert native_item
+          assert native_item["installer"]["type"] == "flatpak"
+          assert app.app_can_uninstall(native_stremio)
+
+          # Built-in media runtimes have stable multitasking slots.
+          kodi_app = {"name":"Kodi", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-launch"}
+          plex_app = {"name":"Plex Player", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-addon run script.plexmod"}
+          android_app = {"name":"SmartTube", "kind":"apk",
+                         "package":"com.teamsmart.videomanager.tv"}
+          assert app._task_key(kodi_app, "linux") == "kodi"
+          assert app._task_key(plex_app, "linux") == "kodi"
+          assert app._task_key(native_stremio, "linux") == "stremio"
+          assert app._task_key(android_app, "apk") == (
+              "android:com.teamsmart.videomanager.tv"
+          )
+          second_android = {
+              "name": "Second APK", "kind": "apk",
+              "package": "com.example.second",
+          }
+          assert app._task_key(second_android, "apk") != app._task_key(
+              android_app, "apk"
+          )
+          assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
+          assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
+          assert app._workspace_for_app(android_app, "apk") == "Android"
+
+          # Settings are OK-only: Right must not trigger a hidden
+          # action. OK opens the visible list, then Up/Down + OK chooses.
+          app.page = "appearance"
+          app.sidebar_focus = False
+          app.sub_selected = 2
+          app.cfg["tile_scale"] = 1.15
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.15) < 0.001
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Velikost dlaždic"
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.30) < 0.001
+
+          # Theme selector exposes both values and can be cancelled with Back.
+          app.sub_selected = 0
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          # Regression: if a key relayed with wtype comes back into PiTV,
+          # the external app no longer owns focus. Recover without wlrctl.
+          app.external_kind = "linux"
+          app.external_proc = None
+          app._mark_relay_echo(pygame.K_LEFT)
+          assert app._consume_relay_echo(pygame.K_LEFT)
+          app._recover_external_focus()
+          assert app.external_kind is None
+
+          # Screensaver values use the same visible list model.
+          app.page = "screensaver"
+          app.sub_selected = 1
+          app.cfg["screensaver_after_min"] = 1
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Spustit po"
+          assert app.choice_options[app.choice_selected][1] == 1
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert app.cfg["screensaver_after_min"] == 2
+
+          # PiTV 1.4.30: every section opened from Settings uses the
+          # same three-column Settings list model; Updates exposes one
+          # recommended action instead of a 10-card action grid.
+          app.settings_context = True
+          for detail_page in (
+              "screensaver", "network", "audio", "cec", "apps",
+              "server_store", "android", "updates", "system", "power", "about",
+          ):
+              app.page = detail_page
+              app.draw()
+              print("settings detail OK", detail_page)
+
+          update_actions = app.update_items()
+          assert len(update_actions) == 4
+          assert update_actions[0][0] == "Aktualizovat vše"
+          assert update_actions[1][0] == "Zkontrolovat aktualizace"
+          assert update_actions[2][0] == "Pokročilé možnosti"
+          assert app.system_items()[-1][0] == "Otevřít Aktualizace"
+          assert hasattr(app, "_installed_store_flatpak_ids")
+          assert hasattr(app, "_android_runtime_ready_file")
+          assert hasattr(app, "android_key_queue")
+          app.set_operation("Globální test", 42)
+          app.page = "home"
+          app.draw()
+          assert app.operation_text == "Globální test"
+          assert app.operation_progress == 42
+
+          # PiTV 1.5 HDMI recovery contract. Output recovery lives below
+          # the UI; the daemon notifies PiTV through the global appliance
+          # action channel and SDL rebind stays main-thread safe.
+          assert isinstance(app._desktop_size(), tuple)
+          assert len(app._desktop_size()) == 2
+          assert app._repair_fullscreen(force=True) is False
+          assert not hasattr(app, "_display_repair_event_file")
+          app._fullscreen_repair_requested = False
+          pitv_module.GLOBAL_ACTION_FILE.write_text("display\n", encoding="utf-8")
+          app._consume_global_tv_action()
+          assert app._fullscreen_repair_requested
+          try:
+              pitv_module.GLOBAL_ACTION_FILE.unlink()
+          except FileNotFoundError:
+              pass
+          assert hasattr(app, "android_pending_proc")
+          assert app._android_ready_file().name == "pitv-waydroid-app-ready"
+
+          # Application management is a fixed Settings menu. No Right
+          # action is allowed; visibility and uninstall each open a list.
+          app.apps = [dict(native_stremio), dict(legacy_stremio)]
+          app.page = "apps"
+          app.settings_context = True
+          app.apps_selected = 1
+          app_menu = app.app_items()
+          assert [x["kind"] for x in app_menu] == [
+              "store", "visibility", "uninstall", "refresh"
+          ]
+          assert app_menu[1]["name"] == "Zobrazení aplikací"
+          assert app_menu[2]["name"] == "Odinstalovat aplikace"
+
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Zobrazení aplikací"
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title in ("Stremio",)
+          assert [x[1] for x in app.choice_options] == [True, False]
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          app.apps_selected = 2
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Odinstalovat aplikace"
+          assert len(app.choice_options) >= 1
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          # CEC and other configuration values must use a visible choice list,
+          # not blind left/right toggling.
+          app.page = "cec"
+          app.open_cec_choice(1)
+          assert app.choice_active
+          assert app.choice_title == "Probudit TV při startu"
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+          app.settings_context = False
+
+          pages = (
+              "home", "settings", "appearance", "screensaver", "network",
+              "audio", "cec", "apps", "store", "server_store", "android",
+              "updates", "system", "power", "about",
+          )
+          for theme in ("apple_dark", "apple_light"):
+              app.cfg["theme"] = theme
+              for page in pages:
+                  app.page = page
+                  app.draw()
+                  print("render OK", theme, page)
+
+          assert len(app.SETTINGS) == 12
+          pygame.quit()
+          print("PiTV runtime render OK", VERSION)
+          PY
+
+  windows-check:
+    name: PiTV SD Installer Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer and engine
+        shell: powershell
+        run: |
+          foreach ($file in @(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              exit 1
+            }
+            Write-Host ("PowerShell syntax OK: " + $file)
+          }
+
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
+      - name: Compile native raw disk helper
+        shell: powershell
+        run: |
+          Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
+          if (-not ("PiTVNativeDisk" -as [type])) {
+            throw "PiTVNativeDisk.cs did not compile."
+          }
+          if (-not ([PiTVNativeDisk].GetMethod("LockVolume"))) {
+            throw "PiTVNativeDisk LockVolume helper is missing."
+          }
+          Write-Host "PiTVNativeDisk C# helper compiles"
+
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure for PiTV-XZ failed." }
+
+          cmake --build $build --config Release --target PiTV-XZ
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ build failed." }
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) { throw "PiTV-XZ.exe was not produced." }
+
+          $bin = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify PiTV XZ extraction
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dir = Join-Path $env:RUNNER_TEMP "pitv-xz-release-test"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $src = Join-Path $dir "sample.img"
+          $xz = Join-Path $dir "sample.img.xz"
+          $out = Join-Path $dir "expanded.img"
+          $decoder = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+
+          python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to create XZ test fixture." }
+
+          & $decoder $xz $out
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ failed to expand the test image." }
+
+          if ((Get-FileHash -Algorithm SHA256 $src).Hash -ne (Get-FileHash -Algorithm SHA256 $out).Hash) {
+            throw "PiTV-XZ output is not byte-identical."
+          }
+          Write-Host "PiTV-XZ raw XZ extraction OK"
+
+      - name: Verify PiTV writer contract
+        shell: powershell
+        run: |
+          $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
+
+          if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
+            throw "Legacy Raspberry Pi Imager dependency is still present."
+          }
+
+          foreach ($required in @(
+            "Get-PiTVOnlineImageFile",
+            "Prepare-PiTVRawImage",
+            "Write-PiTVRawImageToDisk",
+            "Install-PiTVCloudInitToBootPartition"
+          )) {
+            if ($installer -notmatch [regex]::Escape($required)) {
+              throw "Installer write flow is missing $required"
+            }
+          }
+
+          foreach ($required in @(
+            "PiTVNativeDisk",
+            "PhysicalDrive",
+            "CACHE HIT",
+            "image_download_sha256",
+            "Get-PiTVDeviceSha256",
+            "Wait-PiTVTargetDiskReadyAfterRawWrite",
+            "DiskPartRescan",
+            "Write-PiTVBytesDurable",
+            "FINALIZE RETRY",
+            "PiTV-XZ.exe",
+            "LockVolume"
+          )) {
+            if ($engine -notmatch [regex]::Escape($required)) {
+              throw "Image engine is missing contract item $required"
+            }
+          }
+
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/volume-lock contract OK"
+
+      - name: Upload PiTV XZ decoder
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows/PiTV-XZ.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"
+
+  release:
+    name: Publish Alpha
+    needs:
+      - pitv-check
+      - windows-check
+    if: ${{ needs.pitv-check.result == 'success' && needs.windows-check.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download PiTV XZ decoder
+        uses: actions/download-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows
+
+      - name: Release checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s tools/windows/PiTV-XZ.exe
+          test -s tools/windows/THIRD-PARTY-NOTICES.txt
+
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-ImageEngine.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+
+      - name: Build Windows installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p "dist/PiTV-SD-Installer-Windows"
+          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-ImageEngine.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTVNativeDisk.cs "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-XZ.exe "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/THIRD-PARTY-NOTICES.txt "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
+          cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
+          (
+            cd dist
+            zip -9 -r "PiTV-SD-Installer-Windows.zip" "PiTV-SD-Installer-Windows" >/dev/null
+          )
+          test -s dist/PiTV-SD-Installer-Windows.zip
+          ls -lh dist/PiTV-SD-Installer-Windows.zip
+
+      - name: Publish rolling Alpha release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f alpha "$GITHUB_SHA"
+          git push -f origin refs/tags/alpha
+
+          if gh release view alpha >/dev/null 2>&1; then
+            gh release edit alpha --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          else
+            gh release create alpha --target "$GITHUB_SHA" --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          fi
+
+          while IFS= read -r asset; do
+            if [ -n "$asset" ] && [ "$asset" != "PiTV-SD-Installer-Windows.zip" ]; then
+              gh release delete-asset alpha "$asset" -y
+            fi
+          done < <(gh release view alpha --json assets --jq '.assets[].name')
+
+          gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
+          gh release view alpha --json url,tagName,name,isDraft,isPrerelease,assets
+ system/pitv-shell.service
+          grep -q '^NoNewPrivileges=yes          bash -n system/pitv-launcher-run
+          bash -n system/pitv-android-warm
+          bash -n system/pitv-waydroid-launch
+          sudo python3 system/pitv-helper self-test </dev/null
+          bash -n system/pitv-kodi-launch
+          bash -n system/pitv-kodi-addon
+          bash -n system/pitv-cec-control
+          ! grep -q 'dbus-run-session' system/pitv-session
+          ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-waydroid-launch
+          grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-kodi-addon
+          grep -q 'TV aplikace musí běžet v session uživatele pitv' system/pitv-waydroid-launch
+          grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
+          grep -q 'Kodi musí běžet v TV session uživatele pitv' system/pitv-kodi-launch
+          grep -q 'pitv-kodi-launch' config/apps.d/kodi.json
+          grep -q 'kodi-appliance-defaults' system/pitv-helper
+          grep -q 'system/kodi/appliance.xml /etc/pitv/kodi-appliance.xml' install.sh
+          grep -q 'videoplayer.useprimedecoder' system/kodi/appliance.xml
+          grep -q 'videoplayer.useprimedecoderforhw' system/kodi/appliance.xml
+          grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
+          grep -q 'waydroid-app-uninstall' system/pitv-helper
+          grep -q 'waydroid-clean-legacy' system/pitv-helper
+          grep -q 'com.stremio.one' system/pitv-helper
+          grep -q 'com.plexapp.android' system/pitv-helper
+          grep -q 'waydroid-keyevent' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-session
+          python3 system/pitv-inputd --self-test
+          python3 system/pitv-displayd --self-test
+          ! grep -q 'class CECReader' pitv/pitv.py
+          ! grep -q 'cec_queue' pitv/pitv.py
+          ! grep -q '_CEC_MANAGER' pitv/pitv.py
+          grep -q 'python3-evdev' install.sh
+          grep -q 'system/pitv-inputd /usr/local/libexec/pitv-inputd' install.sh
+          grep -q 'system/pitv-cec-control /usr/local/libexec/pitv-cec-control' install.sh
+          grep -q '/usr/local/libexec/pitv-cec-control' pitv/pitv.py
+          ! grep -q '/usr/local/libexec/pitv-cec-monitor' pitv/pitv.py
+          ! grep -q "cat >/usr/local/libexec/pitv-cec-monitor" install.sh
+          ! grep -q 'register)' system/pitv-cec-control
+          ! grep -q 'monitor)' system/pitv-cec-control
+          grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
+          grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
+          grep -q 'systemctl enable pitv-inputd.service pitv-displayd.service pitv-shell.service pitv-android-warm.service' install.sh
+          grep -q 'pitv-inputd.service' system/pitv.target
+          grep -q 'After=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q '^ConditionPathExists=!/var/lib/pitv/cec-disabled$' system/pitv-inputd.service
+          grep -q '^Restart=always$' system/pitv-inputd.service
+          grep -q 'PiTV TV Remote' system/pitv-inputd
+          grep -q -- '--no-rc-passthrough' system/pitv-inputd
+          grep -q 'KEY_F13' system/pitv-inputd
+          grep -q 'KEY_F14' system/pitv-inputd
+          grep -q 'key="F13"' system/labwc/rc.xml
+          grep -q 'key="F14"' system/labwc/rc.xml
+          grep -q 'pitv-global-action home' system/labwc/rc.xml
+          grep -q 'pitv-global-action close' system/labwc/rc.xml
+          grep -q 'tv-input-enable' system/pitv-helper
+          grep -q 'system_input_managed' pitv/pitv.py
+          grep -q '_consume_global_tv_action' pitv/pitv.py
+          grep -q 'if not system_input_managed()' pitv/pitv.py
+          ! grep -q 'tv-runtime-reset' system/pitv-launcher-run
+          grep -q '^exec labwc -s /usr/local/bin/pitv-launcher-run$' system/pitv-session
+          grep -q 'pitv-wayland-display' system/pitv-session
+          grep -q 'pitv-wayland-display' system/pitv-launcher-run
+          grep -q 'pitv-wayland-display' system/pitv-android-warm
+          grep -q 'pitv-wayland-display' system/pitv-session-run
+          grep -q 'pitv-wayland-display' system/pitv-kodi-launch
+          grep -q 'pitv-wayland-display' system/pitv-kodi-addon
+          grep -q 'pitv-wayland-display' system/pitv-waydroid-launch
+          grep -q 'pitv-wayland-display' pitv/pitv.py
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-session-run
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-launch
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-addon
+          ! grep -q 'glob("wayland-\*")' pitv/pitv.py
+          grep -q 'if \[ "$MODE" = "client" \]' system/pitv-waydroid-launch
+          grep -q 'CANDIDATE=.*pitv-wayland-display\|MARKER=.*pitv-wayland-display' system/pitv-waydroid-launch
+          ! grep -q 'pitv-launcher-run' system/labwc/autostart
+          grep -q '^exec /usr/bin/python3 /opt/pitv/pitv/pitv.py$' system/pitv-launcher-run
+          ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
+          grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
+          test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
+          grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
+          grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
+          grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
+          ! grep -q '^sleep 2$' system/pitv-android-warm
+          grep -q 'def _android_runtime_ready(self)' pitv/pitv.py
+          grep -q 'pid = int(raw)' pitv/pitv.py
+          grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
+          grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
+          grep -q 'Fast TV path' system/pitv-waydroid-launch
+          grep -q 'maintenance must never block an app launch' pitv/pitv.py
+          python3 - <<'PYLIFECYCLE'
+          from pathlib import Path
+          helper = Path("system/pitv-helper").read_text(encoding="utf-8")
+          block = helper.split('elif action == "waydroid-clean-legacy":', 1)[1]
+          block = block.split('elif action == "waydroid-app-uninstall":', 1)[0]
+          assert '"container", "start"' not in block
+          assert '"container", "stop"' not in block
+          wrapper = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
+          warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
+          warm = warm.split('MODE="command"', 1)[0]
+          assert 'waydroid session stop' not in warm
+          assert 'printf \'%s\\n\' "$$" >"$RUNTIME_READY"' in wrapper
+          assert 'waydroid app list' in wrapper  # diagnostics/Play Store only
+          fast = wrapper.split('# Fast TV path:', 1)[1]
+          fast = fast.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          assert 'package_installed "$TARGET"' not in fast
+          assert 'start_package "$TARGET"' in fast
+          assert 'wait_package_visible "$TARGET"' in fast
+          print("PiTV 1.5 warm lifecycle OK")
+          PYLIFECYCLE
+          grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
+          grep -q 'waydroid-app-visible' system/pitv-helper
+          grep -q 'waydroid-app-session-active' system/pitv-helper
+          grep -q 'waydroid-app-session-active' system/pitv-waydroid-launch
+          grep -q 'Android TV session returned Home' system/pitv-waydroid-launch
+          grep -q 'com.android.launcher3' system/pitv-helper
+          ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
+          grep -q '"dumpsys", "activity", "top"' system/pitv-helper
+          ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
+          grep -q 'for _ in $(seq 1 50)' system/pitv-waydroid-launch
+          grep -q 'sleep 0.20' system/pitv-waydroid-launch
+          grep -q 'waydroid-app-stop' system/pitv-helper
+          grep -q 'waydroid-app-stop' pitv/pitv.py
+          ! grep -q '\["waydroid", "session", "stop"\]' pitv/pitv.py
+          grep -q 'android_key_queue' pitv/pitv.py
+          grep -q 'One global activity banner' pitv/pitv.py
+          grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
+          grep -q 'exec cage -d' system/pitv-waydroid-launch
+          grep -q 'labwc cage wtype' install.sh
+          grep -q 'pitv-launcher-run' install.sh
+          grep -q 'pitv-launcher.service' install.sh
+          grep -q 'ExecStart=/usr/bin/systemctl restart pitv-shell.service' install.sh
+          grep -q '^Requires=multi-user.target pitv-shell.service$' system/pitv.target
+          grep -q '^AllowIsolate=yes$' system/pitv.target
+          grep -q '^PAMName=login$' system/pitv-shell.service
+          grep -q '^TTYPath=/dev/tty1$' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-shell.service
+          grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
+          grep -q 'wlr-randr' install.sh
+          grep -q 'system/pitv-displayd /usr/local/libexec/pitv-displayd' install.sh
+          grep -q 'system/pitv-displayd.service /etc/systemd/system/pitv-displayd.service' install.sh
+          grep -q 'pitv-displayd.service' system/pitv.target
+          ! grep -q 'pitv-display.service' system/pitv.target
+          grep -q 'After=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-displayd.service
+          grep -q 'connector_snapshot' system/pitv-displayd
+          grep -q 'snapshot_fingerprint' system/pitv-displayd
+          grep -q 'DRIFT_CHECK_SECONDS' system/pitv-displayd
+          grep -q '"--preferred"' system/pitv-displayd
+          grep -q '"--pos", "0,0"' system/pitv-displayd
+          grep -q 'force_notify=True' system/pitv-displayd
+          grep -q 'allow_enable=False' system/pitv-displayd
+          grep -q 'try-restart.*pitv-shell.service' system/pitv-displayd
+          grep -q 'home|close|display' system/pitv-global-action
+          grep -q 'action == "display"' pitv/pitv.py
+          ! grep -q 'pitv-display-repair' pitv/pitv.py
+          ! test -e system/pitv-display-watch
+          ! test -e system/pitv-display.service
+          ! grep -q 'system/pitv-display-watch /usr/local/libexec/pitv-display-watch' install.sh
+          ! grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
+          grep -q '<reuseOutputMode>yes</reuseOutputMode>' system/labwc/rc.xml
+          grep -q '<action name="MoveTo" x="0" y="0" />' system/labwc/rc.xml
+          grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
+          ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^Restart=on-failure$' system/pitv-android-warm.service
+          grep -q 'hidden Android TV runtime lost; systemd will restart warm service' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-helper
+          ! grep -q '"$0" --warm >>/tmp/pitv-waydroid-warm.log' system/pitv-waydroid-launch
+          grep -q 'systemctl", "restart", "pitv-android-warm.service"' system/pitv-helper
+          grep -q 'loginctl enable-linger pitv' install.sh
+          grep -q 'systemctl set-default pitv.target' install.sh
+          grep -q 'systemctl mask getty@tty1.service' install.sh
+          grep -q 'PITV_LEGACY_LIVE=0' install.sh
+          grep -q 'pitv-shell-migration-' install.sh
+          grep -q -- '--on-active=3s' install.sh
+          ! grep -q 'agetty --autologin' install.sh
+          ! grep -q 'system/bash_profile /home/pitv/.bash_profile' install.sh
+          grep -q 'legacy-android-media-v2.done' pitv/pitv.py
+          grep -q 'DPkg::Lock::Timeout' scripts/install-waydroid.sh
+          grep -q 'identifier="wlroots"' system/labwc/rc.xml
+          grep -q 'title="PiTV \*"' system/labwc/rc.xml
+          grep -q 'SendToDesktop" to="Android" follow="no"' system/labwc/rc.xml
+          grep -q '<name>PiTV</name>' system/labwc/rc.xml
+          grep -q '<name>Kodi</name>' system/labwc/rc.xml
+          grep -q '<name>Stremio</name>' system/labwc/rc.xml
+          grep -q '<name>Android</name>' system/labwc/rc.xml
+          grep -q 'GoToDesktop" to="PiTV"' system/labwc/rc.xml
+          grep -q '"127".*KEYCODE_MEDIA_PAUSE' system/pitv-helper
+          python3 - <<'PYXML'
+          import xml.etree.ElementTree as ET
+          ET.parse("system/labwc/rc.xml")
+          print("labwc rc.xml OK")
+          PYXML
+          grep -q 'flatpak-uninstall' system/pitv-helper
+          grep -q 'apt-remove' system/pitv-helper
+          grep -q 'pitv-session-run' install.sh
+          grep -q 'DPkg::Lock::Timeout=' install.sh
+          grep -q -- '--no-update universe' install.sh
+          grep -q 'DPkg::Lock::Timeout=600' system/pitv-helper
+          grep -q 'APT_LOCK_TIMEOUT' system/pitv-self-update
+          grep -q 'stdout=subprocess.PIPE' system/pitv-self-update
+          bash -n scripts/install-waydroid.sh
+          grep -q 'getconf PAGESIZE' scripts/install-waydroid.sh
+          grep -q '/proc/pressure' scripts/install-waydroid.sh
+          bash -n tools/pitv-flasher.sh
+
+      - name: Flasher dry run
+        shell: bash
+        run: |
+          bash tools/pitv-flasher.sh --dry-run
+          pwsh -NoProfile -File tools/pitv-flasher.ps1 -DryRun
+
+      - name: Waydroid fallback snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/waydroid/noble
+          test -s packages.env
+          test -s SHA256SUMS
+          sha256sum -c SHA256SUMS
+          for pkg in *.deb; do
+            dpkg-deb --info "$pkg" >/dev/null
+          done
+
+      - name: Store JSON
+        run: |
+          python3 - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          for path in (
+              "store/catalog.json",
+              "store/server_catalog.json",
+              "config/config.json",
+          ):
+              with open(path, encoding="utf-8") as f:
+                  json.load(f)
+              print("OK", path)
+
+          root = ET.parse("system/kodi/appliance.xml").getroot()
+          values = {}
+          for node in root.iter("setting"):
+              default = node.find("default")
+              if node.get("id") and default is not None:
+                  values[node.get("id")] = (default.text or "").strip().lower()
+          assert values["videoplayer.useprimedecoder"] == "true"
+          assert values["videoplayer.useprimedecoderforhw"] == "true"
+          print("Kodi DRM PRIME appliance defaults OK")
+          PY
+
+      - name: Runtime render with Ubuntu Pygame
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-pygame
+          PYTHONPATH=pitv SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            python3 - <<'PY'
+          import time
+          import pygame
+          import pitv as pitv_module
+          from pitv import LEGACY_ANDROID_PACKAGES, PiTV, VERSION
+
+          assert VERSION == "1.5.0"
+          import inspect
+          restart_src = inspect.getsource(PiTV.restart_ui_clean)
+          assert "self.running = False" in restart_src
+          assert "os.execv" not in restart_src
+          assert "tv-runtime-reset" not in restart_src
+
+          # Universal foreground lifecycle: the watcher must remain attached
+          # after startup and Android must use the same exit-to-PiTV path.
+          watch_src = inspect.getsource(PiTV._watch_launch)
+          assert "already_started=False" in watch_src
+          assert "rc = proc.wait()" in watch_src
+          assert "self._return_to_launcher" in watch_src
+          run_src = inspect.getsource(PiTV.run)
+          assert "if self.external_kind and system_input_managed()" not in run_src
+          android_src = inspect.getsource(PiTV._watch_android_launch)
+          assert "already_started=True" in android_src
+          assert "self._watch_launch" in android_src
+
+
+          # CEC wire parsing and long-hold semantics live exclusively in
+          # system/pitv-inputd and are covered by its self-test above. The UI
+          # must never grow a second CEC monitor again.
+          assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
+          assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
+
+          # PiTV 1.5 CEC parsing/hold behavior is tested exclusively by
+          # system/pitv-inputd --self-test. The GUI has no CEC reader.
+
+          app = PiTV()
+
+          # TV remote contract: Home remains optional multitasking on TVs that
+          # have it, but 3-second Back is the universal EXIT for old remotes.
+          demo_app = {"name": "Demo", "command": "demo-player"}
+          demo_key = app._task_key(demo_app, "linux")
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app.handle_key(pygame.K_HOME)
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key in app.background_tasks
+          app.background_tasks.clear()
+
+          # Every app exit converges on the same visible PiTV workspace.
+          app.cfg["cec_enabled"] = False
+          app.page = "settings"
+          app._return_to_launcher("test", refresh_cec=False)
+          assert app.page == "home"
+          assert not app.sidebar_focus
+
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app._keyboard_back_down_at = time.monotonic() - 3.1
+          app._check_global_back_hold()
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key not in app.background_tasks
+
+          # Regression: a legacy Android Stremio APK must stay removable and
+          # must not be mistaken for today's native Linux Stremio Flatpak just
+          # because both can share the same visible app name.
+          legacy_stremio = {
+              "name": "Stremio",
+              "kind": "apk",
+              "package": "com.stremio.legacy",
+              "apk_path": "/home/pitv/PiTV/APKs/stremio-old.apk",
+          }
+          assert app.app_can_uninstall(legacy_stremio)
+          assert app._store_item_for_app(legacy_stremio) is None
+          native_stremio = {
+              "name": "Stremio",
+              "kind": "linux",
+              "command": "flatpak run com.stremio.Stremio",
+          }
+          native_item = app._store_item_for_app(native_stremio)
+          assert native_item
+          assert native_item["installer"]["type"] == "flatpak"
+          assert app.app_can_uninstall(native_stremio)
+
+          # Built-in media runtimes have stable multitasking slots.
+          kodi_app = {"name":"Kodi", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-launch"}
+          plex_app = {"name":"Plex Player", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-addon run script.plexmod"}
+          android_app = {"name":"SmartTube", "kind":"apk",
+                         "package":"com.teamsmart.videomanager.tv"}
+          assert app._task_key(kodi_app, "linux") == "kodi"
+          assert app._task_key(plex_app, "linux") == "kodi"
+          assert app._task_key(native_stremio, "linux") == "stremio"
+          assert app._task_key(android_app, "apk") == (
+              "android:com.teamsmart.videomanager.tv"
+          )
+          second_android = {
+              "name": "Second APK", "kind": "apk",
+              "package": "com.example.second",
+          }
+          assert app._task_key(second_android, "apk") != app._task_key(
+              android_app, "apk"
+          )
+          assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
+          assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
+          assert app._workspace_for_app(android_app, "apk") == "Android"
+
+          # Settings are OK-only: Right must not trigger a hidden
+          # action. OK opens the visible list, then Up/Down + OK chooses.
+          app.page = "appearance"
+          app.sidebar_focus = False
+          app.sub_selected = 2
+          app.cfg["tile_scale"] = 1.15
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.15) < 0.001
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Velikost dlaždic"
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.30) < 0.001
+
+          # Theme selector exposes both values and can be cancelled with Back.
+          app.sub_selected = 0
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          # Regression: if a key relayed with wtype comes back into PiTV,
+          # the external app no longer owns focus. Recover without wlrctl.
+          app.external_kind = "linux"
+          app.external_proc = None
+          app._mark_relay_echo(pygame.K_LEFT)
+          assert app._consume_relay_echo(pygame.K_LEFT)
+          app._recover_external_focus()
+          assert app.external_kind is None
+
+          # Screensaver values use the same visible list model.
+          app.page = "screensaver"
+          app.sub_selected = 1
+          app.cfg["screensaver_after_min"] = 1
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Spustit po"
+          assert app.choice_options[app.choice_selected][1] == 1
+          app.handle_key(pygame.K_DOWN)
+          app.handle_key(pygame.K_RETURN)
+          assert app.cfg["screensaver_after_min"] == 2
+
+          # PiTV 1.4.30: every section opened from Settings uses the
+          # same three-column Settings list model; Updates exposes one
+          # recommended action instead of a 10-card action grid.
+          app.settings_context = True
+          for detail_page in (
+              "screensaver", "network", "audio", "cec", "apps",
+              "server_store", "android", "updates", "system", "power", "about",
+          ):
+              app.page = detail_page
+              app.draw()
+              print("settings detail OK", detail_page)
+
+          update_actions = app.update_items()
+          assert len(update_actions) == 4
+          assert update_actions[0][0] == "Aktualizovat vše"
+          assert update_actions[1][0] == "Zkontrolovat aktualizace"
+          assert update_actions[2][0] == "Pokročilé možnosti"
+          assert app.system_items()[-1][0] == "Otevřít Aktualizace"
+          assert hasattr(app, "_installed_store_flatpak_ids")
+          assert hasattr(app, "_android_runtime_ready_file")
+          assert hasattr(app, "android_key_queue")
+          app.set_operation("Globální test", 42)
+          app.page = "home"
+          app.draw()
+          assert app.operation_text == "Globální test"
+          assert app.operation_progress == 42
+
+          # PiTV 1.5 HDMI recovery contract. Output recovery lives below
+          # the UI; the daemon notifies PiTV through the global appliance
+          # action channel and SDL rebind stays main-thread safe.
+          assert isinstance(app._desktop_size(), tuple)
+          assert len(app._desktop_size()) == 2
+          assert app._repair_fullscreen(force=True) is False
+          assert not hasattr(app, "_display_repair_event_file")
+          app._fullscreen_repair_requested = False
+          pitv_module.GLOBAL_ACTION_FILE.write_text("display\n", encoding="utf-8")
+          app._consume_global_tv_action()
+          assert app._fullscreen_repair_requested
+          try:
+              pitv_module.GLOBAL_ACTION_FILE.unlink()
+          except FileNotFoundError:
+              pass
+          assert hasattr(app, "android_pending_proc")
+          assert app._android_ready_file().name == "pitv-waydroid-app-ready"
+
+          # Application management is a fixed Settings menu. No Right
+          # action is allowed; visibility and uninstall each open a list.
+          app.apps = [dict(native_stremio), dict(legacy_stremio)]
+          app.page = "apps"
+          app.settings_context = True
+          app.apps_selected = 1
+          app_menu = app.app_items()
+          assert [x["kind"] for x in app_menu] == [
+              "store", "visibility", "uninstall", "refresh"
+          ]
+          assert app_menu[1]["name"] == "Zobrazení aplikací"
+          assert app_menu[2]["name"] == "Odinstalovat aplikace"
+
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Zobrazení aplikací"
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title in ("Stremio",)
+          assert [x[1] for x in app.choice_options] == [True, False]
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          app.apps_selected = 2
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Odinstalovat aplikace"
+          assert len(app.choice_options) >= 1
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          # CEC and other configuration values must use a visible choice list,
+          # not blind left/right toggling.
+          app.page = "cec"
+          app.open_cec_choice(1)
+          assert app.choice_active
+          assert app.choice_title == "Probudit TV při startu"
+          assert len(app.choice_options) == 2
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+          app.settings_context = False
+
+          pages = (
+              "home", "settings", "appearance", "screensaver", "network",
+              "audio", "cec", "apps", "store", "server_store", "android",
+              "updates", "system", "power", "about",
+          )
+          for theme in ("apple_dark", "apple_light"):
+              app.cfg["theme"] = theme
+              for page in pages:
+                  app.page = page
+                  app.draw()
+                  print("render OK", theme, page)
+
+          assert len(app.SETTINGS) == 12
+          pygame.quit()
+          print("PiTV runtime render OK", VERSION)
+          PY
+
+  windows-check:
+    name: PiTV SD Installer Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer and engine
+        shell: powershell
+        run: |
+          foreach ($file in @(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              exit 1
+            }
+            Write-Host ("PowerShell syntax OK: " + $file)
+          }
+
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
+      - name: Compile native raw disk helper
+        shell: powershell
+        run: |
+          Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
+          if (-not ("PiTVNativeDisk" -as [type])) {
+            throw "PiTVNativeDisk.cs did not compile."
+          }
+          if (-not ([PiTVNativeDisk].GetMethod("LockVolume"))) {
+            throw "PiTVNativeDisk LockVolume helper is missing."
+          }
+          Write-Host "PiTVNativeDisk C# helper compiles"
+
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure for PiTV-XZ failed." }
+
+          cmake --build $build --config Release --target PiTV-XZ
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ build failed." }
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) { throw "PiTV-XZ.exe was not produced." }
+
+          $bin = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify PiTV XZ extraction
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dir = Join-Path $env:RUNNER_TEMP "pitv-xz-release-test"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $src = Join-Path $dir "sample.img"
+          $xz = Join-Path $dir "sample.img.xz"
+          $out = Join-Path $dir "expanded.img"
+          $decoder = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+
+          python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to create XZ test fixture." }
+
+          & $decoder $xz $out
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ failed to expand the test image." }
+
+          if ((Get-FileHash -Algorithm SHA256 $src).Hash -ne (Get-FileHash -Algorithm SHA256 $out).Hash) {
+            throw "PiTV-XZ output is not byte-identical."
+          }
+          Write-Host "PiTV-XZ raw XZ extraction OK"
+
+      - name: Verify PiTV writer contract
+        shell: powershell
+        run: |
+          $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
+
+          if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
+            throw "Legacy Raspberry Pi Imager dependency is still present."
+          }
+
+          foreach ($required in @(
+            "Get-PiTVOnlineImageFile",
+            "Prepare-PiTVRawImage",
+            "Write-PiTVRawImageToDisk",
+            "Install-PiTVCloudInitToBootPartition"
+          )) {
+            if ($installer -notmatch [regex]::Escape($required)) {
+              throw "Installer write flow is missing $required"
+            }
+          }
+
+          foreach ($required in @(
+            "PiTVNativeDisk",
+            "PhysicalDrive",
+            "CACHE HIT",
+            "image_download_sha256",
+            "Get-PiTVDeviceSha256",
+            "Wait-PiTVTargetDiskReadyAfterRawWrite",
+            "DiskPartRescan",
+            "Write-PiTVBytesDurable",
+            "FINALIZE RETRY",
+            "PiTV-XZ.exe",
+            "LockVolume"
+          )) {
+            if ($engine -notmatch [regex]::Escape($required)) {
+              throw "Image engine is missing contract item $required"
+            }
+          }
+
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/volume-lock contract OK"
+
+      - name: Upload PiTV XZ decoder
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows/PiTV-XZ.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"
+
+  release:
+    name: Publish Alpha
+    needs:
+      - pitv-check
+      - windows-check
+    if: ${{ needs.pitv-check.result == 'success' && needs.windows-check.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download PiTV XZ decoder
+        uses: actions/download-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows
+
+      - name: Release checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s tools/windows/PiTV-XZ.exe
+          test -s tools/windows/THIRD-PARTY-NOTICES.txt
+
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-SD-Installer.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+          pwsh -NoProfile -Command '$errors=$null; [System.Management.Automation.Language.Parser]::ParseFile("tools/windows/PiTV-ImageEngine.ps1",[ref]$null,[ref]$errors) > $null; if($errors.Count){$errors | Out-String | Write-Error; exit 1}'
+
+      - name: Build Windows installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p "dist/PiTV-SD-Installer-Windows"
+          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-ImageEngine.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTVNativeDisk.cs "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-XZ.exe "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/THIRD-PARTY-NOTICES.txt "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
+          cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
+          (
+            cd dist
+            zip -9 -r "PiTV-SD-Installer-Windows.zip" "PiTV-SD-Installer-Windows" >/dev/null
+          )
+          test -s dist/PiTV-SD-Installer-Windows.zip
+          ls -lh dist/PiTV-SD-Installer-Windows.zip
+
+      - name: Publish rolling Alpha release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f alpha "$GITHUB_SHA"
+          git push -f origin refs/tags/alpha
+
+          if gh release view alpha >/dev/null 2>&1; then
+            gh release edit alpha --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          else
+            gh release create alpha --target "$GITHUB_SHA" --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          fi
+
+          while IFS= read -r asset; do
+            if [ -n "$asset" ] && [ "$asset" != "PiTV-SD-Installer-Windows.zip" ]; then
+              gh release delete-asset alpha "$asset" -y
+            fi
+          done < <(gh release view alpha --json assets --jq '.assets[].name')
+
+          gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
+          gh release view alpha --json url,tagName,name,isDraft,isPrerelease,assets
+ system/pitv-shell.service
           bash -n system/pitv-launcher-run
           bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
