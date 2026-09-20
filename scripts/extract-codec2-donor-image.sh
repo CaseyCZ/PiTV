@@ -6,6 +6,8 @@ set -euo pipefail
 IMAGE="${1:?Android image/vendor.img required}"
 OUT="${2:?output directory required}"
 [ -f "$IMAGE" ] || { echo "image not found" >&2; exit 2; }
+IMAGE="$(readlink -f "$IMAGE")"; OUT="$(readlink -m "$OUT")"
+[ "$OUT" != "/" ] && [ "$OUT" != "$(dirname "$IMAGE")" ] || { echo "unsafe output directory" >&2; exit 2; }
 TMP="$(mktemp -d /tmp/pitv-codec2-donor.XXXXXX)"
 MNT="$TMP/mnt"; mkdir -p "$MNT"
 SOURCE="$IMAGE"
@@ -52,7 +54,13 @@ else
       *vendor*) source_dev="$dev"; break;;
     esac
   done < <(lsblk -nrpo NAME,PARTLABEL,LABEL "$loop")
-  [ -n "$source_dev" ] || { echo "vendor partition not found in donor image" >&2; exit 3; }
+  [ -n "$source_dev" ] || {
+    if command -v lpdump >/dev/null 2>&1 && lpdump "$SOURCE" >/dev/null 2>&1; then
+      echo "dynamic/super donor image detected; extract vendor.img from the super image first" >&2
+      exit 6
+    fi
+    echo "vendor partition not found in donor image" >&2; exit 3;
+  }
 fi
 mount -o ro "$source_dev" "$MNT"; mounted=1
 test -d "$MNT/etc" || { echo "selected filesystem is not Android vendor" >&2; exit 4; }
