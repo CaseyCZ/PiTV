@@ -359,6 +359,17 @@ jobs:
           assert update_actions[1][0] == "Zkontrolovat aktualizace"
           assert update_actions[2][0] == "Pokročilé možnosti"
           assert app.system_items()[-1][0] == "Otevřít Aktualizace"
+          assert hasattr(app, "_installed_store_flatpak_ids")
+
+          # Application visibility is also a visible choice, not a blind
+          # toggle on OK.
+          demo_visibility = {"name": "Demo app", "visible": True}
+          app.open_app_visibility_choice(demo_visibility)
+          assert app.choice_active
+          assert app.choice_title == "Demo app"
+          assert [x[1] for x in app.choice_options] == [True, False]
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
 
           # CEC and other configuration values must use a visible choice list,
           # not blind left/right toggling.
