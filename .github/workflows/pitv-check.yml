@@ -59,6 +59,17 @@ jobs:
           grep -q 'pitv-wayland-display' system/pitv-session
           grep -q 'pitv-wayland-display' system/pitv-launcher-run
           grep -q 'pitv-wayland-display' system/pitv-android-warm
+          grep -q 'pitv-wayland-display' system/pitv-session-run
+          grep -q 'pitv-wayland-display' system/pitv-kodi-launch
+          grep -q 'pitv-wayland-display' system/pitv-kodi-addon
+          grep -q 'pitv-wayland-display' system/pitv-waydroid-launch
+          grep -q 'pitv-wayland-display' pitv/pitv.py
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-session-run
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-launch
+          ! grep -q 'for socket in "$RUNTIME"/wayland-\*' system/pitv-kodi-addon
+          ! grep -q 'glob("wayland-\*")' pitv/pitv.py
+          grep -q 'if \[ "$MODE" = "client" \]' system/pitv-waydroid-launch
+          grep -q 'CANDIDATE=.*pitv-wayland-display\|MARKER=.*pitv-wayland-display' system/pitv-waydroid-launch
           ! grep -q 'pitv-launcher-run' system/labwc/autostart
           grep -q '^exec /usr/bin/python3 /opt/pitv/pitv/pitv.py$' system/pitv-launcher-run
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
