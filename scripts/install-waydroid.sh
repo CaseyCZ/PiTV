@@ -122,6 +122,10 @@ fi
 echo "Inicializuji Waydroid s GAPPS / Google Play…"
 waydroid init -s GAPPS
 
+# Official systemd integration: keep only the root container-manager daemon
+# enabled. Android/LXC itself starts on demand when the pitv user opens an app.
+systemctl enable --now waydroid-container.service
+
 printf '\nWaydroid + Google Play je inicializovaný.\n'
 printf 'Při prvním spuštění může Google Play vyžadovat certifikaci zařízení.\n'
 printf 'PiTV Store pak může otevřít YouTube, Spotify a Plex přímo v Google Play.\n\n'
