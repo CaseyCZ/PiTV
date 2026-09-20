@@ -90,7 +90,17 @@ jobs:
           ET.parse("system/labwc/rc.xml")
           media = ET.parse("android/waydroid-rpi4/media_codecs.xml").getroot()
           codecs = {x.get("name") for x in media.findall(".//MediaCodec")}
+          includes = {x.get("href") for x in media.findall(".//Include")}
           assert "c2.v4l2.avc.decoder" in codecs
+          assert "media_codecs_ffmpeg_c2.xml" in includes
+
+          ffmpeg = ET.parse(
+              "android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml"
+          ).getroot()
+          ffmpeg_codecs = {
+              x.get("name") for x in ffmpeg.findall(".//MediaCodec")
+          }
+          assert ffmpeg_codecs == {"c2.ffmpeg.hevc.decoder"}
           print("PiTV JSON/XML syntax OK")
           PY
 
