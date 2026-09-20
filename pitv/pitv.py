@@ -2923,9 +2923,30 @@ class PiTV:
                 if app.get("kind") == "apk":
                     package = str(app.get("package", "") or "").strip()
                     apk_path = str(app.get("apk_path", "") or "").strip()
-                    ok, msg = run_privileged(
-                        "waydroid-app-uninstall", {"package": package}, 300
-                    )
+                    env = build_gui_env()
+                    problem = gui_env_error(env)
+                    if problem:
+                        ok, msg = False, f"{name}: {problem}"
+                    else:
+                        p = subprocess.run(
+                            [
+                                "/usr/local/bin/pitv-waydroid-launch",
+                                "--uninstall-only",
+                                package,
+                            ],
+                            env=env,
+                            cwd=str(Path.home()),
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            timeout=360,
+                            check=False,
+                        )
+                        ok = p.returncode == 0
+                        msg = ((p.stdout or "").strip() or
+                               tail_text_file("/tmp/pitv-waydroid-launch.log") or
+                               (f"{package} odinstalováno" if ok
+                                else f"Odinstalace selhala ({p.returncode})"))
                     if ok:
                         # PiTV-managed APK files are safe to remove together
                         # with the Android package. Never unlink an arbitrary path.
