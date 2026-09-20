@@ -20,6 +20,7 @@ PY=(
  scripts/codec2-payload-readiness.py
  scripts/verify-codec2-metadata.py
  scripts/check-codec2-payload-size.py
+ scripts/check-codec2-service-metadata.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -111,3 +112,5 @@ grep -q 'c2_poolmask_property' scripts/accept-codec2-overlay-runtime.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'install-readiness PAYLOAD'
 grep -q 'CODEC2_READY_TO_INSTALL=1' scripts/codec2-install-readiness.sh
 grep -q 'pitv-waydroid-device-patch --remove' scripts/rollback-codec2-overlay.sh
+grep -q 'check-codec2-service-metadata.py' scripts/install-codec2-overlay.sh
+grep -q 'check-codec2-service-metadata.py' scripts/codec2-install-readiness.sh
