@@ -1,8 +1,0 @@
-{
-  "name": "Stremio",
-  "subtitle": "Média · Linux ARM64",
-  "icon": "STR",
-  "command": "flatpak run com.stremio.Stremio",
-  "requires": "/var/lib/flatpak/app/com.stremio.Stremio/current/active",
-  "kind": "linux"
-}
