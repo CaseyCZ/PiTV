@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 COMMIT_API = "https://api.github.com/repos/CaseyCZ/PiTV/commits/Master"
-USER_AGENT = "PiTV-Updater/1.4.28"
+USER_AGENT = "PiTV-Updater/1.4.29"
 MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 250 * 1024 * 1024
 
