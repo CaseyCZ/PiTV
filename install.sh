@@ -28,7 +28,7 @@ apt_run() {
 
 apt_run update
 apt_run install -y software-properties-common
-add-apt-repository -y universe >/dev/null 2>&1 || true
+add-apt-repository -y --no-update universe >/dev/null 2>&1 || true
 apt_run update
 apt_run install -y \
   python3 python3-pygame \
