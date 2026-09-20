@@ -277,6 +277,25 @@ if [ -n "$BOOTCFG" ]; then
   rm -f "$BOOTCFG.pitv"
 fi
 
+# Persist the exact installed repository revision for the incremental updater.
+# This also bootstraps devices that are still running the previous full updater:
+# GitHub codeload extracts commits as PiTV-<40-hex-sha>.
+PITV_SOURCE_SHA="${PITV_INSTALL_COMMIT:-}"
+if [[ ! "$PITV_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && command -v git >/dev/null 2>&1; then
+  PITV_SOURCE_SHA="$(git rev-parse HEAD 2>/dev/null || true)"
+fi
+if [[ ! "$PITV_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  PITV_SOURCE_DIR="$(basename "$PWD")"
+  if [[ "$PITV_SOURCE_DIR" =~ ^PiTV-([0-9a-fA-F]{40})$ ]]; then
+    PITV_SOURCE_SHA="${BASH_REMATCH[1]}"
+  fi
+fi
+if [[ "$PITV_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  PITV_SOURCE_SHA="$(printf '%s' "$PITV_SOURCE_SHA" | tr 'A-F' 'a-f')"
+  printf '{"sha":"%s"}\n' "$PITV_SOURCE_SHA" >/var/lib/pitv/update-state.json
+  chmod 0644 /var/lib/pitv/update-state.json
+fi
+
 echo "PITV_PROGRESS 95 Instalace PiTV je dokončena."
 echo
 echo "PiTV je nainstalováno."
