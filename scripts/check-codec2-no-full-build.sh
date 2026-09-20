@@ -205,3 +205,4 @@ grep -q '"android_video_nodes"' scripts/evaluate-codec2-target.py
 grep -q 'staged path is a symlink' scripts/verify-staged-codec2-payload.py
 grep -q 'manifest symlink rejected' scripts/validate-codec2-payload.py
 grep -q 'unsafe payload path' scripts/enforce-codec2-payload-scope.py
+grep -q 'inventory symlink rejected' scripts/inventory-codec2-payload.py
