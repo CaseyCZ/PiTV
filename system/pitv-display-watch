@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[ "$(id -un)" = "pitv" ] || exit 2
+command -v wlr-randr >/dev/null 2>&1 || exit 0
+
+RUNTIME="/run/user/$(id -u)"
+MARKER="$RUNTIME/pitv-wayland-display"
+EVENT="$RUNTIME/pitv-display-repair"
+LOG="/tmp/pitv-display.log"
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+export XDG_RUNTIME_DIR="$RUNTIME"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+
+log() {
+  printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"
+}
+
+connector_signature() {
+  local f name status out=""
+  for f in /sys/class/drm/card*-HDMI-A-*/status; do
+    [ -r "$f" ] || continue
+    name="$(basename "$(dirname "$f")")"
+    status="$(cat "$f" 2>/dev/null || true)"
+    out+="$name=$status;"
+  done
+  printf '%s' "$out"
+}
+
+publish_repair_event() {
+  local tmp="$EVENT.$$"
+  printf '%s\n' "$(date +%s.%N)" >"$tmp"
+  mv -f "$tmp" "$EVENT"
+}
+
+main_display() {
+  local candidate
+  candidate="$(head -n1 "$MARKER" 2>/dev/null || true)"
+  [[ "$candidate" =~ ^wayland-[0-9]+$ ]] || return 1
+  [ -S "$RUNTIME/$candidate" ] || return 1
+  printf '%s' "$candidate"
+}
+
+pick_output() {
+  awk '
+    /^[^[:space:]]/ {
+      name=$1
+      if (first == "") first=name
+      if (name ~ /^HDMI-A-/ && hdmi == "") hdmi=name
+    }
+    END {
+      if (hdmi != "") print hdmi
+      else if (first != "") print first
+    }
+  '
+}
+
+output_block() {
+  local wanted="$1"
+  awk -v wanted="$wanted" '
+    /^[^[:space:]]/ {
+      if (capture) exit
+      capture=($1 == wanted)
+    }
+    capture {print}
+  '
+}
+
+repair_output() {
+  local display state output block needs=0
+
+  display="$(main_display)" || return 1
+  export WAYLAND_DISPLAY="$display"
+
+  state="$(wlr-randr 2>>"$LOG")" || return 1
+  output="$(printf '%s\n' "$state" | pick_output)"
+  [ -n "$output" ] || return 1
+
+  block="$(printf '%s\n' "$state" | output_block "$output")"
+  printf '%s\n' "$block" | grep -q 'Enabled: yes' || needs=1
+  printf '%s\n' "$block" | grep -q 'Position: 0,0' || needs=1
+  printf '%s\n' "$block" | grep -q 'Transform: normal' || needs=1
+  printf '%s\n' "$block" | grep -Eq 'Scale: 1([.]0+)?$' || needs=1
+  printf '%s\n' "$block" | grep -Eq '\(preferred, current\)' || needs=1
+
+  if [ "$needs" -ne 0 ]; then
+    log "repairing $output on $display"
+    if ! wlr-randr         --output "$output"         --on --preferred --pos 0,0 --transform normal --scale 1         >>"$LOG" 2>&1; then
+      log "wlr-randr repair failed for $output"
+      return 1
+    fi
+    # Give wlroots/SDL a short moment to observe the committed output state.
+    sleep 0.35
+  fi
+
+  publish_repair_event
+  return 0
+}
+
+: >"$LOG"
+last_sig=""
+pending=1
+
+while true; do
+  sig="$(connector_signature)"
+  if [ "$sig" != "$last_sig" ]; then
+    [ -n "$last_sig" ] && log "HDMI connector state changed: $sig"
+    last_sig="$sig"
+    case "$sig" in
+      *"=connected;"*) pending=1 ;;
+    esac
+  fi
+
+  if [ "$pending" -eq 1 ]; then
+    if repair_output; then
+      pending=0
+    fi
+  else
+    # Detect layout/mode drift even on TVs that keep HPD asserted in standby.
+    display="$(main_display 2>/dev/null || true)"
+    if [ -n "$display" ]; then
+      export WAYLAND_DISPLAY="$display"
+      state="$(wlr-randr 2>/dev/null || true)"
+      output="$(printf '%s\n' "$state" | pick_output)"
+      if [ -n "$output" ]; then
+        block="$(printf '%s\n' "$state" | output_block "$output")"
+        if ! printf '%s\n' "$block" | grep -q 'Position: 0,0' ||
+           ! printf '%s\n' "$block" | grep -q 'Transform: normal' ||
+           ! printf '%s\n' "$block" | grep -Eq 'Scale: 1([.]0+)?$'; then
+          pending=1
+        fi
+      fi
+    fi
+  fi
+
+  sleep 2
+done
