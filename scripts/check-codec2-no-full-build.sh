@@ -60,6 +60,7 @@ python3 scripts/test-codec2-no-full-build.py
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
+bash scripts/codec2-no-full-build.sh help | grep -q 'accept'
 grep -q '"backup_required":True\|"backup_required": True' scripts/make-codec2-rollback-manifest.py
 grep -q -- '--read-only' scripts/extract-codec2-donor-image.sh
 grep -q 'prepare-donor' scripts/codec2-no-full-build.sh
