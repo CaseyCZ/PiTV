@@ -105,3 +105,5 @@ grep -q 'codec2-payload-readiness.py' scripts/prepare-codec2-from-donor.sh
 grep -q 'verify-codec2-metadata.py' scripts/prepare-codec2-from-donor.sh
 grep -q 'codec2-payload-readiness.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'verify-codec2-metadata.py' scripts/build-minimal-codec2-modules.sh
+grep -q 'v4l2_rank_property' scripts/accept-codec2-overlay-runtime.sh
+grep -q 'c2_poolmask_property' scripts/accept-codec2-overlay-runtime.sh
