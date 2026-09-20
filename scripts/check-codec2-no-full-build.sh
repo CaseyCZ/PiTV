@@ -218,3 +218,4 @@ grep -q 'service-v4l2-64' scripts/check-codec2-service-metadata.py
 grep -q 'service-v4l2-64' scripts/prepare-codec2-from-donor.sh
 grep -q "name 'android.hardware.media.c2@1.0-service-v4l2-64'" scripts/build-minimal-codec2-modules.sh
 grep -q 'payload path is a symlink' scripts/enforce-codec2-payload-scope.py
+grep -q '@1.0::IComponentStore/v4l2' scripts/check-codec2-service-metadata.py
