@@ -38,7 +38,6 @@
         </MediaCodec>
     </Decoders>
 
-    <!-- Keep the original Waydroid software codecs available as fallbacks. -->
+    <!-- Keep Android software video codecs available as fallbacks. -->
     <Include href="media_codecs_google_video.xml" />
-    <Include href="media_codecs_ffmpeg.xml" />
 </MediaCodecs>
