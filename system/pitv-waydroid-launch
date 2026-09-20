@@ -47,6 +47,13 @@ valid_package() {
   [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$ ]]
 }
 
+diagnostics() {
+  local package="${1:-}"
+  log "capturing Waydroid diagnostics for: ${package:-session}"
+  printf '{"package":"%s"}' "$package" |
+    sudo -n /usr/local/libexec/pitv-helper waydroid-diagnostics       >>"$LOG" 2>&1 || true
+}
+
 # PiTV has two intentional Wayland domains:
 # - outer mode must always use the canonical labwc display published by PiTV;
 # - Cage client mode must keep the nested display inherited from Cage.
@@ -303,6 +310,7 @@ if [ "$MODE" = "client" ]; then
 
   if ! wait_user_ready; then
     log "Android framework booted but user 0 did not become ready"
+    diagnostics "$TARGET"
     exit 3
   fi
 
@@ -389,6 +397,7 @@ else
 
   if ! start_package "$TARGET"; then
     log "application launch command failed: $TARGET"
+    diagnostics "$TARGET"
     exit 5
   fi
 
@@ -399,6 +408,7 @@ else
     start_package "$TARGET" || true
     if ! wait_package_visible "$TARGET"; then
       log "application failed to create a visible TV surface: $TARGET"
+      diagnostics "$TARGET"
       waydroid log >>"$LOG" 2>&1 || true
       exit 5
     fi
