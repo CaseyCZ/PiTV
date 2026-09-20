@@ -1,5 +1,15 @@
 # PiTV Alpha
 
+### PiTV 1.4.29 · návrat k persistentnímu CEC ovládání z 1.4.10
+- fyzická historie potvrzuje PiTV 1.4.10 jako poslední známý stav, kde na této TV fungovaly šipky, OK a Zpět; Home na použitém ovladači nebyl spolehlivý/není k dispozici
+- návrat z aplikace už nezastavuje a nevytváří nový `CECReader`; zdravý kernel CEC monitor zůstává po celý život launcheru stejný jako v 1.4.10 a pouze se vyčistí stav kláves + znovu oznámí Active Source
+- vlastní reconnect uvnitř `CECReader` zůstává zachovaný pro skutečný HDMI/CEC reset nebo hotplug
+- nový launcher supervisor z 1.4.28 při recovery odstraní orphanovaný root `cec-ctl --monitor --show-raw`, který mohl přežít zabitý Python launcher a blokovat nový ovladač až do rebootu
+- `pitv-cec-monitor` má navíc per-adapter `flock`, takže současně nemohou běžet dva PiTV CEC monitory nad stejným `/dev/cecN`
+- zachované zůstávají 3s Zpět, Android DPAD relay, Kodi/Stremio lifecycle, HDMI audio i současná session architektura; nevrací se celé PiTV na starou verzi, pouze ověřená CEC vlastnost
+
+
+
 ### PiTV 1.4.28 · čistý restart launcheru a odstranění stale TV aplikací
 - nově potvrzený fyzický problém: restart samotného launcheru mohl odkrýt starou fullscreen Waydroid/Stremio plochu, protože Android session přežila proces PiTV
 - PiTV má nový launcher supervisor; pokud GUI spadne nebo se restartuje, nejdřív deterministicky uklidí PiTV-owned TV runtimes a teprve potom launcher znovu spustí
