@@ -48,6 +48,7 @@ find_image(){
 }
 SYSTEM="$(find_image system.img || true)"; VENDOR="$(find_image vendor.img || true)"
 [ -n "$SYSTEM" ] && [ -n "$VENDOR" ] || { echo "Waydroid images not found" >&2; exit 5; }
+case "$VENDOR" in /etc/waydroid-extra/images/vendor.img|/var/lib/waydroid/images/vendor.img) ;; *) echo "refusing immutable/unsupported Waydroid vendor image path: $VENDOR" >&2; exit 5;; esac
 need=$(( $(stat -c %s "$SYSTEM") + $(stat -c %s "$VENDOR") * 2 ))
 avail=$(df -PB1 "$STATE" 2>/dev/null | awk 'NR==2{print $4}' || true)
 [ -n "$avail" ] && [ "$avail" -ge "$need" ] || { echo "insufficient free space for rollback-safe Codec2 install" >&2; exit 6; }
