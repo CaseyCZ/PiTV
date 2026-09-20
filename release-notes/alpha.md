@@ -25,6 +25,7 @@
 - `uinput` se načítá při bootu a 1.5 installer zachovává uživatelovu volbu HDMI‑CEC Zapnuto/Vypnuto; starý launcherový `CECReader` byl z 1.5 úplně odstraněn, takže existuje jen jeden CEC input owner
 - CEC výstup je oddělený do statického `pitv-cec-control`: umí pouze Power/Standby/Active Source/Volume/Mute; historický `pitv-cec-monitor` s režimy register/monitor se při upgradu maže
 - **warm SmartTube/APK start je zkrácený**: připravený persistentní Cage klient zapisuje do `pitv-waydroid-runtime-ready` vlastní živý PID, takže běžné spuštění už nedělá synchronní `waydroid status + getprop` při každém readiness testu
+- **Android TV session watchdog** už nesleduje jen PID původního APK: SmartTube může otevřít Android Settings, permission dialog nebo account picker a PiTV zůstane v Android session; návrat do PiTV nastane až při skutečném Android Home/Launcheru, ztrátě warm runtime nebo globálním 3s Back
 - **HDMI obraz má jednu systémovou recovery vrstvu**: `pitv-displayd.service` sleduje DRM konektor, EDID a dostupné režimy; po stabilním reconnectu srovná odpovídající wlroots výstup na pozici `0,0`, normal transform a scale 1
 - platný aktuální video mód se zachová; preferred mód se použije jen při skutečně znovupřipojeném vypnutém výstupu nebo chybějícím current mode a periodická kontrola geometrie nikdy nebudí vypnutou TV
 - po opravě daemon pošle launcheru globální akci `display`, takže SDL fullscreen se znovu sváže bez ukončení běžící aplikace; při opakovaném selhání wlroots se restartuje pouze `pitv-shell.service`, ne Raspberry Pi/server
