@@ -217,6 +217,7 @@ launch_package() {
 READY_FILE="$RUNTIME/pitv-waydroid-app-ready"
 RUNTIME_READY="$RUNTIME/pitv-waydroid-runtime-ready"
 WARM_LOCK="$RUNTIME/pitv-waydroid-runtime.lock"
+COMMAND_LOCK="$RUNTIME/pitv-waydroid-command.lock"
 
 mark_ready() {
   local target="$1"
@@ -303,53 +304,67 @@ if [ "$MODE" = "outer" ]; then
   fi
 
   if [ "$TARGET" = "--warm" ]; then
-    # Compatibility for older enabled pitv-android-warm.service units.
-    # Physical Pi 4 testing showed that an idle permanent Waydroid user
-    # session can exit later and race the next app launch. Android therefore
-    # starts only when a TV app is requested.
+    # Exactly one hidden Android runtime owns Cage + the Waydroid user session.
+    # Keep fd 9 for its complete lifetime so a duplicate warm service can never
+    # reproduce the old "Session is already running" collision.
+    exec 9>"$WARM_LOCK"
+    if ! flock -n 9; then
+      log "another persistent Android runtime already owns the session lock"
+      exit 17
+    fi
+
+    # Only the warm-runtime owner is allowed to clean stale legacy sessions.
+    # Ordinary app launches never stop/recreate Android.
+    if ! cleanup_stale_android_runtime; then
+      diagnostics ""
+      exit 18
+    fi
+
     rm -f "$READY_FILE" "$RUNTIME_READY"
-    log "persistent Android warm-up disabled; runtime starts on demand"
-    exit 0
+    log "starting persistent Android warm runtime"
+    set +e
+    env PITV_WAYDROID_ACTION="warm" \
+      cage -d -- "$0" --cage-client --warm
+    cage_rc=$?
+    set -e
+    exit "$cage_rc"
   fi
 
-  # Exactly one PiTV Android runtime may own Waydroid/Cage at a time. The outer
-  # wrapper keeps fd 9 open while Cage runs, so a second launch cannot create
-  # the "Session is already running" race.
-  exec 9>"$WARM_LOCK"
-  if ! flock -n 9; then
-    log "another PiTV Android runtime already owns the session lock"
-    exit 17
+  # Normal TV apps reuse the boot-time Android runtime. If the service is still
+  # booting, wait for it instead of creating a second Cage/session. This turns
+  # app startup into only Activity launch time after the first appliance boot.
+  if ! runtime_ready; then
+    log "persistent Android runtime not ready; requesting warm service"
+    printf '{}' |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-warm-start         >>"$LOG" 2>&1 || true
+    for _ in $(seq 1 300); do
+      runtime_ready && break
+      sleep 0.5
+    done
   fi
-
-  # Alpha #804 physical testing exposed a pre-existing on-demand wrapper that
-  # survived long enough for the next launch to see "Session is already
-  # running". Clean pre-lock/legacy leftovers before binding the new session to
-  # the current Cage Wayland socket.
-  if ! cleanup_stale_android_runtime; then
+  if ! runtime_ready; then
+    log "persistent Android runtime did not become ready"
     diagnostics "$TARGET"
     exit 18
   fi
 
-  # One Android launch owns one nested Cage compositor and one Waydroid user
-  # session. labwc maps Cage to Android with follow=no, so PiTV stays visible
-  # until the requested package is actually confirmed on screen.
-  rm -f "$READY_FILE" "$RUNTIME_READY"
-  log "starting on-demand Android runtime for: $TARGET action=$ACTION"
-  # Keep this outer shell alive while Cage runs so fd 9 unquestionably retains
-  # the exclusive runtime lock for the complete Android TV lifecycle.
-  set +e
-  env PITV_WAYDROID_ACTION="$ACTION"     cage -d -- "$0" --cage-client "$TARGET" "$APK"
-  cage_rc=$?
-  set -e
-  exit "$cage_rc"
+  # Serialize foreground Android TV commands without taking ownership of the
+  # persistent runtime itself. The lock is held until this app returns Home.
+  exec 8>"$COMMAND_LOCK"
+  if ! flock -n 8; then
+    log "another Android TV application command is already active"
+    exit 17
+  fi
+
+  log "using persistent Android runtime for: $TARGET action=$ACTION"
+  MODE="command"
 fi
 
 if [ "$MODE" = "client" ]; then
-  # Official manual Waydroid lifecycle inside the nested TV compositor:
-  # root container start -> unprivileged session start -> app install/launch.
-  # The session exists only for this Android TV flow.
+  # The boot-time warm service owns one hidden nested Cage compositor and one
+  # Waydroid user session for the entire PiTV shell lifetime.
   export XDG_CURRENT_DESKTOP="cage"
-  log "on-demand Cage session socket: $WAYLAND_DISPLAY target=$TARGET action=$ACTION"
+  log "persistent Cage session socket: $WAYLAND_DISPLAY target=$TARGET action=$ACTION"
 
   SESSION_PID=""
   cleanup_runtime() {
@@ -366,7 +381,7 @@ if [ "$MODE" = "client" ]; then
       kill -TERM "$SESSION_PID" 2>/dev/null || true
       wait "$SESSION_PID" 2>/dev/null || true
     fi
-    log "on-demand Android runtime stopped"
+    log "persistent Android runtime stopped"
   }
   trap cleanup_runtime EXIT TERM INT HUP
 
@@ -387,10 +402,10 @@ if [ "$MODE" = "client" ]; then
 
   waydroid session start >>"$LOG" 2>&1 &
   SESSION_PID=$!
-  log "Waydroid on-demand session manager started pid=$SESSION_PID"
+  log "Waydroid persistent session manager started pid=$SESSION_PID"
 
   if ! wait_ready; then
-    log "Android framework did not become ready for on-demand launch"
+    log "Android framework did not become ready for persistent runtime"
     waydroid status >>"$LOG" 2>&1 || true
     waydroid log >>"$LOG" 2>&1 || true
     exit 3
@@ -398,7 +413,7 @@ if [ "$MODE" = "client" ]; then
   log "Android boot_completed verified"
 
   if ! kill -0 "$SESSION_PID" 2>/dev/null; then
-    log "Waydroid on-demand session manager exited during startup"
+    log "Waydroid persistent session manager exited during startup"
     exit 18
   fi
 
@@ -414,13 +429,24 @@ if [ "$MODE" = "client" ]; then
   # docs require a session restart after changing it, so setting it here after
   # HWC startup would be too late for this session and only adds Binder work.
   printf '%s\n' "${BASHPID:-0}" >"$RUNTIME_READY"
-  log "on-demand Android runtime ready pid=${BASHPID:-0} session_pid=$SESSION_PID target=$TARGET"
+  log "persistent Android runtime ready pid=${BASHPID:-0} session_pid=$SESSION_PID"
 
+  if [ "$TARGET" = "--warm" ]; then
+    # Stay alive for the complete TV-shell lifetime. Apps are launched by
+    # separate lightweight wrappers through the shared Android shell.
+    while kill -0 "$SESSION_PID" 2>/dev/null && session_running; do
+      sleep 2
+    done
+    log "persistent Android session manager was lost"
+    exit 19
+  fi
+
+  # Compatibility only: current app launches never create their own Cage client.
   MODE="command"
 fi
 
-# From here the Cage client owns the complete on-demand Android lifecycle.
-# cleanup_runtime stops the user session and container when the TV flow exits.
+# From here a lightweight command wrapper operates on the already-running
+# persistent Android session. It must never stop that session on app exit.
 TRACK_PACKAGE=""
 
 if [ "$ACTION" = "uninstall" ]; then
