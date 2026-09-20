@@ -237,3 +237,5 @@ grep -q 'AMBIGUOUS' scripts/audit-codec2-payload-deps.py
 grep -q 'byte-identical' scripts/audit-codec2-payload-deps.py
 grep -q 'insufficient free space for rollback-safe Codec2 install' scripts/install-codec2-overlay.sh
 grep -q 'STAGE="$(readlink -f' scripts/install-codec2-overlay.sh
+grep -q 'donor exceeds extraction limit' scripts/extract-codec2-donor-image.sh
+grep -q 'refusing symlink output' scripts/extract-codec2-donor-image.sh
