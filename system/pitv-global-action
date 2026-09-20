@@ -6,10 +6,31 @@ case "${1:-}" in
   *) exit 2 ;;
 esac
 
-RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+# This command is also a recovery API used from admin SSH. Always operate on
+# the real TV session instead of accidentally writing to /run/user/0 when the
+# caller used sudo.
+PITV_UID="$(id -u pitv 2>/dev/null || id -u)"
+if [ "$(id -u)" != "$PITV_UID" ] && command -v runuser >/dev/null 2>&1; then
+  exec runuser -u pitv -- "$0" "$ACTION"
+fi
+
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$PITV_UID}"
 [ -d "$RUNTIME" ] || exit 3
 
 TARGET="$RUNTIME/pitv-global-action"
 TMP="$TARGET.$$"
 printf '%s\n' "$ACTION" >"$TMP"
 mv -f "$TMP" "$TARGET"
+
+# F13/F14 keybinds already switch labwc to PiTV, but an SSH recovery command
+# has no compositor keybind around it. Make home/close self-contained so the
+# screen always returns immediately while PiTV consumes the action marker.
+if [ "$ACTION" != "display" ] && command -v wtype >/dev/null 2>&1; then
+  DISPLAY_MARKER="$RUNTIME/pitv-wayland-display"
+  WAYLAND_NAME="$(head -n1 "$DISPLAY_MARKER" 2>/dev/null || true)"
+  if [[ "$WAYLAND_NAME" =~ ^wayland-[0-9]+$ ]] &&
+     [ -S "$RUNTIME/$WAYLAND_NAME" ]; then
+    env XDG_RUNTIME_DIR="$RUNTIME" WAYLAND_DISPLAY="$WAYLAND_NAME" \
+      wtype -M logo -k F9 -m logo >/dev/null 2>&1 || true
+  fi
+fi
