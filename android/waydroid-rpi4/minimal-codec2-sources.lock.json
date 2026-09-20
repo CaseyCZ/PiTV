@@ -8,14 +8,23 @@
       "url": "https://github.com/android-rpi/external_v4l2_codec2.git",
       "branch": "arpi-13",
       "commit": "ab5a6d643920336a7e7c6c4d4db36d621f21f935",
-      "license_files": ["MODULE_LICENSE_BSD", "NOTICE"]
+      "license_files": [
+        "MODULE_LICENSE_BSD",
+        "NOTICE"
+      ]
     },
     {
       "name": "ffmpeg",
       "url": "https://github.com/raspberry-vanilla/android_external_ffmpeg.git",
       "branch": "android-13.0",
       "commit": "92c47af5c1f739194355ca765779d5756b56669b",
-      "license_files": ["LICENSE.md", "COPYING.LGPLv2.1", "COPYING.LGPLv3", "COPYING.GPLv2", "COPYING.GPLv3"]
+      "license_files": [
+        "LICENSE.md",
+        "COPYING.LGPLv2.1",
+        "COPYING.LGPLv3",
+        "COPYING.GPLv2",
+        "COPYING.GPLv3"
+      ]
     },
     {
       "name": "ffmpeg_codec2",
@@ -29,7 +38,11 @@
       "url": "https://github.com/raspberry-vanilla/android_external_libudev-zero.git",
       "branch": "android-13.0",
       "commit": "0ad91b71bcff531a6f3a98f028fe2bcad033c332",
-      "license_files": ["LICENSE"]
+      "license_files": [
+        "LICENSE"
+      ]
     }
-  ]
+  ],
+  "verified_at": "2026-09-20",
+  "verified_note": "All four pinned commits resolved through GitHub before reduced-build use."
 }
