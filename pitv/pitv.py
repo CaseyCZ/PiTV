@@ -3038,7 +3038,7 @@ class PiTV:
             try:
                 if install_type == "apt":
                     package = installer.get("package","")
-                    ok, msg = run_privileged("apt-install", {"package": package}, 1200)
+                    ok, msg = run_privileged("apt-install", {"package": package}, 1800)
                     finish(msg, ok)
                     return
 
@@ -3056,7 +3056,7 @@ class PiTV:
                         return
                     if shutil.which("kodi") is None:
                         self.set_operation("Instaluji Kodi pro Plex…")
-                        ok, msg = run_privileged("apt-install", {"package": package}, 1200)
+                        ok, msg = run_privileged("apt-install", {"package": package}, 1800)
                         if not ok:
                             finish(msg, False)
                             return
@@ -3443,7 +3443,7 @@ class PiTV:
                 except Exception:
                     self.remote_pitv = ""
 
-                run_privileged("apt-update", {}, 300)
+                run_privileged("apt-update", {}, 900)
                 self.update_count = count_updates()
 
                 self.store_catalog = load_store_catalog()
@@ -3526,7 +3526,7 @@ class PiTV:
         self.show_toast("Aktualizuji Store aplikace…", 4)
 
         def worker():
-            ok, msg = run_privileged("apt-store-upgrade", {"packages": packages}, 1200)
+            ok, msg = run_privileged("apt-store-upgrade", {"packages": packages}, 1800)
             self.updates_busy = False
             self.apps = load_apps()
             self.finish_operation(msg, ok)
@@ -3542,7 +3542,7 @@ class PiTV:
         self.show_toast("Aktualizuji Ubuntu balíčky…", 5)
 
         def worker():
-            ok, msg = run_privileged("apt-upgrade", {}, 1200)
+            ok, msg = run_privileged("apt-upgrade", {}, 1800)
             self.update_count = count_updates()
             self.updates_busy = False
             self.finish_operation(msg, ok)
@@ -4680,7 +4680,7 @@ class PiTV:
                         self.update_checking = True
                         self.show_toast("Kontroluji aktualizace…")
                         def worker():
-                            run_privileged("apt-update", {}, 240)
+                            run_privileged("apt-update", {}, 900)
                             self.update_count = count_updates()
                             self.update_checking = False
                             self.show_toast(f"Aktualizace: {self.update_count if self.update_count is not None else '—'}")
@@ -4688,7 +4688,7 @@ class PiTV:
                 elif self.system_selected == 8:
                     def upgrade():
                         self.show_toast("Instaluji aktualizace…")
-                        ok, msg = run_privileged("apt-upgrade", {}, 1200)
+                        ok, msg = run_privileged("apt-upgrade", {}, 1800)
                         self.show_toast(msg, 5)
                         self.update_count = count_updates()
                     self.open_confirm("Aktualizace systému",
