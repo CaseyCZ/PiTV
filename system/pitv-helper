@@ -623,16 +623,21 @@ elif action == "waydroid-app-visible":
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
         out("Neplatný Android package ID", 2)
 
-    # A successful TV launch does not necessarily keep the app's own package
-    # as the top Activity. First-run permission/account/settings surfaces are a
-    # legitimate continuation of the requested app flow and must not trigger a
-    # duplicate launch intent.
+    # Fast path: one ActivityManager query is enough for the overwhelmingly
+    # common cases. If the target itself is on top, it is ready immediately.
+    # If Android Home is on top, it is not ready. Only delegated first-run
+    # system surfaces need the extra pidof check.
     top = subprocess.run(
         ["waydroid", "shell", "dumpsys", "activity", "top"],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, timeout=5, check=False,
     )
     top_package = parse_android_top_package(top.stdout or "")
+
+    if top.returncode == 0 and top_package == package:
+        out(f"visible:{top_package}")
+    if top.returncode == 0 and top_package in ANDROID_HOME_PACKAGES:
+        out(f"Android Home je stále aktivní: {top_package}", 4)
 
     proc = subprocess.run(
         ["waydroid", "shell", "pidof", package],
@@ -647,8 +652,6 @@ elif action == "waydroid-app-visible":
             top_ok=(top.returncode == 0)):
         out(f"visible:{top_package or package}")
 
-    if top_package in ANDROID_HOME_PACKAGES:
-        out(f"Android Home je stále aktivní: {top_package}", 4)
     out("Android aplikace zatím nevytvořila aktivní TV flow", 4)
 
 elif action == "waydroid-container-stop":
