@@ -242,20 +242,11 @@ else
   TRACK_PACKAGE="$TARGET"
 fi
 
-# Keep Cage and the upstream Waydroid session alive while the selected Android
-# package is alive. Once the app closes, the trap stops the session and Cage
-# disappears, revealing PiTV again.
-MISSES=0
+# Keep Cage + Android alive as one persistent multitasking slot. PiTV may
+# switch back to the launcher while this process stays on the Android workspace.
+# Android itself owns app-to-app task switching, so do not tear down Waydroid
+# just because the originally launched package moves to the background.
 while printf '{}' |
     sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; do
-  if [ -n "$TRACK_PACKAGE" ]; then
-    if printf '{"package":"%s"}' "$TRACK_PACKAGE" |
-        sudo -n /usr/local/libexec/pitv-helper waydroid-app-running >/dev/null 2>&1; then
-      MISSES=0
-    else
-      MISSES=$((MISSES + 1))
-      [ "$MISSES" -ge 3 ] && break
-    fi
-  fi
   sleep 1
 done
