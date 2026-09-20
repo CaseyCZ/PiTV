@@ -201,3 +201,4 @@ grep -q 'media_codecs_ffmpeg_c2.xml' scripts/build-minimal-codec2-modules.sh
 grep -q 'evidence output already exists' scripts/capture-codec2-evidence.sh
 grep -q 'STAMP}-\$\$' scripts/install-codec2-overlay.sh
 grep -q 'check-codec2-payload-contract.py' scripts/codec2-install-readiness.sh
+grep -q '"android_video_nodes"' scripts/evaluate-codec2-target.py
