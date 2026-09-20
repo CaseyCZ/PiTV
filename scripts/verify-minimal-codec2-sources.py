@@ -9,7 +9,7 @@ lock=json.loads((repo/"android/waydroid-rpi4/minimal-codec2-sources.lock.json").
 required={
  "v4l2_codec2":["Android.bp"],
  "ffmpeg":["Android.bp"],
- "ffmpeg_codec2":["Android.bp"],
+ "ffmpeg_codec2":["Android.mk","android.hardware.media.c2@1.2-service-ffmpeg.rc","android.hardware.media.c2@1.2-service-ffmpeg.xml","seccomp_policy/android.hardware.media.c2@1.2-ffmpeg-arm64.policy"],
  "libudev_zero":["Android.bp"],
 }
 for item in lock["sources"]:
@@ -18,7 +18,7 @@ for item in lock["sources"]:
     head=d/".git"
     if not head.exists(): raise SystemExit(f"not a git checkout: {item['name']}")
     for rel in required.get(item["name"],[]):
-        if not (d/rel).is_file(): raise SystemExit(f"missing build definition: {item['name']}/{rel}")
+        if not (d/rel).is_file(): raise SystemExit(f"missing required source file: {item['name']}/{rel}")
     for rel in item.get("license_files",[]):
         if not (d/rel).is_file(): raise SystemExit(f"missing license: {item['name']}/{rel}")
 print("MINIMAL_CODEC2_SOURCES_OK=1")
