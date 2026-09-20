@@ -1,5 +1,16 @@
 # PiTV Alpha
 
+### PiTV 1.5.0 · LibreELEC-style TV Shell architecture
+- **uložený rollback**: poslední 1.4.31 před změnou architektury je zachovaný ve větvi `archive/pitv-1.4.31-pre-tv-shell`
+- PiTV už není navržené jako Linux desktop/tty autologin s launcherem navrch; novým základem je appliance model inspirovaný LibreELEC
+- přidán `pitv.target`, který stojí nad `multi-user.target`; SSH, Tailscale, Homebridge, Docker a ostatní serverové služby tak zůstávají nezávislé na TV rozhraní
+- přidán `pitv-shell.service`: systemd vlastní celou tty1/Wayland TV session, používá `Restart=always` a po pádu obnoví TV shell bez rebootu Raspberry Pi
+- starý boot řetězec `getty → autologin → .bash_profile → labwc` se při instalaci 1.5.0 odstraňuje; tty1 je vyhrazená supervised TV shellu
+- kompatibilní příkaz `sudo systemctl restart pitv-launcher` zůstává, ale nově restartuje celý `pitv-shell.service`
+- Android warm runtime je oddělený do `pitv-android-warm.service`; Home obrazovka není jeho rodič ani na něj při startu nečeká
+- při restartu/recovery shellu systemd Android warm službu znovu obnoví; launcher už nevytváří vlastní background warmer proces
+- technický kontrakt projektu je v `docs/tv-appliance-contract.md`; priorita je input/focus → rychlost aplikací → fullscreen/session → playback → Store → vzhled
+
 ### PiTV 1.4.31 · TV-appliance runtime: rychlé aplikace, focus a globální stav
 - **nový výkonový základ PiTV**: Android/Waydroid už není spouštěn a vypínán s každou aplikací; supervisor po vykreslení Home asynchronně přednahřeje jeden skrytý persistentní Cage/Waydroid runtime
 - běžná Android TV aplikace používá už připravený runtime, spustí rovnou svůj package a PiTV přepne na Android workspace až po potvrzení skutečně viditelné aktivity; cílem je stejný princip jako Android TV / Google TV / Apple TV — uživatel čeká na aplikaci, ne na mezilehlý operační systém
