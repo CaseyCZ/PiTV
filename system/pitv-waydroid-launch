@@ -315,9 +315,9 @@ if [ "$MODE" = "outer" ]; then
     exit 0
   fi
 
-  # Exactly one PiTV Android runtime may own Waydroid/Cage at a time. The lock
-  # is inherited through exec(cage) and the nested --cage-client process, so a
-  # second launch cannot create the "Session is already running" race.
+  # Exactly one PiTV Android runtime may own Waydroid/Cage at a time. The outer
+  # wrapper keeps fd 9 open while Cage runs, so a second launch cannot create
+  # the "Session is already running" race.
   exec 9>"$WARM_LOCK"
   if ! flock -n 9; then
     log "another PiTV Android runtime already owns the session lock"
