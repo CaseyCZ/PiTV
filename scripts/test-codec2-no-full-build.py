@@ -68,7 +68,13 @@ with tempfile.TemporaryDirectory() as td:
     assert "vendor/etc/seccomp_policy/codec2.vendor.ext.policy" in lines
     run(py,str(repo/"scripts/validate-codec2-payload.py"),str(payload))
     run(py,str(repo/"scripts/check-codec2-payload-contract.py"),str(payload))
+    run(py,str(repo/"scripts/enforce-codec2-payload-scope.py"),str(payload))
     run(py,str(repo/"scripts/inventory-codec2-payload.py"),str(payload))
     inv=json.loads((payload/"PITV-CODEC2-INVENTORY.json").read_text())
     assert len(inv["files"])==5
+with tempfile.TemporaryDirectory() as td:
+    bad=Path(td)/"bad"; (bad/"vendor/lib64/hw").mkdir(parents=True)
+    (bad/"vendor/lib64/hw/gralloc.rpi.so").write_bytes(b"x")
+    (bad/"PITV-CODEC2-PAYLOAD.txt").write_text("vendor/lib64/hw/gralloc.rpi.so\n")
+    run(py,str(repo/"scripts/enforce-codec2-payload-scope.py"),str(bad),ok=False)
 print("Codec2 metadata self-tests OK")
