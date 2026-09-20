@@ -397,6 +397,8 @@ def updater_self_test():
     assert target[3] == {"android"}
     target = delta_target("system/pitv-shell.service")
     assert target[3] == {"daemon-reload", "shell"}
+    assert delta_target("scripts/build-waydroid-rpi4-v4l2.sh") is None
+    assert delta_target("scripts/install-waydroid-rpi4-v4l2-image.sh") is None
     plan, restarts = build_delta_plan([
         {"filename": "system/pitv-helper", "status": "modified"},
         {"filename": "README.md", "status": "modified"},
