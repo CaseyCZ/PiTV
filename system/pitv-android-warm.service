@@ -2,6 +2,7 @@
 Description=PiTV Android TV warm runtime
 After=pitv-shell.service
 Wants=pitv-shell.service
+PartOf=pitv-shell.service
 ConditionPathExists=/usr/local/bin/pitv-waydroid-launch
 StartLimitIntervalSec=0
 
