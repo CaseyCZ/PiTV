@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
 
 if [ "$(id -un)" != "pitv" ]; then
-  echo "PiTV launcher supervisor musí běžet jako uživatel pitv." >&2
+  echo "PiTV launcher musí běžet jako uživatel pitv." >&2
   exit 2
 fi
 
@@ -11,52 +11,11 @@ export USER=pitv
 export LOGNAME=pitv
 export PITV_SUPERVISED=1
 
-CHILD=""
-STOPPING=0
-
-runtime_cleanup() {
-  if [ -x /usr/local/libexec/pitv-helper ]; then
-    printf '{}' |
-      sudo -n /usr/local/libexec/pitv-helper tv-runtime-reset         >/tmp/pitv-runtime-reset.log 2>&1 || true
-  fi
+: "${XDG_RUNTIME_DIR:?PiTV XDG_RUNTIME_DIR není nastavený}"
+: "${WAYLAND_DISPLAY:?PiTV WAYLAND_DISPLAY není nastavený}"
+[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] || {
+  echo "PiTV Wayland socket není dostupný." >&2
+  exit 3
 }
 
-shutdown_supervisor() {
-  STOPPING=1
-  if [ -n "$CHILD" ] && kill -0 "$CHILD" 2>/dev/null; then
-    kill -TERM "$CHILD" 2>/dev/null || true
-    for _ in $(seq 1 20); do
-      kill -0 "$CHILD" 2>/dev/null || break
-      sleep 0.1
-    done
-    kill -KILL "$CHILD" 2>/dev/null || true
-    wait "$CHILD" 2>/dev/null || true
-  fi
-  runtime_cleanup
-  exit 0
-}
-
-trap shutdown_supervisor TERM INT HUP
-
-# A launcher restart/crash must never reveal a stale Kodi/Waydroid/Stremio
-# surface underneath. Start from a known-clean TV runtime.
-runtime_cleanup
-
-while [ "$STOPPING" -eq 0 ]; do
-  /usr/bin/python3 /opt/pitv/pitv/pitv.py >>/tmp/pitv.log 2>&1 &
-  CHILD=$!
-
-  wait "$CHILD"
-  RC=$?
-  CHILD=""
-
-  [ "$STOPPING" -ne 0 ] && break
-
-  # If PiTV exits unexpectedly, clean the foreground app/session before
-  # respawning the launcher. This keeps the appliance recoverable without a
-  # full OS reboot.
-  runtime_cleanup
-  printf '%s
-' "PiTV launcher exited with rc=$RC; restarting" >>/tmp/pitv.log
-  sleep 1
-done
+exec /usr/bin/python3 /opt/pitv/pitv/pitv.py
