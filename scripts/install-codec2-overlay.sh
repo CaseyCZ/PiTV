@@ -23,8 +23,11 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP="$STATE/backups/$STAMP"
 TMP="$(mktemp -d /tmp/pitv-codec2-overlay.XXXXXX)"
 MNT="$TMP/vendor"
+SYS_MNT="$TMP/system-ro"
+CUR_VENDOR_MNT="$TMP/vendor-ro"
 RESTORE=0
 mounted=0
+preflight_mounted=0
 
 find_image(){
   for p in "$EXTRA/$1" "/var/lib/waydroid/images/$1" "/usr/share/waydroid-extra/images/$1"; do
@@ -34,7 +37,7 @@ find_image(){
 }
 SYSTEM="$(find_image system.img || true)"; VENDOR="$(find_image vendor.img || true)"
 [ -n "$SYSTEM" ] && [ -n "$VENDOR" ] || { echo "Waydroid images not found" >&2; exit 5; }
-mkdir -p "$BACKUP" "$MNT" "$EXTRA"
+mkdir -p "$BACKUP" "$MNT" "$SYS_MNT" "$CUR_VENDOR_MNT" "$EXTRA"
 cp --reflink=auto --sparse=always "$SYSTEM" "$BACKUP/system.img"
 cp --reflink=auto --sparse=always "$VENDOR" "$BACKUP/vendor.img"
 sha256sum "$BACKUP/system.img" "$BACKUP/vendor.img" >"$BACKUP/SHA256SUMS"
@@ -58,12 +61,26 @@ restore(){
 cleanup(){
   rc=$?
   [ "$mounted" -eq 0 ] || { umount "$MNT" >/dev/null 2>&1 || true; mounted=0; }
+  if [ "$preflight_mounted" -eq 1 ]; then
+    umount "$CUR_VENDOR_MNT" >/dev/null 2>&1 || true
+    umount "$SYS_MNT" >/dev/null 2>&1 || true
+    preflight_mounted=0
+  fi
   if [ "$RESTORE" -eq 1 ]; then restore; fi
   rm -rf "$TMP"
   exit "$rc"
 }
 trap cleanup EXIT INT TERM
 fail(){ echo "Codec2 overlay failed: $*" >&2; restore; RESTORE=0; exit 20; }
+
+# Prove that every candidate ELF dependency is already in the payload or in
+# the currently working Android system/vendor before activating anything.
+mount -o loop,ro "$SYSTEM" "$SYS_MNT"
+mount -o loop,ro "$VENDOR" "$CUR_VENDOR_MNT"
+preflight_mounted=1
+python3 "$SCRIPT_DIR/audit-codec2-payload-deps.py" "$STAGE" "$SYS_MNT" "$CUR_VENDOR_MNT" \
+  || fail "ELF dependency closure is incompatible with current Waydroid"
+umount "$CUR_VENDOR_MNT"; umount "$SYS_MNT"; preflight_mounted=0
 
 stop_android
 mount -o loop,rw "$TMP/vendor.img" "$MNT"; mounted=1
