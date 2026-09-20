@@ -37,6 +37,7 @@ PiTV Codec2 no-full-build experiment
   install STAGE                 (root, RPi4 only)
   rollback [BACKUP]             (root)
   verify
+  accept                         (strict read-only AVC/HEVC acceptance)
   status
   check
 EOF
