@@ -74,3 +74,26 @@ operator choice guarded by `PITV_CODEC2_MAX_GB`.
 
 Pinned source revisions are stored in
 `android/waydroid-rpi4/minimal-codec2-sources.lock.json`.
+
+## True no-full-source-build path
+
+For an already-built, legally usable Android 13 ARM64 donor image, the branch
+can now operate without an Android source checkout:
+
+```
+sudo bash scripts/codec2-no-full-build.sh extract-donor donor.img donor-vendor
+bash scripts/codec2-no-full-build.sh prepare-donor donor-vendor codec2-payload
+bash scripts/codec2-no-full-build.sh stage codec2-payload
+bash scripts/codec2-no-full-build.sh plan <stage>
+sudo bash scripts/codec2-no-full-build.sh install <stage>
+```
+
+The image extractor uses a read-only loop device and copies only the vendor
+filesystem to a working directory. The preparation step then selects the two
+expected Codec2 services and their ARM64 dependency closure plus service
+metadata. The complete donor vendor is never installed.
+
+A full Android source tree is still required by Android's normal `m/mm` build
+system. Therefore `build-minimal-codec2-modules.sh` is only a fallback for a
+machine that already has an Android 13 build tree; it is not presented as a
+magic source-free compiler.
