@@ -1119,6 +1119,7 @@ class PiTV:
         self.sidebar_focus = False
         self.sidebar_selected = 0
         self.store_return_page = "apps"
+        self.store_return_settings_context = False
         self.server_store_return_page = "settings"
         self.sub_selected = 0
         self.cec_selected = 0
@@ -1604,6 +1605,7 @@ class PiTV:
             elif target == "store":
                 self.page = "store"
                 self.store_return_page = "home"
+                    self.store_return_settings_context = False
                 self.store_selected = 0
                 self.refresh_store_async()
             elif target == "server_store":
@@ -1632,6 +1634,7 @@ class PiTV:
         if q >= len(shortcuts):
             self.page = "store"
             self.store_return_page = "home"
+                    self.store_return_settings_context = False
             self.store_selected = 0
             self.refresh_store_async()
             return
@@ -2568,7 +2571,7 @@ class PiTV:
             "Síť": ["Ethernet a Wi‑Fi", "IP adresa", "Výběr Wi‑Fi sítě"],
             "Zvuk": ["HDMI výstup", "CEC hlasitost", "Test zvuku"],
             "HDMI / CEC": ["TV ovladač", "Aktivní HDMI vstup", "Power / standby"],
-            "Aplikace": ["Zobrazení aplikací", "Odinstalovat aplikaci", "PiTV Store"],
+            "Aplikace": ["Zobrazení aplikací", "Odinstalovat aplikace", "PiTV Store"],
             "Server Store": ["Homebridge", "Tailscale", "Docker", "ATVLoadly"],
             "Android / APK": ["Waydroid", "APK aplikace", "Google Play"],
             "Aktualizace": ["PiTV", "Store katalog", "Ubuntu"],
@@ -3160,7 +3163,7 @@ class PiTV:
             },
             {
                 "kind": "uninstall",
-                "name": "Odinstalovat aplikaci",
+                "name": "Odinstalovat aplikace",
                 "detail": (
                     f"{len(uninstallable)} aplikací · vybrat ze seznamu"
                     if uninstallable else "Žádná aplikace k odinstalování"
@@ -3235,7 +3238,7 @@ class PiTV:
             self.show_toast("Žádná aplikace není dostupná k odinstalování", 4)
             return
         self.open_choice(
-            "Odinstalovat aplikaci",
+            "Odinstalovat aplikace",
             [(app.get("name", "Aplikace"), app) for app in apps],
             None,
             self._confirm_uninstall_app,
@@ -4994,6 +4997,11 @@ class PiTV:
                 return
             if self.page == "store":
                 self.page = self.store_return_page
+                if self.store_return_page == "apps":
+                    self.settings_context = bool(
+                        self.store_return_settings_context
+                    )
+                    self.store_return_settings_context = False
                 return
             if self.page == "server_store":
                 if self.server_store_return_page == "settings":
@@ -5163,6 +5171,7 @@ class PiTV:
                 item = items[self.apps_selected]
                 kind = item.get("kind")
                 if kind == "store":
+                    self.store_return_settings_context = self.settings_context
                     self.settings_context = False
                     self.page = "store"
                     self.store_return_page = "apps"
