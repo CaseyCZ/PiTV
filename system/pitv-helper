@@ -496,21 +496,18 @@ elif action == "waydroid-app-visible":
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
         out("Neplatný Android package ID", 2)
 
-    # A process can exist before its TV surface is ready. Only report visible
-    # after WindowManager/ActivityManager names the requested package.
-    probes = (
-        ["waydroid", "shell", "dumpsys", "window", "windows"],
-        ["waydroid", "shell", "dumpsys", "activity", "activities"],
+    # TV fast path: ask ActivityManager only for the top activity. A process
+    # may exist long before its surface is interactive, while "dumpsys
+    # activity top" is scoped to the activity the user would actually see.
+    # Avoid dumping every Window and every Activity on each 200 ms poll.
+    p = subprocess.run(
+        ["waydroid", "shell", "dumpsys", "activity", "top"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=5, check=False,
     )
-    for args in probes:
-        p = subprocess.run(
-            args,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, timeout=15, check=False,
-        )
-        if p.returncode == 0 and package in (p.stdout or ""):
-            out("visible")
-    out("Android aplikace zatím nemá viditelné okno", 4)
+    if p.returncode == 0 and package in (p.stdout or ""):
+        out("visible")
+    out("Android aplikace zatím není horní Activity", 4)
 
 elif action == "waydroid-container-stop":
     if shutil.which("waydroid") is None:
