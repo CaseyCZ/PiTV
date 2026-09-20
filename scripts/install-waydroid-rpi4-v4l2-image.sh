@@ -209,13 +209,26 @@ android_media_nodes="$(printf '%s\n' 'ls -1 /dev/media* 2>/dev/null' | waydroid 
 printf '%s\n' "$android_media_nodes" | grep -q '^/dev/media' \
   || fail_and_restore "/dev/media* is not visible inside Android; HEVC Request API cannot work"
 
-avc_svc="$(printf '%s\n' 'getprop init.svc.android-hardware-media-c2-v4l2-hal-1-0' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
-[ "$avc_svc" = "running" ] \
-  || fail_and_restore "V4L2 AVC Codec2 HAL is not running (state: ${avc_svc:-missing})"
+codec_processes="$(
+  printf '%s\n' "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'" |
+    waydroid shell 2>/dev/null | tr -d '\r' || true
+)"
 
-hevc_svc="$(printf '%s\n' 'getprop init.svc.android-hardware-media-c2-ffmpeg-hal-1-2' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
+if printf '%s\n' "$codec_processes" | grep -Eiq 'media\.c2.*v4l2|v4l2.*media\.c2'; then
+  avc_svc="running"
+else
+  avc_svc="missing"
+fi
+[ "$avc_svc" = "running" ] \
+  || fail_and_restore "V4L2 AVC Codec2 process is not running"
+
+if printf '%s\n' "$codec_processes" | grep -Eiq 'media\.c2.*ffmpeg|ffmpeg.*media\.c2'; then
+  hevc_svc="running"
+else
+  hevc_svc="missing"
+fi
 [ "$hevc_svc" = "running" ] \
-  || fail_and_restore "FFmpeg HEVC Codec2 HAL is not running (state: ${hevc_svc:-missing})"
+  || fail_and_restore "FFmpeg HEVC Codec2 process is not running"
 
 hevc_hw="$(printf '%s\n' 'getprop persist.ffmpeg_codec2.v4l2.h265' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
 [ "$hevc_hw" = "true" ] \
