@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Kept as a compatibility target for already-installed Alpha systems.
-# Android TV now starts on demand with the selected app. A permanently running
-# idle Waydroid session proved unstable on the physical Pi 4 and could steal
-# input/focus from PiTV. Exiting successfully here keeps old enabled units safe.
-exit 0
+# Persistent Android appliance runtime.
+#
+# The TV shell owns the canonical Wayland display. Wait until labwc has
+# published it before starting the hidden nested Cage + Waydroid session.
+# Once ready, this process stays alive for the whole pitv-shell lifetime.
+RUNTIME="/run/user/$(id -u)"
+MARKER="$RUNTIME/pitv-wayland-display"
+
+for _ in $(seq 1 240); do
+  display="$(head -n1 "$MARKER" 2>/dev/null || true)"
+  if [[ "$display" =~ ^wayland-[0-9]+$ ]] &&
+     [ -S "$RUNTIME/$display" ] &&
+     [ -S "$RUNTIME/bus" ]; then
+    exec /usr/local/bin/pitv-waydroid-launch --warm
+  fi
+  sleep 0.5
+done
+
+echo "PiTV Android warm runtime: canonical Wayland display did not appear" >&2
+exit 11

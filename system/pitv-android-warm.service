@@ -15,9 +15,9 @@ Environment=HOME=/home/pitv
 Environment=USER=pitv
 Environment=LOGNAME=pitv
 ExecStart=/usr/local/libexec/pitv-android-warm
-Restart=on-failure
+Restart=always
 RestartSec=2
-TimeoutStopSec=20
+TimeoutStopSec=40
 
 [Install]
 WantedBy=pitv.target

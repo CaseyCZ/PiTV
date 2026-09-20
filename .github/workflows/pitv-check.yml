@@ -185,17 +185,19 @@ jobs:
           test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
           grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
           grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
-          grep -q 'starts on demand' system/pitv-android-warm
-          ! grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
+          grep -q 'exec /usr/local/bin/pitv-waydroid-launch --warm' system/pitv-android-warm
+          grep -q 'pitv-wayland-display' system/pitv-android-warm
           grep -q 'def _android_runtime_ready(self)' pitv/pitv.py
           grep -q 'pid = int(raw)' pitv/pitv.py
           grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
-          grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
+          grep -q 'persistent Android runtime ready pid=' system/pitv-waydroid-launch
+          grep -q 'starting persistent Android warm runtime' system/pitv-waydroid-launch
+          grep -q 'using persistent Android runtime for:' system/pitv-waydroid-launch
+          grep -q 'persistent Android session manager was lost' system/pitv-waydroid-launch
           grep -Fq 'printf '\''%s\n'\'' "${BASHPID:-0}" >"$RUNTIME_READY"' system/pitv-waydroid-launch
           grep -q 'Never trust only the exit status' system/pitv-waydroid-launch
           grep -q 'launching resolved Android TV Activity directly' system/pitv-waydroid-launch
           grep -q 'forcing explicit Android TV launcher Activity' system/pitv-waydroid-launch
-          grep -q 'Android TV Activity not visible yet; retrying explicit launch' system/pitv-waydroid-launch
           ! grep -q 'launching through official Waydroid app controller' system/pitv-waydroid-launch
           grep -q 'maintenance must never block an app launch' pitv/pitv.py
           python3 - <<'PYLIFECYCLE'
@@ -206,25 +208,35 @@ jobs:
           assert '"container", "start"' not in block
           assert '"container", "stop"' not in block
           wrapper = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
-          warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
-          warm = warm.split('fi', 1)[0]
-          assert 'exit 0' in warm
           assert 'waydroid session start' in wrapper
-          assert 'starting on-demand Android runtime for:' in wrapper
-          outer = wrapper.split('if [ "$MODE" = "outer" ]; then', 1)[1]
+          assert wrapper.count('waydroid session start') == 1
+          outer = wrapper.split('if [ "$MODE" = "outer" ]; then', 2)[2]
           outer = outer.split('if [ "$MODE" = "client" ]; then', 1)[0]
-          assert 'flock -n 9' in outer
-          assert 'cleanup_stale_android_runtime' in outer
-          assert outer.index('flock -n 9') < outer.index('cleanup_stale_android_runtime')
-          assert 'cage_rc=$?' in outer
-          assert 'exit "$cage_rc"' in outer
+          warm = outer.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
+          warm = warm.split('fi\n\n  # Normal TV apps reuse', 1)[0]
+          assert 'flock -n 9' in warm
+          assert 'cleanup_stale_android_runtime' in warm
+          assert warm.index('flock -n 9') < warm.index('cleanup_stale_android_runtime')
+          assert 'starting persistent Android warm runtime' in warm
+          assert 'cage -d -- "$0" --cage-client --warm' in warm
+          assert 'cage_rc=$?' in warm
+          assert 'exit "$cage_rc"' in warm
+          regular = outer.split('# Normal TV apps reuse', 1)[1]
+          assert 'waydroid-warm-start' in regular
+          assert 'runtime_ready' in regular
+          assert 'flock -n 8' in regular
+          assert 'using persistent Android runtime for:' in regular
+          assert 'cage -d -- "$0" --cage-client "$TARGET"' not in regular
+          assert 'cleanup_stale_android_runtime' not in regular
           client = wrapper.split('if [ "$MODE" = "client" ]; then', 2)[2]
-          client = client.split('# From here the Cage client owns', 1)[0]
+          client = client.split('# From here a lightweight command wrapper', 1)[0]
           assert 'waydroid session stop' in client
           assert 'waydroid-container-stop' not in client
           assert 'waydroid show-full-ui' not in client
+          assert 'persistent Android runtime ready pid=' in client
+          assert 'persistent Android session manager was lost' in client
           assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
-          assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
+          assert 'waydroid app list' in wrapper
           launch = wrapper.split('# Never trust only the exit status', 1)[1]
           launch = launch.split('# Keep the per-app command alive', 1)[0]
           assert 'package_installed "$TARGET"' in launch
@@ -247,7 +259,7 @@ jobs:
           assert 'Android TV foreground flow verified' in lifecycle
           assert 'Android TV foreground never appeared after startup grace' in lifecycle
           assert 'diagnostics "$TRACK_PACKAGE"' in lifecycle
-          print("PiTV 1.5 on-demand Android lifecycle OK")
+          print("PiTV 1.5 persistent Android lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
           grep -q 'waydroid-app-visible' system/pitv-helper
@@ -342,12 +354,11 @@ jobs:
           grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
           grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
           ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
-          grep -q '^Restart=on-failure$' system/pitv-android-warm.service
-          grep -q 'hidden Android TV runtime lost; systemd will restart warm service' system/pitv-waydroid-launch
+          grep -q '^Restart=always$' system/pitv-android-warm.service
+          grep -q '^TimeoutStopSec=40$' system/pitv-android-warm.service
           grep -q 'waydroid-warm-start' system/pitv-waydroid-launch
           grep -q 'waydroid-warm-start' system/pitv-helper
-          ! grep -q '"$0" --warm >>/tmp/pitv-waydroid-warm.log' system/pitv-waydroid-launch
-          grep -q 'systemctl", "restart", "pitv-android-warm.service"' system/pitv-helper
+          grep -q 'systemctl", "start", "pitv-android-warm.service"' system/pitv-helper
           grep -q 'loginctl enable-linger pitv' install.sh
           grep -q 'systemctl set-default pitv.target' install.sh
           grep -q 'systemctl mask getty@tty1.service' install.sh
