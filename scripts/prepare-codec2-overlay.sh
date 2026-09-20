@@ -16,6 +16,21 @@ rm -rf "$OUT_REAL"
 OUT="$OUT_REAL"
 python3 "$HERE/probe-codec2-prebuilt.py" "$DONOR" "$@"
 python3 "$HERE/collect-codec2-prebuilt.py" "$DONOR" "$OUT" "$@"
+for pattern in \
+  'android.hardware.media.c2@1.0-service-v4l2*.rc' \
+  'android.hardware.media.c2@1.0-service-v4l2*.xml' \
+  'android.hardware.media.c2@1.2-service-ffmpeg*.rc' \
+  'android.hardware.media.c2@1.2-service-ffmpeg*.xml' \
+  '*v4l2*policy*' '*ffmpeg*policy*' 'android.hardware.media.c2@1.2-default-seccomp_policy' 'media_codecs_ffmpeg_c2.xml'
+do
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    rel="${p#"$DONOR_REAL"/}"; payload_rel="vendor/$rel"
+    mkdir -p "$OUT/$(dirname "$payload_rel")"; cp -a "$p" "$OUT/$payload_rel"
+    printf '%s\n' "$payload_rel" >>"$OUT/PITV-CODEC2-PAYLOAD.txt"
+  done < <(find "$DONOR_REAL" -type f -name "$pattern" | sort)
+done
+sort -u "$OUT/PITV-CODEC2-PAYLOAD.txt" -o "$OUT/PITV-CODEC2-PAYLOAD.txt"
 python3 "$HERE/assemble-codec2-overlay.py" "$OUT" "$REPO"
 bash "$HERE/add-pitv-codec2-config-to-payload.sh" "$OUT"
 python3 "$HERE/validate-codec2-payload.py" "$OUT"
