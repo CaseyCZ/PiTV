@@ -19,6 +19,7 @@ PY=(
  scripts/enforce-codec2-payload-scope.py
  scripts/codec2-payload-readiness.py
  scripts/verify-codec2-metadata.py
+ scripts/check-codec2-payload-size.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -98,3 +99,5 @@ grep -q 'verify-codec2-metadata.py' scripts/prepare-codec2-overlay.sh
 grep -q 'codec2-payload-readiness.py' scripts/plan-codec2-overlay-install.sh
 grep -q 'verify-codec2-metadata.py' scripts/install-codec2-overlay.sh
 grep -q 'verify-codec2-metadata.py' scripts/stage-codec2-payload.sh
+grep -q 'check-codec2-payload-size.py' scripts/install-codec2-overlay.sh
+grep -q 'MAX_TOTAL=512' scripts/check-codec2-payload-size.py
