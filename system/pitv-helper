@@ -491,6 +491,64 @@ elif action == "waydroid-app-running":
         out("running")
     out("Android aplikace zatím neběží", 4)
 
+elif action == "waydroid-app-session-active":
+    package = str(payload.get("package", "")).strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+        out("Neplatný Android package ID", 2)
+
+    # Android TV applications may legitimately hand the foreground to a
+    # permission/account/Settings activity. That is still the same user TV
+    # session and must not make PiTV jump Home. First accept the app process
+    # itself; if it has gone away, inspect the current top Activity.
+    p = subprocess.run(
+        ["waydroid", "shell", "pidof", package],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=5, check=False,
+    )
+    if p.returncode == 0 and (p.stdout or "").strip():
+        out("active")
+
+    top = subprocess.run(
+        ["waydroid", "shell", "dumpsys", "activity", "top"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=6, check=False,
+    )
+    text = top.stdout or ""
+    top_package = ""
+    patterns = (
+        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+        r"topResumedActivity=.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            top_package = match.group(1)
+            break
+
+    android_homes = {
+        "com.android.launcher3",
+        "com.android.tv.launcher",
+        "com.google.android.tvlauncher",
+        "com.google.android.apps.tv.launcherx",
+        "com.google.android.apps.nexuslauncher",
+        "com.google.android.leanbacklauncher",
+        "org.lineageos.trebuchet",
+    }
+    if top.returncode == 0 and top_package:
+        if top_package in android_homes:
+            out(f"Android Home je aktivní: {top_package}", 4)
+        # Settings, permission controllers, account pickers, package installer
+        # and other system activities are a valid continuation of the app flow.
+        out(f"active:{top_package}")
+
+    # Be conservative on transient ActivityManager failures. The caller also
+    # separately checks the warm-runtime PID and will terminate on real runtime
+    # loss. A single dumpsys parse hiccup must never eject the viewer to PiTV.
+    if top.returncode != 0:
+        out("active:activity-manager-busy")
+    out("Android aplikace už není aktivní", 4)
+
 elif action == "waydroid-app-visible":
     package = str(payload.get("package", "")).strip()
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
