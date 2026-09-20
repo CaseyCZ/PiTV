@@ -195,3 +195,4 @@ grep -q 'output must not be inside donor tree' scripts/prepare-codec2-from-donor
 grep -q 'CONFIG_V4L2_REQUEST=yes' scripts/verify-minimal-codec2-sources.py
 grep -q 'CONFIG_HEVC_V4L2REQUEST_HWACCEL=yes' scripts/verify-minimal-codec2-sources.py
 grep -q 'android.hardware.media.c2@1.2-ffmpeg.policy' scripts/codec2-payload-readiness.py
+grep -q 'installed payload hash mismatch' scripts/install-codec2-overlay.sh
