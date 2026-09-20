@@ -1,5 +1,17 @@
 # PiTV Alpha
 
+### PiTV 1.4.24 · TV multitasking místo ukončování
+- 3sekundové podržení Zpět už aplikaci nezabije: pozastaví ji, vrátí launcher PiTV a aplikace zůstane připravená v paměti
+- Kodi/Plex, nativní Stremio, Android/Waydroid a ostatní TV aplikace dostávají vlastní labwc pracovní plochu; PiTV launcher zůstává na samostatné ploše
+- Kodi/Plex se při návratu do launcheru suspendují přes SIGSTOP včetně odpojeného `kodi.bin`; obraz i zvuk se zastaví a pozice přehrávání zůstane zachovaná
+- nativní Linux aplikace se po opětovném otevření obnoví přes SIGCONT; přehrávání se samo nespouští, Play zůstává na uživateli
+- Android dostane pause-only `KEYCODE_MEDIA_PAUSE (127)`; Cage + Waydroid zůstávají běžet jako jeden Android multitasking slot
+- opětovné otevření stejné Android aplikace nebo jiné APK použije existující Waydroid session místo jejího zničení a nového bootu
+- dlaždice na Home ukáže stav `POZASTAVENO`, pokud aplikace běží na pozadí
+- Home tlačítko na televizích, které ho mají, používá stejné pozastavení; starší TV bez Home používají univerzální 3s Zpět
+- explicitní Ukončit zůstává oddělená recovery/správcovská akce; běžný návrat do PiTV už aplikace neukončuje
+
+
 ### PiTV 1.4.23 · 3s Back = vždy zpět do PiTV
 - starší TV bez tlačítka Home už nejsou závislé na Home pro opuštění externí aplikace
 - krátké Zpět zůstává normální Back uvnitř Kodi, Stremia, SmartTube a dalších aplikací
