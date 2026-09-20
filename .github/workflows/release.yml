@@ -120,7 +120,12 @@ jobs:
           grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
           grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
           ! grep -q '^sleep 2$' system/pitv-android-warm
-          grep -q '_android_runtime_ready_file().exists()' pitv/pitv.py
+          grep -q 'def _android_runtime_ready(self)' pitv/pitv.py
+          grep -q 'pid = int(raw)' pitv/pitv.py
+          grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
+          grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
+          grep -q 'Fast TV path' system/pitv-waydroid-launch
+          grep -q 'maintenance must never block an app launch' pitv/pitv.py
           python3 - <<'PYLIFECYCLE'
           from pathlib import Path
           helper = Path("system/pitv-helper").read_text(encoding="utf-8")
@@ -132,6 +137,13 @@ jobs:
           warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
           warm = warm.split('MODE="command"', 1)[0]
           assert 'waydroid session stop' not in warm
+          assert 'printf \'%s\\n\' "$$" >"$RUNTIME_READY"' in wrapper
+          assert 'waydroid app list' in wrapper  # diagnostics/Play Store only
+          fast = wrapper.split('# Fast TV path:', 1)[1]
+          fast = fast.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          assert 'package_installed "$TARGET"' not in fast
+          assert 'start_package "$TARGET"' in fast
+          assert 'wait_package_visible "$TARGET"' in fast
           print("PiTV 1.5 warm lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
