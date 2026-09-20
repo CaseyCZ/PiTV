@@ -498,7 +498,7 @@ jobs:
 
           # Application management is a fixed Settings menu. No Right
           # action is allowed; visibility and uninstall each open a list.
-          app.apps = [dict(native_stremio), dict(legacy_stremio)]
+          app.apps = [dict(stremio_app)]
           app.page = "apps"
           app.settings_context = True
           app.apps_selected = 1
