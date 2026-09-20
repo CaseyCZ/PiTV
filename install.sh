@@ -148,11 +148,22 @@ install -m 0755 system/pitv-inputd /usr/local/libexec/pitv-inputd
 install -m 0755 system/pitv-cec-control /usr/local/libexec/pitv-cec-control
 install -m 0755 system/pitv-global-action /usr/local/libexec/pitv-global-action
 install -m 0755 system/pitv-displayd /usr/local/libexec/pitv-displayd
+install -m 0755 system/pitv-waydroid-device-patch /usr/local/libexec/pitv-waydroid-device-patch
 install -m 0644 system/pitv.target /etc/systemd/system/pitv.target
 install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
 install -m 0644 system/pitv-android-warm.service /etc/systemd/system/pitv-android-warm.service
 install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service
 install -m 0644 system/pitv-displayd.service /etc/systemd/system/pitv-displayd.service
+install -d -m 0755 /etc/systemd/system/waydroid-container.service.d
+install -m 0644 system/waydroid-container-pitv.conf \
+  /etc/systemd/system/waydroid-container.service.d/pitv-rpi4-media.conf
+
+# Apply the Raspberry Pi stateless-media extension immediately when Waydroid
+# is already installed. The drop-in re-applies it before future container
+# manager starts, including after Waydroid package upgrades.
+if command -v waydroid >/dev/null 2>&1; then
+  PITV_WAYDROID_PATCH_STRICT=1 /usr/local/libexec/pitv-waydroid-device-patch
+fi
 
 # The virtual PiTV TV Remote uses Linux uinput. Load it during every boot
 # before pitv-inputd and load it now as well for an in-place upgrade.
