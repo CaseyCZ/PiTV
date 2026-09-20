@@ -1,0 +1,386 @@
+#!/usr/bin/python3
+"""PiTV system TV-input router.
+
+CEC belongs below the visual shell. The daemon converts HDMI-CEC user-control
+messages to one virtual Linux input device, so labwc delivers normal D-pad keys
+straight to the focused client (PiTV, Kodi, Stremio or nested Cage/Android).
+
+Home and the deliberate 3-second Back gesture are emitted as private F13/F14
+keys. labwc consumes those globally and routes them back to the PiTV appliance.
+"""
+
+import argparse
+import os
+import pathlib
+import re
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+KEY_ESC = 1
+KEY_ENTER = 28
+KEY_HOME = 102
+KEY_UP = 103
+KEY_LEFT = 105
+KEY_RIGHT = 106
+KEY_DOWN = 108
+KEY_MUTE = 113
+KEY_VOLUMEDOWN = 114
+KEY_VOLUMEUP = 115
+KEY_PLAYPAUSE = 164
+KEY_F13 = 183
+KEY_F14 = 184
+
+HOME_CODES = {0x09, 0x0A, 0x0B, 0x0C, 0x10, 0x11}
+CODE_KEYS = {
+    0x00: KEY_ENTER,
+    0x01: KEY_UP,
+    0x02: KEY_DOWN,
+    0x03: KEY_LEFT,
+    0x04: KEY_RIGHT,
+    0x0D: KEY_ESC,
+    0x2B: KEY_ENTER,
+    0x32: KEY_ESC,
+    0x41: KEY_VOLUMEUP,
+    0x42: KEY_VOLUMEDOWN,
+    0x43: KEY_MUTE,
+    0x44: KEY_PLAYPAUSE,
+    0x46: KEY_PLAYPAUSE,
+}
+LABEL_CODES = {
+    "select": 0x00,
+    "ok": 0x00,
+    "up": 0x01,
+    "down": 0x02,
+    "left": 0x03,
+    "right": 0x04,
+    "device root menu": 0x09,
+    "root menu": 0x09,
+    "device setup menu": 0x0A,
+    "setup menu": 0x0A,
+    "contents menu": 0x0B,
+    "favorite menu": 0x0C,
+    "back": 0x0D,
+    "return": 0x0D,
+    "media top menu": 0x10,
+    "top menu": 0x10,
+    "media context sensitive menu": 0x11,
+    "home": 0x11,
+    "enter": 0x2B,
+    "previous channel": 0x32,
+    "volume up": 0x41,
+    "volume down": 0x42,
+    "mute": 0x43,
+    "play": 0x44,
+    "pause": 0x46,
+    "play / pause": 0x44,
+}
+
+READY = pathlib.Path("/run/pitv/inputd.ready")
+STOP = False
+
+
+class UInputSink:
+    def __init__(self):
+        try:
+            from evdev import UInput, ecodes
+        except Exception as exc:
+            raise RuntimeError("python3-evdev není nainstalovaný") from exc
+        self._ecodes = ecodes
+        keys = sorted({
+            KEY_ESC, KEY_ENTER, KEY_UP, KEY_LEFT, KEY_RIGHT, KEY_DOWN,
+            KEY_MUTE, KEY_VOLUMEDOWN, KEY_VOLUMEUP, KEY_PLAYPAUSE,
+            KEY_F13, KEY_F14,
+        })
+        self._ui = UInput(
+            {ecodes.EV_KEY: keys},
+            name="PiTV TV Remote",
+            vendor=0x5054,
+            product=0x1500,
+            version=0x0100,
+        )
+
+    def tap(self, code):
+        self._ui.write(self._ecodes.EV_KEY, code, 1)
+        self._ui.syn()
+        self._ui.write(self._ecodes.EV_KEY, code, 0)
+        self._ui.syn()
+
+    def close(self):
+        try:
+            self._ui.close()
+        except Exception:
+            pass
+
+
+class RecordingSink:
+    def __init__(self):
+        self.events = []
+
+    def tap(self, code):
+        self.events.append(code)
+
+    def close(self):
+        pass
+
+
+class CECTranslator:
+    DUPLICATE_WINDOW = 0.075
+    BACK_CONTINUITY = 0.80
+    LONG_BACK_SECONDS = 3.0
+
+    def __init__(self, sink):
+        self.sink = sink
+        self.awaiting_ui_cmd = False
+        self.last_code = None
+        self.last_code_at = 0.0
+        self.back_started = 0.0
+        self.back_last_seen = 0.0
+        self.back_physical_down = False
+        self.back_short_sent = False
+        self.back_long_sent = False
+
+    def _reset_back_if_idle(self, now):
+        if (self.back_started and not self.back_physical_down and
+                now - self.back_last_seen > self.BACK_CONTINUITY):
+            self.back_started = 0.0
+            self.back_last_seen = 0.0
+            self.back_short_sent = False
+            self.back_long_sent = False
+
+    def _press(self, code, now=None):
+        now = time.monotonic() if now is None else now
+
+        if code in HOME_CODES:
+            if not (self.last_code == code and
+                    now - self.last_code_at < self.DUPLICATE_WINDOW):
+                self.sink.tap(KEY_F13)
+            self.last_code = code
+            self.last_code_at = now
+            return
+
+        if code == 0x0D or code == 0x32:
+            continuing = (
+                self.back_started > 0 and
+                now - self.back_last_seen <= self.BACK_CONTINUITY
+            )
+            if not continuing:
+                self.back_started = now
+                self.back_short_sent = False
+                self.back_long_sent = False
+            self.back_last_seen = now
+            self.back_physical_down = True
+            # One short Back only. TVs that encode a held button as repeated
+            # press/release pairs must not walk backwards through many menus.
+            if not self.back_short_sent:
+                self.sink.tap(KEY_ESC)
+                self.back_short_sent = True
+            self.last_code = code
+            self.last_code_at = now
+            return
+
+        key = CODE_KEYS.get(code)
+        if key is None:
+            return
+        if self.last_code == code and now - self.last_code_at < self.DUPLICATE_WINDOW:
+            return
+        self.last_code = code
+        self.last_code_at = now
+        self.sink.tap(key)
+
+    def _release(self, now=None):
+        now = time.monotonic() if now is None else now
+        self.back_physical_down = False
+        if self.back_started:
+            self.back_last_seen = now
+        self.awaiting_ui_cmd = False
+
+    def tick(self, now=None):
+        now = time.monotonic() if now is None else now
+        if (self.back_started and not self.back_long_sent and
+                now - self.back_started >= self.LONG_BACK_SECONDS and
+                (self.back_physical_down or
+                 now - self.back_last_seen <= self.BACK_CONTINUITY)):
+            self.back_long_sent = True
+            self.sink.tap(KEY_F14)
+        self._reset_back_if_idle(now)
+
+    def feed(self, line, now=None):
+        now = time.monotonic() if now is None else now
+        upper = line.upper()
+
+        if ("USER_CONTROL_RELEASED" in upper or
+                re.search(r"(?:^|[\s>])[0-9A-Fa-f]{2}:45(?:\s|$)", line)):
+            self._release(now)
+            return
+
+        raw = re.search(
+            r"(?:^|[\s>])[0-9A-Fa-f]{2}:44:([0-9A-Fa-f]{2})(?:\s|$)",
+            line,
+        )
+        if raw:
+            self._press(int(raw.group(1), 16), now)
+
+        if "USER_CONTROL_PRESSED" in upper:
+            self.awaiting_ui_cmd = True
+
+        if self.awaiting_ui_cmd or "UI-CMD:" in upper:
+            match = re.search(r"ui-cmd:\s*([^\(\r\n]+)", line, re.I)
+            if match:
+                self.awaiting_ui_cmd = False
+                label = match.group(1).strip().lower().replace("_", " ").replace("-", " ")
+                code = LABEL_CODES.get(label)
+                if code is not None:
+                    self._press(code, now)
+
+
+def device_info(device):
+    try:
+        result = subprocess.run(
+            ["cec-ctl", "-d", str(device), "--show-topology"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=4,
+            check=False,
+        )
+        return result.stdout or ""
+    except Exception:
+        return ""
+
+
+def pick_device():
+    devices = sorted(pathlib.Path("/dev").glob("cec*"))
+    if not devices:
+        return None
+    for device in devices:
+        info = device_info(device)
+        match = re.search(r"Physical Address\s*:\s*([^\s]+)", info, re.I)
+        if match and match.group(1).lower() not in ("0.0.0.0", "f.f.f.f"):
+            return device
+    return devices[0]
+
+
+def monitor_once(translator, device):
+    command = [
+        "cec-ctl", "-d", str(device),
+        "--no-rc-passthrough",
+        "--playback", "-o", "PiTV",
+        "--monitor", "--show-raw",
+    ]
+    if pathlib.Path("/usr/bin/stdbuf").exists():
+        command = ["/usr/bin/stdbuf", "-oL"] + command
+
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ)
+    try:
+        while not STOP and proc.poll() is None:
+            for key, _ in selector.select(timeout=0.05):
+                line = key.fileobj.readline()
+                if line:
+                    translator.feed(line)
+            translator.tick()
+    finally:
+        try:
+            selector.close()
+        except Exception:
+            pass
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        translator._release()
+
+
+def self_test():
+    sink = RecordingSink()
+    tr = CECTranslator(sink)
+    t = 100.0
+
+    tr.feed("> 01:44:00\n", t)
+    tr.feed("USER_CONTROL_PRESSED (0x44):\n", t + 0.01)
+    tr.feed("  ui-cmd: select (0x00)\n", t + 0.02)
+    assert sink.events == [KEY_ENTER], sink.events
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.03)
+
+    tr.feed("> 01:44:01\n", t + 0.20)
+    tr.feed("> 01:44:02\n", t + 0.40)
+    assert sink.events[-2:] == [KEY_UP, KEY_DOWN]
+
+    tr.feed("> 01:44:0a\n", t + 0.60)
+    assert sink.events[-1] == KEY_F13
+
+    before = len(sink.events)
+    tr.feed("> 01:44:0d\n", t + 1.0)
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 1.1)
+    tr.feed("> 01:44:0d\n", t + 1.3)
+    assert sink.events[before:] == [KEY_ESC], sink.events[before:]
+    tr.tick(t + 4.2)
+    assert sink.events[-1] == KEY_F14, sink.events
+
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 4.3)
+    tr.tick(t + 5.2)
+    print("PiTV inputd parser OK")
+
+
+def handle_signal(_signum, _frame):
+    global STOP
+    STOP = True
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return 0
+
+    if os.geteuid() != 0:
+        print("pitv-inputd musí běžet jako root system service", file=sys.stderr)
+        return 2
+    if not pathlib.Path("/usr/bin/cec-ctl").exists():
+        print("cec-ctl není nainstalovaný", file=sys.stderr)
+        return 3
+
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
+
+    sink = UInputSink()
+    translator = CECTranslator(sink)
+    READY.parent.mkdir(parents=True, exist_ok=True)
+    READY.write_text("ready\n", encoding="utf-8")
+    try:
+        while not STOP:
+            device = pick_device()
+            if device is None:
+                time.sleep(1.0)
+                continue
+            try:
+                monitor_once(translator, device)
+            except Exception as exc:
+                print(f"pitv-inputd: {device}: {exc}", file=sys.stderr)
+            if not STOP:
+                time.sleep(0.5)
+    finally:
+        try:
+            READY.unlink()
+        except FileNotFoundError:
+            pass
+        sink.close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
