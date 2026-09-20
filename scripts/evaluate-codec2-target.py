@@ -15,6 +15,7 @@ checks={
  "android13": vals.get("ANDROID_ro_build_version_release")=="13",
  "video_nodes": "/dev/video" in vals.get("VIDEO_NODES",""),
  "media_nodes": "/dev/media" in vals.get("MEDIA_NODES",""),
+ "android_video_nodes": "/dev/video" in vals.get("ANDROID_VIDEO_NODES",""),
  "android_media_nodes": "/dev/media" in vals.get("ANDROID_MEDIA_NODES",""),
 }
 for k,v in checks.items(): print(f"{k}={'yes' if v else 'no'}")
