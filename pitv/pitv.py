@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.27"
+VERSION = "1.4.28"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
