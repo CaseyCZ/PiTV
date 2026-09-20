@@ -116,6 +116,20 @@ wait_ready() {
   [ "$ready" -eq 1 ]
 }
 
+wait_user_ready() {
+  # Official Waydroid guidance says apps are safe to launch after
+  # "Android with user 0 is ready". sys.boot_completed can become true a few
+  # seconds earlier, so wait for Android user 0 to be unlocked as well.
+  for _ in $(seq 1 60); do
+    if printf '{}' |
+        sudo -n /usr/local/libexec/pitv-helper waydroid-user-ready           >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
 package_installed() {
   local package="$1"
   printf '{"package":"%s"}' "$package" |
@@ -155,15 +169,23 @@ wait_package_visible() {
 start_package() {
   local package="$1"
   # Primary path: use Waydroid's own application controller. Upstream handles
-  # active_apps, container unfreeze and fullscreen policy here.
+  # active_apps, container unfreeze, Leanback intent selection and fullscreen
+  # policy here. Keep the call bounded: a wedged Binder transaction must not
+  # hold the PiTV launcher until its outer watchdog fires.
   log "launching through official Waydroid app controller: $package"
-  if waydroid app launch "$package" >>"$LOG" 2>&1; then
+  set +e
+  timeout --signal=TERM --kill-after=5s 20s     waydroid app launch "$package" >>"$LOG" 2>&1
+  local rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then
     return 0
   fi
 
-  # Fallback only: resolve the Android-TV launcher activity and start it
-  # explicitly if Waydroid's controller fails to dispatch the package.
-  log "Waydroid app launch failed; trying explicit TV activity: $package"
+  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+    log "Waydroid app controller timed out rc=$rc; trying explicit TV activity: $package"
+  else
+    log "Waydroid app launch failed rc=$rc; trying explicit TV activity: $package"
+  fi
   printf '{"package":"%s"}' "$package" |
     sudo -n /usr/local/libexec/pitv-helper waydroid-app-launch       >>"$LOG" 2>&1
 }
@@ -235,12 +257,18 @@ if [ "$MODE" = "client" ]; then
   SESSION_PID=""
   cleanup_runtime() {
     rm -f "$READY_FILE" "$RUNTIME_READY"
-    waydroid session stop >/dev/null 2>&1 || true
+    # Upstream session stop already asks the root container manager to stop
+    # the LXC. Do not issue a second direct container-stop; that can duplicate
+    # teardown and has caused freezes in Waydroid issue reports.
+    timeout --signal=TERM --kill-after=5s 20s       waydroid session stop >/dev/null 2>&1 || true
     if [ -n "$SESSION_PID" ]; then
+      for _ in $(seq 1 40); do
+        kill -0 "$SESSION_PID" 2>/dev/null || break
+        sleep 0.25
+      done
+      kill -TERM "$SESSION_PID" 2>/dev/null || true
       wait "$SESSION_PID" 2>/dev/null || true
     fi
-    printf '{}' |
-      sudo -n /usr/local/libexec/pitv-helper waydroid-container-stop         >/dev/null 2>&1 || true
     log "on-demand Android runtime stopped"
   }
   trap cleanup_runtime EXIT TERM INT HUP
@@ -267,11 +295,14 @@ if [ "$MODE" = "client" ]; then
     exit 18
   fi
 
-  if ! waydroid prop set persist.waydroid.multi_windows false       >>"$LOG" 2>&1; then
-    log "failed to force persist.waydroid.multi_windows=false"
-    exit 17
+  if ! wait_user_ready; then
+    log "Android framework booted but user 0 did not become ready"
+    exit 3
   fi
 
+  # persist.waydroid.multi_windows defaults to false upstream. The official
+  # docs require a session restart after changing it, so setting it here after
+  # HWC startup would be too late for this session and only adds Binder work.
   printf '%s\n' "${BASHPID:-0}" >"$RUNTIME_READY"
   log "on-demand Android runtime ready pid=${BASHPID:-0} session_pid=$SESSION_PID target=$TARGET"
 
