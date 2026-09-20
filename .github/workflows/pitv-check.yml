@@ -240,6 +240,13 @@ jobs:
           assert 'local deadline=$((SECONDS + 15))' in visible_fn
           assert 'while [ "$SECONDS" -lt "$deadline" ]; do' in visible_fn
           assert 'for _ in $(seq 1 75)' not in visible_fn
+          lifecycle = wrapper.split('# Keep the per-app command alive', 1)[1]
+          assert 'SESSION_SEEN_ACTIVE=0' in lifecycle
+          assert 'STARTUP_HOME_GRACE_UNTIL=$((SECONDS + 20))' in lifecycle
+          assert 'Android Home observed during startup Activity hand-off; allowing 20s grace' in lifecycle
+          assert 'Android TV foreground flow verified' in lifecycle
+          assert 'Android TV foreground never appeared after startup grace' in lifecycle
+          assert 'diagnostics "$TRACK_PACKAGE"' in lifecycle
           print("PiTV 1.5 on-demand Android lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
@@ -247,6 +254,10 @@ jobs:
           grep -q 'waydroid-app-session-active' system/pitv-helper
           grep -q 'waydroid-app-session-active' system/pitv-waydroid-launch
           grep -q 'Android TV session returned Home' system/pitv-waydroid-launch
+          grep -q 'Android Home observed during startup Activity hand-off; allowing 20s grace' system/pitv-waydroid-launch
+          grep -q 'Android TV foreground flow verified' system/pitv-waydroid-launch
+          grep -q 'Android TV foreground never appeared after startup grace' system/pitv-waydroid-launch
+          grep -Fq 'STARTUP_HOME_GRACE_UNTIL=$((SECONDS + 20))' system/pitv-waydroid-launch
           grep -q 'com.android.launcher3' system/pitv-helper
           ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
           grep -q '"dumpsys", "activity", "top"' system/pitv-helper
