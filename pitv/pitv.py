@@ -4843,12 +4843,15 @@ class PiTV:
 
         def worker():
             started = time.monotonic()
-            # Physical Pi 4 cold Waydroid startup has taken ~85 s. Give the
-            # runtime enough headroom to become ready and still launch the app.
-            deadline = started + 180.0
+            # Treat Android boot and application publication as two separate
+            # phases. A single wall-clock timeout previously killed a healthy
+            # Pi 4 session just after Android became ready.
+            boot_deadline = started + 180.0
+            app_deadline = None
             last_stage = ""
             last_focus_guard = 0.0
-            while time.monotonic() < deadline:
+            timed_out_stage = "boot"
+            while True:
                 rc = proc.poll()
                 if rc is not None:
                     self._clear_android_pending(proc)
@@ -4874,6 +4877,13 @@ class PiTV:
                     last_focus_guard = now
 
                 runtime_ready = self._android_runtime_ready()
+                if runtime_ready and app_deadline is None:
+                    app_deadline = now + 120.0
+                deadline = app_deadline if app_deadline is not None else boot_deadline
+                timed_out_stage = "app" if app_deadline is not None else "boot"
+                if now >= deadline:
+                    break
+
                 stage = (
                     f"Startuji Android pro {name}…"
                     if not runtime_ready else f"Spouštím {name}…"
@@ -4926,10 +4936,11 @@ class PiTV:
                 except Exception:
                     pass
             detail = tail_text_file("/tmp/pitv-waydroid-launch.log")
-            self.finish_operation(
-                detail or f"{name}: spuštění Androidu trvá příliš dlouho",
-                False, 7.0,
-            )
+            if timed_out_stage == "app":
+                fallback = f"{name}: Android běží, ale aplikace se neukázala včas"
+            else:
+                fallback = f"{name}: Android se nespustil včas"
+            self.finish_operation(detail or fallback, False, 7.0)
             self.show_toast(f"{name}: spuštění selhalo", 5)
 
         threading.Thread(target=worker, daemon=True).start()
