@@ -192,3 +192,5 @@ grep -q 'unsafe OUT path' scripts/collect-codec2-prebuilt.py
 grep -q 'ELF outside ROOT' scripts/probe-codec2-prebuilt.py
 grep -q 'media_codecs_ffmpeg_c2.xml' scripts/prepare-codec2-from-donor.sh
 grep -q 'output must not be inside donor tree' scripts/prepare-codec2-from-donor.sh
+grep -q 'CONFIG_V4L2_REQUEST=yes' scripts/verify-minimal-codec2-sources.py
+grep -q 'CONFIG_HEVC_V4L2REQUEST_HWACCEL=yes' scripts/verify-minimal-codec2-sources.py
