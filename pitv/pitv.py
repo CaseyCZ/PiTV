@@ -4841,6 +4841,7 @@ class PiTV:
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
                 self.open_appearance_choice(self.sub_selected)
             elif key == pygame.K_LEFT:
+                self.settings_context = False
                 self.page = "settings"
                 self.settings_selected = 0
 
@@ -4859,12 +4860,18 @@ class PiTV:
                 else:
                     self.open_screensaver_choice(self.sub_selected)
             elif key == pygame.K_LEFT:
+                self.settings_context = False
                 self.page = "settings"
                 self.settings_selected = 1
 
         elif self.page == "network":
             if key == pygame.K_LEFT:
-                self.focus_sidebar("network")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 2
+                else:
+                    self.focus_sidebar("network")
                 return
             items = self.network_items()
             if not items:
@@ -4900,7 +4907,12 @@ class PiTV:
             elif key == pygame.K_DOWN:
                 self.audio_selected = min(len(items)-1, self.audio_selected+1)
             elif key == pygame.K_LEFT:
-                self.focus_sidebar("audio")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 3
+                else:
+                    self.focus_sidebar("audio")
                 return
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
                 action = items[self.audio_selected]["action"]
@@ -4918,7 +4930,12 @@ class PiTV:
 
         elif self.page == "cec":
             if key == pygame.K_LEFT:
-                self.focus_sidebar("cec")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 4
+                else:
+                    self.focus_sidebar("cec")
                 return
             if key == pygame.K_UP:
                 self.cec_selected = max(0, self.cec_selected-1)
@@ -4929,7 +4946,12 @@ class PiTV:
 
         elif self.page == "apps":
             if key == pygame.K_LEFT:
-                self.focus_sidebar("apps")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 5
+                else:
+                    self.focus_sidebar("apps")
                 return
             items = self.app_items()
             if key == pygame.K_UP:
@@ -4986,22 +5008,38 @@ class PiTV:
 
         elif self.page == "server_store":
             items = self.server_store_catalog
-            cols = 2
-            if key == pygame.K_LEFT:
-                if self.server_store_selected % cols == 0:
-                    self.focus_sidebar("server_store")
-                else:
+            if self.settings_context:
+                if key == pygame.K_LEFT:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 6
+                elif key == pygame.K_UP:
                     self.server_store_selected = max(0, self.server_store_selected-1)
-            elif key == pygame.K_RIGHT:
-                self.server_store_selected = min(max(0, len(items)-1),
-                                                 self.server_store_selected+1)
-            elif key == pygame.K_UP:
-                self.server_store_selected = max(0, self.server_store_selected-cols)
-            elif key == pygame.K_DOWN:
-                self.server_store_selected = min(max(0, len(items)-1),
-                                                 self.server_store_selected+cols)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER) and items:
-                self.install_server_store_item(items[self.server_store_selected])
+                elif key == pygame.K_DOWN:
+                    self.server_store_selected = min(
+                        max(0, len(items)-1), self.server_store_selected+1
+                    )
+                elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT) and items:
+                    self.install_server_store_item(items[self.server_store_selected])
+            else:
+                cols = 2
+                if key == pygame.K_LEFT:
+                    if self.server_store_selected % cols == 0:
+                        self.focus_sidebar("server_store")
+                    else:
+                        self.server_store_selected = max(0, self.server_store_selected-1)
+                elif key == pygame.K_RIGHT:
+                    self.server_store_selected = min(
+                        max(0, len(items)-1), self.server_store_selected+1
+                    )
+                elif key == pygame.K_UP:
+                    self.server_store_selected = max(0, self.server_store_selected-cols)
+                elif key == pygame.K_DOWN:
+                    self.server_store_selected = min(
+                        max(0, len(items)-1), self.server_store_selected+cols
+                    )
+                elif key in (pygame.K_RETURN, pygame.K_KP_ENTER) and items:
+                    self.install_server_store_item(items[self.server_store_selected])
 
         elif self.page == "android":
             rows = self.android_items()
@@ -5010,7 +5048,12 @@ class PiTV:
                 return
             self.android_selected = min(self.android_selected, len(rows)-1)
             if key == pygame.K_LEFT:
-                self.focus_sidebar("android")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 7
+                else:
+                    self.focus_sidebar("android")
             elif key == pygame.K_UP:
                 self.android_selected = max(0, self.android_selected-1)
             elif key == pygame.K_DOWN:
@@ -5120,7 +5163,12 @@ class PiTV:
 
         elif self.page == "power":
             if key == pygame.K_LEFT:
-                self.focus_sidebar("power")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 10
+                else:
+                    self.focus_sidebar("power")
                 return
             if key == pygame.K_UP: self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN: self.sub_selected = min(1, self.sub_selected+1)
@@ -5136,7 +5184,12 @@ class PiTV:
 
         elif self.page == "about":
             if key == pygame.K_LEFT:
-                self.focus_sidebar("about")
+                if self.settings_context:
+                    self.settings_context = False
+                    self.page = "settings"
+                    self.settings_selected = 11
+                else:
+                    self.focus_sidebar("about")
                 return
 
     def run(self):
