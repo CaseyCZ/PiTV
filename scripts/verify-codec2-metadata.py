@@ -7,8 +7,12 @@ root=Path(sys.argv[1]).resolve()
 sums=json.loads((root/"PITV-CODEC2-SHA256.json").read_text())
 inv=json.loads((root/"PITV-CODEC2-INVENTORY.json").read_text())
 rollback=json.loads((root/"PITV-CODEC2-ROLLBACK.json").read_text())
-invmap={x["path"]:x for x in inv.get("files",[])}
-rbmap={x["payload"]:x for x in rollback.get("entries",[])}
+if inv.get("version")!=1 or rollback.get("version")!=1: raise SystemExit("unsupported metadata version")
+files=inv.get("files",[]); entries=rollback.get("entries",[])
+if len({x.get("path") for x in files})!=len(files): raise SystemExit("duplicate inventory metadata")
+if len({x.get("payload") for x in entries})!=len(entries): raise SystemExit("duplicate rollback metadata")
+invmap={x["path"]:x for x in files}
+rbmap={x["payload"]:x for x in entries}
 if set(sums)!=set(invmap) or set(sums)!=set(rbmap):
     raise SystemExit("metadata file sets differ")
 for rel,want in sums.items():
