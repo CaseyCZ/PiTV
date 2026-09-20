@@ -226,3 +226,4 @@ grep -q 'invalid rollback manifest schema' scripts/preflight-codec2-overlay.py
 grep -q 'duplicate preflight target' scripts/plan-codec2-backup.py
 grep -q 'rollback payload symlink rejected' scripts/make-codec2-rollback-manifest.py
 grep -q 'duplicate rollback path' scripts/make-codec2-rollback-manifest.py
+grep -q 'duplicate inventory path' scripts/inventory-codec2-payload.py
