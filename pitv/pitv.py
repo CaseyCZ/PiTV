@@ -2867,8 +2867,16 @@ class PiTV:
                 return None
             for item in self.store_catalog:
                 installer = item.get("installer", {})
-                candidate = installer.get("package") or installer.get("expected_package")
-                if candidate == package:
+                candidates = {
+                    str(installer.get("package", "") or "").strip(),
+                    str(installer.get("expected_package", "") or "").strip(),
+                }
+                candidates.update(
+                    str(value or "").strip()
+                    for value in (installer.get("expected_packages", []) or [])
+                )
+                candidates.discard("")
+                if package in candidates:
                     return item
             return None
 
@@ -3188,9 +3196,30 @@ class PiTV:
             if app:
                 self.launch(app)
                 return
-            package = installer.get("package") or installer.get("expected_package")
+            candidates = [
+                installer.get("package", ""),
+                installer.get("expected_package", ""),
+                *(installer.get("expected_packages", []) or []),
+            ]
+            installed = waydroid_packages() if waydroid_available() else set()
+            package = next(
+                (str(value).strip() for value in candidates
+                 if str(value or "").strip() in installed),
+                "",
+            )
+            if not package:
+                package = next(
+                    (str(value).strip() for value in candidates
+                     if str(value or "").strip()),
+                    "",
+                )
             if package:
-                self.launch_apk({"name": item.get("name","Aplikace"), "kind":"apk", "package":package, "apk_path":""})
+                self.launch_apk({
+                    "name": item.get("name","Aplikace"),
+                    "kind":"apk",
+                    "package": package,
+                    "apk_path": "",
+                })
                 return
             self.show_toast(f"{item.get('name','Aplikace')} je nainstalovaná")
             return
@@ -3292,14 +3321,23 @@ class PiTV:
 
                     meta = inspect_apk(path)
                     package = meta.get("package","")
-                    expected_package = installer.get("expected_package", "")
-                    if expected_package and package != expected_package:
+                    expected_packages = {
+                        str(installer.get("expected_package", "") or "").strip(),
+                        *(
+                            str(value or "").strip()
+                            for value in (installer.get("expected_packages", []) or [])
+                        ),
+                    }
+                    expected_packages.discard("")
+                    if expected_packages and package not in expected_packages:
                         try:
                             Path(path).unlink()
                         except Exception:
                             pass
                         finish(
-                            f"APK odmítnuto: package {package or 'neznámý'} neodpovídá {expected_package}",
+                            "APK odmítnuto: package "
+                            f"{package or 'neznámý'} není mezi povolenými "
+                            + ", ".join(sorted(expected_packages)),
                             False,
                         )
                         return
