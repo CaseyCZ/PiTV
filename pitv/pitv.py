@@ -1223,6 +1223,19 @@ class PiTV:
                 # entries look installed after the package itself is gone.
                 for package in LEGACY_ANDROID_PACKAGES:
                     clear_android_receipts(package, "")
+                    # Waydroid normally removes these through its running user
+                    # service. The migration can run container-only, so remove
+                    # the two known stale desktop/icon artifacts explicitly.
+                    for stale in (
+                        Path.home() / ".local/share/applications" /
+                            f"waydroid.{package}.desktop",
+                        Path.home() / ".local/share/waydroid/data/icons" /
+                            f"{package}.png",
+                    ):
+                        try:
+                            stale.unlink(missing_ok=True)
+                        except Exception:
+                            pass
 
                 MIGRATION_DIR.mkdir(parents=True, exist_ok=True)
                 marker.write_text(
