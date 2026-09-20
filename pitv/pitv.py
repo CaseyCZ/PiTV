@@ -1213,9 +1213,9 @@ class PiTV:
         pygame.key.set_repeat()
         self.clock = pygame.time.Clock()
 
-        # Cleanup is deliberately asynchronous: the TV launcher must appear
-        # immediately even if Waydroid needs to boot once to remove packages
-        # shipped by older PiTV alpha builds.
+        # Legacy cleanup is deliberately asynchronous, but it may only run
+        # against the already-systemd-owned warm Android runtime. It must not
+        # boot/stop Waydroid in parallel with Home or the first app launch.
         self.migrate_legacy_android_async()
 
     def migrate_legacy_android_async(self):
@@ -1232,6 +1232,19 @@ class PiTV:
 
         def worker():
             try:
+                # Wait passively for Android warm-up. This prevents the old
+                # migration from racing SmartTube by creating its own container
+                # lifecycle while systemd is still preparing Waydroid.
+                deadline = time.monotonic() + 180.0
+                while time.monotonic() < deadline:
+                    if marker.exists():
+                        return
+                    if self._android_runtime_ready_file().exists():
+                        break
+                    time.sleep(0.25)
+                else:
+                    return
+
                 ok, msg = run_privileged("waydroid-clean-legacy", {}, 300)
                 if not ok:
                     return
@@ -1240,9 +1253,8 @@ class PiTV:
                 # entries look installed after the package itself is gone.
                 for package in LEGACY_ANDROID_PACKAGES:
                     clear_android_receipts(package, "")
-                    # Waydroid normally removes these through its running user
-                    # service. The migration can run container-only, so remove
-                    # the two known stale desktop/icon artifacts explicitly.
+                    # Remove the two known stale desktop/icon artifacts after
+                    # package cleanup completed inside the warm runtime.
                     for stale in (
                         Path.home() / ".local/share/applications" /
                             f"waydroid.{package}.desktop",
@@ -1328,7 +1340,20 @@ class PiTV:
         if marker.exists():
             return True
         self.migrate_legacy_android_async()
-        self.show_toast("Dokončuji odstranění starého Android Stremia…", 4)
+        if self._android_runtime_ready_file().exists():
+            self.show_toast(
+                "Dokončuji jednorázový úklid starých Android aplikací…", 4
+            )
+        else:
+            # Recovery only: ask systemd to restore its single warm service.
+            # Never spawn a second warmer from the UI process.
+            threading.Thread(
+                target=lambda: run_privileged(
+                    "waydroid-warm-start", {}, 30
+                ),
+                daemon=True,
+            ).start()
+            self.show_toast("Android se připravuje na pozadí…", 4)
         return False
 
     @property
