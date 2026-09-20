@@ -29,6 +29,8 @@ case "$cmd" in
     echo "experiment=codec2-no-full-build"
     [ -f "$state/active-stage" ] && echo "active_stage=$(cat "$state/active-stage")" || echo "active_stage="
     [ -f "$state/last-backup" ] && echo "last_backup=$(cat "$state/last-backup")" || echo "last_backup="
+    [ -f "$state/last-rollback" ] && echo "last_rollback=$(cat "$state/last-rollback")" || echo "last_rollback="
+    [ -f "$state/current-stage" ] && echo "current_stage=$(cat "$state/current-stage")" || echo "current_stage="
     [ -f "$state/active-vendor.sha256" ] && cat "$state/active-vendor.sha256" || true
     ;;
   help|*)
