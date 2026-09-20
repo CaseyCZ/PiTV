@@ -36,6 +36,7 @@ SH=(
  scripts/prepare-codec2-from-donor.sh
  scripts/add-pitv-codec2-config-to-payload.sh
  scripts/accept-codec2-overlay-runtime.sh
+ scripts/codec2-install-readiness.sh
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
@@ -107,3 +108,6 @@ grep -q 'codec2-payload-readiness.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'verify-codec2-metadata.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'v4l2_rank_property' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'c2_poolmask_property' scripts/accept-codec2-overlay-runtime.sh
+bash scripts/codec2-no-full-build.sh help | grep -q 'install-readiness PAYLOAD'
+grep -q 'CODEC2_READY_TO_INSTALL=1' scripts/codec2-install-readiness.sh
+grep -q 'pitv-waydroid-device-patch --remove' scripts/rollback-codec2-overlay.sh
