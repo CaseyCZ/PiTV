@@ -188,3 +188,7 @@ grep -q 'metadata path is a symlink' scripts/verify-codec2-metadata.py
 grep -q 'payload entry is a symlink' scripts/check-codec2-payload-size.py
 grep -q 'manifest symlink rejected' scripts/check-codec2-manifest-closure.py
 grep -q 'p.is_file() and iself(p)' scripts/audit-codec2-payload-deps.py
+grep -q 'unsafe OUT path' scripts/collect-codec2-prebuilt.py
+grep -q 'ELF outside ROOT' scripts/probe-codec2-prebuilt.py
+grep -q 'media_codecs_ffmpeg_c2.xml' scripts/prepare-codec2-from-donor.sh
+grep -q 'output must not be inside donor tree' scripts/prepare-codec2-from-donor.sh
