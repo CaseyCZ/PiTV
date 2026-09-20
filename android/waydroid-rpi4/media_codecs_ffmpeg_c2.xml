@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- PiTV RPi4: the FFmpeg Codec2 service is installed only for stateless
+     HEVC/H.265 hardware decoding through rpivid + V4L2 Request API. -->
+<MediaCodecs>
+    <Decoders>
+        <MediaCodec name="c2.ffmpeg.hevc.decoder" type="video/hevc">
+            <Limit name="size" min="16x16" max="4096x4096" />
+            <Limit name="alignment" value="2x2" />
+            <Limit name="block-size" value="16x16" />
+            <Feature name="adaptive-playback" />
+        </MediaCodec>
+    </Decoders>
+</MediaCodecs>
