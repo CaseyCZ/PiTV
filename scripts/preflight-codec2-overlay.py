@@ -13,10 +13,15 @@ if not m.is_file(): raise SystemExit("missing rollback manifest")
 data=json.loads(m.read_text())
 report=[]
 for e in data.get("entries",[]):
-    rel=e["target"].lstrip("/")
+    raw_target=e.get("target","")
+    if not raw_target.startswith("/vendor/") or ".." in Path(raw_target).parts:
+        raise SystemExit(f"unsafe target: {raw_target}")
+    rel=raw_target.lstrip("/")
     # TARGET_ROOT may be filesystem root or extracted vendor root.
     if target.name=="vendor" and rel.startswith("vendor/"): rel=rel[len("vendor/"):]
-    p=(target/rel).resolve()
+    rawp=target/rel
+    if rawp.is_symlink(): raise SystemExit(f"target symlink rejected: {e['target']}")
+    p=rawp.resolve()
     try: p.relative_to(target)
     except ValueError: raise SystemExit(f"target escapes root: {e['target']}")
     if p.is_file():
