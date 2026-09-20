@@ -286,6 +286,7 @@ jobs:
             python3 - <<'PY'
           import time
           import pygame
+          import pitv as pitv_module
           from pitv import LEGACY_ANDROID_PACKAGES, PiTV, VERSION
 
           assert VERSION == "1.5.0"
