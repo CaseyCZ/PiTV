@@ -15,14 +15,14 @@ case "$IMAGE" in
   *.xz)
     command -v xz >/dev/null || { echo "xz required" >&2; exit 2; }
     SOURCE="$TMP/donor.img"
-    xz -dc "$IMAGE" >"$SOURCE"
+    ( ulimit -f 33554432; xz -dc "$IMAGE" >"$SOURCE" ) || { echo "xz donor exceeds extraction limit or is invalid" >&2; exit 2; }
     ;;
   *.zip)
     command -v unzip >/dev/null || { echo "unzip required" >&2; exit 2; }
     mapfile -t imgs < <(unzip -Z1 "$IMAGE" | grep -E '\.(img|raw)$' || true)
     [ "${#imgs[@]}" -eq 1 ] || { echo "zip must contain exactly one .img/.raw" >&2; exit 2; }
     SOURCE="$TMP/donor.img"
-    unzip -p "$IMAGE" "${imgs[0]}" >"$SOURCE"
+    ( ulimit -f 33554432; unzip -p "$IMAGE" "${imgs[0]}" >"$SOURCE" ) || { echo "zip donor exceeds extraction limit or is invalid" >&2; exit 2; }
     ;;
 esac
 loop=""; mounted=0
@@ -64,6 +64,7 @@ else
 fi
 mount -o ro "$source_dev" "$MNT"; mounted=1
 test -d "$MNT/etc" || { echo "selected filesystem is not Android vendor" >&2; exit 4; }
+[ ! -L "$OUT" ] || { echo "refusing symlink output" >&2; exit 2; }
 rm -rf "$OUT"; mkdir -p "$OUT"
 cp -a "$MNT/." "$OUT/"
 echo "DONOR_VENDOR=$OUT"
