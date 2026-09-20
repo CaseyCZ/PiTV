@@ -4449,6 +4449,13 @@ class PiTV:
                 self.stop_external()
             else:
                 self._return_to_launcher("Domů", refresh_cec=False)
+        elif action == "display":
+            # HDMI/EDID recovery repaired the compositor output in place.
+            # Rebind SDL immediately when PiTV is visible; when another app is
+            # foreground, remember the request and repair PiTV on return.
+            self._fullscreen_repair_requested = True
+            if not self.external_kind:
+                self._repair_fullscreen(force=True)
 
     def _refresh_cec_after_return(self):
         """Re-announce PiTV without changing ownership of remote input."""
