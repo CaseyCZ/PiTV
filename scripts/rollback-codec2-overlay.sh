@@ -11,24 +11,22 @@ case "$BACKUP/" in "$STATE/backups/"*) ;; *) echo "backup must be inside $STATE/
   echo "valid backup not found" >&2; exit 3;
 }
 (cd "$BACKUP" && sha256sum -c SHA256SUMS)
-EXTRA=/etc/waydroid-extra/images
+[ -s "$BACKUP/vendor.path" ] || { echo "backup vendor path missing" >&2; exit 3; }
+VENDOR="$(cat "$BACKUP/vendor.path")"
+case "$VENDOR" in /etc/waydroid-extra/images/vendor.img|/var/lib/waydroid/images/vendor.img|/usr/share/waydroid-extra/images/vendor.img) ;; *) echo "unsafe backup vendor path" >&2; exit 3;; esac
 systemctl stop pitv-android-warm.service >/dev/null 2>&1 || true
 timeout 20s waydroid session stop >/dev/null 2>&1 || true
 timeout 20s waydroid container stop >/dev/null 2>&1 || true
 systemctl stop waydroid-container.service >/dev/null 2>&1 || true
-mkdir -p "$EXTRA"
-cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
-cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
-cmp -s "$BACKUP/system.img" "$EXTRA/system.img" || { echo "restored system image mismatch" >&2; exit 4; }
-cmp -s "$BACKUP/vendor.img" "$EXTRA/vendor.img" || { echo "restored vendor image mismatch" >&2; exit 4; }
+cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$VENDOR"
+cmp -s "$BACKUP/vendor.img" "$VENDOR" || { echo "restored vendor image mismatch" >&2; exit 4; }
 if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
   /usr/local/libexec/pitv-waydroid-device-patch --remove || true
 elif command -v pitv-waydroid-device-patch >/dev/null 2>&1; then
   pitv-waydroid-device-patch --remove || true
 fi
-waydroid init -f
 systemctl start waydroid-container.service
 systemctl start pitv-android-warm.service >/dev/null 2>&1 || true
-rm -f "$STATE/active-stage" "$STATE/active-vendor.sha256"
+rm -f "$STATE/active-stage" "$STATE/active-vendor.sha256" "$STATE/active-vendor-path"
 printf '%s\n' "$BACKUP" >"$STATE/last-rollback"
 echo "Codec2 overlay rolled back: $BACKUP"
