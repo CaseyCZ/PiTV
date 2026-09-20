@@ -56,7 +56,7 @@ jobs:
           grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
           grep -q 'waydroid-app-uninstall' system/pitv-helper
           grep -q 'waydroid-clean-legacy' system/pitv-helper
-          grep -q 'com.stremio.one' system/pitv-helper
+          ! grep -q '"com.stremio.one"' system/pitv-helper
           grep -q 'com.plexapp.android' system/pitv-helper
           grep -q 'waydroid-keyevent' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-helper
@@ -321,7 +321,7 @@ jobs:
           # CEC wire parsing and long-hold semantics live exclusively in
           # system/pitv-inputd and are covered by its self-test above. The UI
           # must never grow a second CEC monitor again.
-          assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
+          assert "com.stremio.one" not in LEGACY_ANDROID_PACKAGES
           assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
 
           # PiTV 1.5 CEC parsing/hold behavior is tested exclusively by
@@ -360,26 +360,19 @@ jobs:
           assert app.page == "home"
           assert demo_key not in app.background_tasks
 
-          # Regression: a legacy Android Stremio APK must stay removable and
-          # must not be mistaken for today's native Linux Stremio Flatpak just
-          # because both can share the same visible app name.
-          legacy_stremio = {
+          # Stremio is a supported official Android TV app again. It must map
+          # by package ID to the dedicated official ARM64 Store source.
+          stremio_app = {
               "name": "Stremio",
               "kind": "apk",
-              "package": "com.stremio.legacy",
-              "apk_path": "/home/pitv/PiTV/APKs/stremio-old.apk",
+              "package": "com.stremio.one",
+              "apk_path": "/home/pitv/PiTV/APKs/stremio-tv.apk",
           }
-          assert app.app_can_uninstall(legacy_stremio)
-          assert app._store_item_for_app(legacy_stremio) is None
-          native_stremio = {
-              "name": "Stremio",
-              "kind": "linux",
-              "command": "flatpak run com.stremio.Stremio",
-          }
-          native_item = app._store_item_for_app(native_stremio)
-          assert native_item
-          assert native_item["installer"]["type"] == "flatpak"
-          assert app.app_can_uninstall(native_stremio)
+          stremio_item = app._store_item_for_app(stremio_app)
+          assert stremio_item
+          assert stremio_item["installer"]["type"] == "stremio_tv_apk"
+          assert stremio_item["installer"]["expected_abi"] == "arm64-v8a"
+          assert app.app_can_uninstall(stremio_app)
 
           # Built-in media runtimes have stable multitasking slots.
           kodi_app = {"name":"Kodi", "kind":"linux",
@@ -390,7 +383,7 @@ jobs:
                          "package":"com.teamsmart.videomanager.tv"}
           assert app._task_key(kodi_app, "linux") == "kodi"
           assert app._task_key(plex_app, "linux") == "kodi"
-          assert app._task_key(native_stremio, "linux") == "stremio"
+          assert app._task_key(stremio_app, "apk") == "android:com.stremio.one"
           assert app._task_key(android_app, "apk") == (
               "android:com.teamsmart.videomanager.tv"
           )
@@ -402,7 +395,7 @@ jobs:
               android_app, "apk"
           )
           assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
-          assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
+          assert app._workspace_for_app(stremio_app, "apk") == "Android"
           assert app._workspace_for_app(android_app, "apk") == "Android"
 
           # Settings are OK-only: Right must not trigger a hidden
