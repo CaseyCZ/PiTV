@@ -227,3 +227,5 @@ grep -q 'duplicate preflight target' scripts/plan-codec2-backup.py
 grep -q 'rollback payload symlink rejected' scripts/make-codec2-rollback-manifest.py
 grep -q 'duplicate rollback path' scripts/make-codec2-rollback-manifest.py
 grep -q 'duplicate inventory path' scripts/inventory-codec2-payload.py
+grep -q 'unsupported metadata version' scripts/verify-codec2-metadata.py
+grep -q 'duplicate rollback metadata' scripts/verify-codec2-metadata.py
