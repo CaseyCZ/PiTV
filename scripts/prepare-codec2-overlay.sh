@@ -8,6 +8,7 @@ shift 2
 [ "$#" -gt 0 ] || { echo "at least one service/root file is required" >&2; exit 2; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
+python3 "$HERE/check-codec2-xml-contract.py"
 rm -rf "$OUT"
 python3 "$HERE/probe-codec2-prebuilt.py" "$DONOR" "$@"
 python3 "$HERE/collect-codec2-prebuilt.py" "$DONOR" "$OUT" "$@"
