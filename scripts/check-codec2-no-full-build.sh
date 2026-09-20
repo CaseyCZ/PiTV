@@ -6,6 +6,8 @@ PY=(
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
  scripts/verify-staged-codec2-payload.py
+ scripts/fetch-minimal-codec2-sources.py
+ scripts/check-minimal-codec2-source-lock.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -17,6 +19,7 @@ SH=(
  scripts/rollback-codec2-overlay.sh
 )
 python3 -m py_compile "${PY[@]}"
+python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
 for f in "${SH[@]}"; do bash -n "$f"; done
 grep -q 'never writes to Waydroid' scripts/probe-codec2-prebuilt.py
 grep -q 'No Waydroid files are changed' scripts/collect-codec2-prebuilt.py
