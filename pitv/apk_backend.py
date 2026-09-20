@@ -27,6 +27,7 @@ def inspect_apk(path):
         'version': '',
         'sdk': '',
         'tv': False,
+        'abis': [],
         'path': str(path),
     }
     if not path.is_file():
@@ -53,6 +54,9 @@ def inspect_apk(path):
     low = out.lower()
     meta['tv'] = ('leanback' in low or 'android.software.leanback' in low or
                   'android.hardware.type.television' in low)
+    m = re.search(r"^native-code:\s*(.+)$", out, re.M)
+    if m:
+        meta['abis'] = re.findall(r"'([^']+)'", m.group(1))
     return meta
 
 
