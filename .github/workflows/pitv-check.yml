@@ -262,6 +262,26 @@ jobs:
           grep -q 'waydroid-user-ready' system/pitv-helper
           grep -q 'get-started-user-state' system/pitv-helper
           grep -q 'RUNNING_UNLOCKED' system/pitv-helper
+          grep -q '^def waydroid_shell(args, timeout=30):' system/pitv-helper
+          grep -Fq '["waydroid", "shell"]' system/pitv-helper
+          grep -Fq 'input=command + "\n"' system/pitv-helper
+          python3 - <<'PYWAYDROIDSHELL'
+          from pathlib import Path
+          src = Path("system/pitv-helper").read_text(encoding="utf-8")
+          launch = src.split('elif action == "waydroid-app-launch":', 1)[1]
+          launch = launch.split('elif action == "waydroid-app-running":', 1)[0]
+          assert 'resolved = waydroid_shell(' in launch
+          assert 'launched = waydroid_shell(' in launch
+          assert '"cmd", "package", "resolve-activity"' in launch
+          assert '"am", "start", "--user", "0", "-W"' in launch
+          assert '["waydroid", "shell", "cmd"' not in launch
+          assert '["waydroid", "shell", "am", "start"' not in launch
+          diagnostics = src.split('elif action == "waydroid-diagnostics":', 1)[1]
+          diagnostics = diagnostics.split('elif action == "waydroid-keyevent":', 1)[0]
+          assert 'if list(args[:2]) == ["waydroid", "shell"]:' in diagnostics
+          assert 'p = waydroid_shell(args[2:], timeout=timeout)' in diagnostics
+          print("Waydroid shell flag passthrough contract OK")
+          PYWAYDROIDSHELL
           ! grep -q 'is-user-unlocked' system/pitv-helper
           grep -q 'systemctl", "start", "waydroid-container.service"' system/pitv-helper
           grep -q '/home/pitv/.local/share/waydroid/data/media/0/PiTV-Media' system/pitv-helper
