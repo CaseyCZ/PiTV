@@ -368,6 +368,9 @@ if action == "self-test":
         "priority=0\norg.smarttube.stable/com.liskovsoft.tv.SplashActivity\n",
         "org.smarttube.stable",
     ) == "org.smarttube.stable/com.liskovsoft.tv.SplashActivity"
+    # Upstream single-window HWC needs this property before an explicit
+    # Activity launch; package IDs are strictly validated before shell quoting.
+    assert shlex.quote("org.smarttube.stable") == "org.smarttube.stable"
     assert android_tv_session_active(
         "com.android.settings", target_running=False, top_ok=True
     )
@@ -780,6 +783,28 @@ elif action == "waydroid-app-launch":
     package = str(payload.get("package", "")).strip()
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
         out("Neplatný Android package ID", 2)
+
+    # Mirror the host-side state that upstream `waydroid app launch` normally
+    # publishes before starting an Activity. In Waydroid single-window mode the
+    # HWC exports only the package named by waydroid.active_apps. Direct
+    # `am start` without this leaves the Android Activity resumed/focused but
+    # gives Cage only a black/full-UI surface. policy_control=immersive.status=*
+    # matches upstream's non-multi-window launch mode.
+    prepared = waydroid_shell(
+        [
+            "sh", "-c",
+            "setprop waydroid.active_apps "
+            + shlex.quote(package)
+            + " && settings put global policy_control 'immersive.status=*'",
+        ],
+        timeout=15,
+    )
+    if prepared.returncode != 0:
+        out(
+            (prepared.stdout or "").strip()
+            or "Waydroid active-app export nelze připravit",
+            5,
+        )
 
     component = ""
     category = ""
