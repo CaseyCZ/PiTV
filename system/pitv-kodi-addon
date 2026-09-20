@@ -42,17 +42,22 @@ esac
 command -v kodi >/dev/null 2>&1 || { echo "Kodi není nainstalované" >&2; exit 3; }
 command -v kodi-send >/dev/null 2>&1 || { echo "kodi-send není dostupný" >&2; exit 4; }
 
-# Start Kodi in the existing PiTV Wayland session. Keep this wrapper alive for
-# the whole Kodi session so PiTV's App Session Manager can track/recover it.
-kodi >/tmp/pitv-kodi.log 2>&1 &
+# Start Kodi through PiTV's persistent lifecycle wrapper. The distro
+# /usr/bin/kodi process can exit while kodi.bin survives under PID 1; the
+# wrapper remains alive until the real player is gone.
+command -v pitv-kodi-launch >/dev/null 2>&1 || {
+  echo "pitv-kodi-launch není dostupný" >&2
+  exit 13
+}
+pitv-kodi-launch >/tmp/pitv-kodi.log 2>&1 &
 KODI_PID=$!
 
 cleanup() {
   if kill -0 "$KODI_PID" 2>/dev/null; then
-    kodi-send --action="Quit" >/dev/null 2>&1 || true
+    kill -TERM "$KODI_PID" 2>/dev/null || true
   fi
 }
-trap cleanup TERM INT
+trap cleanup TERM INT HUP
 
 # kodi-send returns successfully only once Kodi's event server is ready.
 READY=0
