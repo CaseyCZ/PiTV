@@ -34,6 +34,7 @@ grep -q 'refusing full-build workspace' scripts/guard-codec2-build-workspace.sh
 grep -q 'DRY RUN ONLY' scripts/plan-codec2-overlay-install.sh
 grep -q 'restore; RESTORE=0; exit 20' scripts/install-codec2-overlay.sh
 grep -q 'audit-codec2-payload-deps.py' scripts/install-codec2-overlay.sh
+grep -q 'ro.vendor.v4l2_codec2.decode_concurrent_instances=4' scripts/install-codec2-overlay.sh
 grep -q 'dumpsys media.codec' scripts/install-codec2-overlay.sh
 grep -q 'c2.v4l2.avc.decoder' scripts/install-codec2-overlay.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/install-codec2-overlay.sh
