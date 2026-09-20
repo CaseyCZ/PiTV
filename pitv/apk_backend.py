@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 SYSTEM_APK_DIR = Path('/var/lib/pitv/apks')
@@ -110,6 +111,33 @@ def waydroid_status():
 def waydroid_packages():
     if not waydroid_available():
         return set()
+
+    helper = Path('/usr/local/libexec/pitv-helper')
+    if helper.is_file() and shutil.which('sudo'):
+        try:
+            p = subprocess.run(
+                ['sudo', '-n', str(helper), 'waydroid-packages'],
+                input='{}',
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=25,
+                check=False,
+            )
+            if p.returncode == 0:
+                return {
+                    line.strip()
+                    for line in (p.stdout or '').splitlines()
+                    if re.fullmatch(
+                        r'[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+',
+                        line.strip(),
+                    )
+                }
+        except Exception:
+            pass
+
+    # Development/non-PiTV fallback. The GUI-facing list is less authoritative
+    # than Android PackageManager but keeps local tooling useful off-device.
     rc, out = _run(['waydroid', 'app', 'list'], timeout=10)
     if rc != 0:
         return set()
@@ -133,9 +161,19 @@ def ensure_apk_installed(app):
     if not apk or not Path(apk).is_file():
         return False, 'APK soubor nebyl nalezen'
     rc, out = _run(['waydroid', 'app', 'install', apk], timeout=120)
-    if rc == 0:
-        return True, f"{app.get('name','APK')} nainstalováno"
-    return False, out[-250:] if out else 'Instalace APK selhala'
+    if rc != 0:
+        return False, out[-250:] if out else 'Instalace APK selhala'
+
+    # waydroid app install can report success before the desktop-app cache sees
+    # the package. Verify against Android PackageManager, not the GUI app list.
+    if package:
+        for _ in range(10):
+            if package in waydroid_packages():
+                return True, f"{app.get('name','APK')} nainstalováno"
+            time.sleep(0.25)
+        return False, f"{app.get('name','APK')}: Android package po instalaci stále chybí"
+
+    return True, f"{app.get('name','APK')} nainstalováno"
 
 
 def tailscale_info():
