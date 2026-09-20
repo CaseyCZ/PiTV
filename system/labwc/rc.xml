@@ -3,6 +3,9 @@
   <core>
     <decoration>client</decoration>
     <gap>0</gap>
+    <!-- Reuse the active DRM mode when possible. This avoids a needless
+         modeset/flicker and keeps HDMI reconnect behavior appliance-like. -->
+    <reuseOutputMode>yes</reuseOutputMode>
   </core>
   <focus>
     <followMouse>no</followMouse>
@@ -66,22 +69,26 @@
     -->
     <windowRule title="PiTV *">
       <action name="SendToDesktop" to="PiTV" follow="no" />
+      <action name="MoveTo" x="0" y="0" />
       <action name="Maximize" />
     </windowRule>
 
     <!-- Kodi also hosts Plex/PM4K, so both intentionally share one slot. -->
     <windowRule identifier="Kodi*">
       <action name="SendToDesktop" to="Kodi" follow="yes" />
+      <action name="MoveTo" x="0" y="0" />
       <action name="Maximize" />
     </windowRule>
 
     <!-- Flatpak/Electron builds have used both identifiers. -->
     <windowRule identifier="com.stremio.Stremio">
       <action name="SendToDesktop" to="Stremio" follow="yes" />
+      <action name="MoveTo" x="0" y="0" />
       <action name="Maximize" />
     </windowRule>
     <windowRule identifier="Stremio*">
       <action name="SendToDesktop" to="Stremio" follow="yes" />
+      <action name="MoveTo" x="0" y="0" />
       <action name="Maximize" />
     </windowRule>
 
@@ -92,6 +99,7 @@
     -->
     <windowRule identifier="wlroots">
       <action name="SendToDesktop" to="Android" follow="no" />
+      <action name="MoveTo" x="0" y="0" />
       <action name="Maximize" />
     </windowRule>
   </windowRules>
