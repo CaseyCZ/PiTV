@@ -99,7 +99,7 @@ jobs:
           grep -q '_consume_global_tv_action' pitv/pitv.py
           grep -q 'if not system_input_managed()' pitv/pitv.py
           ! grep -q 'tv-runtime-reset' system/pitv-launcher-run
-          grep -q '^exec labwc -S /usr/local/bin/pitv-launcher-run$' system/pitv-session
+          grep -q '^exec labwc -s /usr/local/bin/pitv-launcher-run$' system/pitv-session
           grep -q 'pitv-wayland-display' system/pitv-session
           grep -q 'pitv-wayland-display' system/pitv-launcher-run
           grep -q 'pitv-wayland-display' system/pitv-android-warm
