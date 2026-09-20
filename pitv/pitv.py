@@ -1617,7 +1617,6 @@ class PiTV:
             elif target == "updates":
                 self.page = "updates"
                 self.updates_selected = 0
-                self.check_updates_async()
             else:
                 self.page = "settings"
                 self.settings_selected = 0
@@ -2023,6 +2022,30 @@ class PiTV:
             do_connect("")
         else:
             self.open_keyboard(f"Heslo Wi‑Fi: {net['ssid']}", secret=True, callback=do_connect)
+
+    def open_wifi_choice(self):
+        current = nm_wifi_enabled()
+        if current is None:
+            self.show_toast("NetworkManager není aktivní", 4)
+            return
+
+        def apply(enabled):
+            def worker():
+                ok, msg = run_privileged(
+                    "wifi-radio", {"enabled": bool(enabled)}, 20
+                )
+                self.show_toast(msg, 4)
+                if ok and enabled:
+                    time.sleep(0.4)
+                    self.wifi_networks = list_wifi_networks()
+            threading.Thread(target=worker, daemon=True).start()
+
+        self.open_choice(
+            "Wi‑Fi",
+            [("Zapnuto", True), ("Vypnuto", False)],
+            bool(current),
+            apply,
+        )
 
     def network_items(self):
         wifi = nm_wifi_enabled()
@@ -2916,12 +2939,56 @@ class PiTV:
         ("Standby TV", "Vypnout obrazovku TV", cec_tv_standby),
     ]
 
+    def cec_rows(self):
+        return [
+            (
+                "HDMI‑CEC ovládání",
+                "Zapnuto" if self.cfg.get("cec_enabled", True) else "Vypnuto",
+            ),
+            (
+                "Probudit TV při startu",
+                "Zapnuto" if self.cfg.get("cec_wake_on_start", False) else "Vypnuto",
+            ),
+        ] + [(name, desc) for name, desc, _ in self.CEC_ACTIONS]
+
+    def _apply_cec_enabled(self, enabled):
+        enabled = bool(enabled)
+        self._save_choice("cec_enabled", enabled)
+        if enabled:
+            if self.cec is None or not self.cec.is_alive():
+                self.cec = CECReader(self.cec_queue)
+                self.cec.start()
+            self.show_toast("HDMI‑CEC zapnuto", 3)
+        else:
+            old = self.cec
+            self.cec = None
+            if old is not None:
+                old.stop()
+            self.show_toast("HDMI‑CEC vypnuto", 3)
+
+    def open_cec_choice(self, row):
+        if row == 0:
+            self.open_choice(
+                "HDMI‑CEC ovládání",
+                [("Zapnuto", True), ("Vypnuto", False)],
+                bool(self.cfg.get("cec_enabled", True)),
+                self._apply_cec_enabled,
+            )
+        elif row == 1:
+            self.open_choice(
+                "Probudit TV při startu",
+                [("Zapnuto", True), ("Vypnuto", False)],
+                bool(self.cfg.get("cec_wake_on_start", False)),
+                lambda value: self._save_choice("cec_wake_on_start", bool(value)),
+            )
+
     def draw_cec(self):
         ports = get_hdmi_ports()
         port_text = " · ".join(
             f"{p['name']} {p['status']}" for p in ports
         ) or "HDMI stav neznámý"
-        rows = [(name, desc) for name, desc, _ in self.CEC_ACTIONS]
+        rows = self.cec_rows()
+        self.cec_selected = max(0, min(self.cec_selected, len(rows)-1))
         self.draw_rows(
             "HDMI / CEC",
             ("CEC dostupné · " if cec_available() else "CEC nedostupné · ") + port_text,
@@ -3822,8 +3889,13 @@ class PiTV:
                     return
                 self.apps = load_apps()
 
-            # 3) Ubuntu packages.
+            # 3) Ubuntu packages. Refresh package metadata explicitly even
+            # when no APT-based Store application was installed.
             self.set_operation("3/4 · Aktualizuji Ubuntu…", 65)
+            ok, msg = run_privileged("apt-update", {}, 900)
+            if not ok:
+                fail("Ubuntu", msg)
+                return
             ok, msg = run_privileged("apt-upgrade", {}, 1800)
             if not ok:
                 fail("Ubuntu", msg)
@@ -4677,7 +4749,6 @@ class PiTV:
             self.android_selected = 0
         elif self.page == "updates":
             self.updates_selected = 0
-            self.check_updates_async()
         elif self.page == "system":
             self.system_selected = 0
 
@@ -4882,15 +4953,11 @@ class PiTV:
                 self.network_selected = max(0, self.network_selected-1)
             elif key == pygame.K_DOWN:
                 self.network_selected = min(len(items)-1, self.network_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
                 item = items[self.network_selected]
                 kind = item["kind"]
                 if kind == "wifi-toggle":
-                    enabled = nm_wifi_enabled()
-                    if enabled is None:
-                        self.show_toast("NetworkManager není aktivní")
-                    else:
-                        self.async_action(lambda: run_privileged("wifi-radio", {"enabled": not enabled}, 20))
+                    self.open_wifi_choice()
                 elif kind == "scan":
                     self.scan_wifi_async()
                 elif kind == "disconnect":
@@ -4929,6 +4996,7 @@ class PiTV:
                     self.async_action(lambda: test_hdmi_audio(pref))
 
         elif self.page == "cec":
+            rows = self.cec_rows()
             if key == pygame.K_LEFT:
                 if self.settings_context:
                     self.settings_context = False
@@ -4940,9 +5008,14 @@ class PiTV:
             if key == pygame.K_UP:
                 self.cec_selected = max(0, self.cec_selected-1)
             elif key == pygame.K_DOWN:
-                self.cec_selected = min(len(self.CEC_ACTIONS)-1, self.cec_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                self.run_cec_action(self.CEC_ACTIONS[self.cec_selected][2])
+                self.cec_selected = min(len(rows)-1, self.cec_selected+1)
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+                if self.cec_selected < 2:
+                    self.open_cec_choice(self.cec_selected)
+                else:
+                    self.run_cec_action(
+                        self.CEC_ACTIONS[self.cec_selected-2][2]
+                    )
 
         elif self.page == "apps":
             if key == pygame.K_LEFT:
@@ -5159,7 +5232,6 @@ class PiTV:
                     self.page = "updates"
                     self.settings_context = True
                     self.updates_selected = 0
-                    self.check_updates_async()
 
         elif self.page == "power":
             if key == pygame.K_LEFT:
