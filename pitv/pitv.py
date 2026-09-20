@@ -1161,6 +1161,12 @@ class PiTV:
         self.android_pending_app = None
         self.background_tasks = {}
         self._relay_echo = {}
+        # One ordered Android-TV input stream. Never spawn one independent
+        # helper thread per D-pad press; ordering matters more than parallelism.
+        self.android_key_queue = queue.Queue(maxsize=32)
+        threading.Thread(
+            target=self._android_key_worker, daemon=True
+        ).start()
         self._back_hold_triggered = False
         self._keyboard_back_down_at = 0.0
         self._cec_refreshing = False
@@ -4380,19 +4386,35 @@ class PiTV:
             return True
         return False
 
+    def _android_key_worker(self):
+        while True:
+            code = self.android_key_queue.get()
+            try:
+                run_privileged("waydroid-keyevent", {"code": code}, 10)
+            except Exception:
+                pass
+            finally:
+                self.android_key_queue.task_done()
+
     def relay_to_external(self, key):
         if self.external_kind == "apk":
             code = self.ANDROID_KEYEVENTS.get(key)
             if code and shutil.which("waydroid"):
-                # Waydroid's upstream CLI marks 'shell' as root-only. Relay
-                # through PiTV's tightly scoped privileged helper instead of
-                # invoking 'waydroid shell' directly from the pitv GUI user.
-                def send_android_key():
+                try:
+                    self.android_key_queue.put_nowait(code)
+                except queue.Full:
+                    # TV input must feel current. If an unhealthy Android
+                    # runtime stopped consuming keys, discard one stale key
+                    # rather than letting a long backlog replay later.
                     try:
-                        run_privileged("waydroid-keyevent", {"code": code}, 10)
-                    except Exception:
+                        self.android_key_queue.get_nowait()
+                        self.android_key_queue.task_done()
+                    except queue.Empty:
                         pass
-                threading.Thread(target=send_android_key, daemon=True).start()
+                    try:
+                        self.android_key_queue.put_nowait(code)
+                    except queue.Full:
+                        pass
             return
 
         name = self.WTYPE_KEYS.get(key)
