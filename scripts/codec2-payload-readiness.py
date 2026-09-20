@@ -13,7 +13,8 @@ required={
  "hevc_xml":"vendor/etc/media_codecs_ffmpeg_c2.xml",
  "properties":"vendor/etc/pitv-codec2.prop",
  "backend_marker":"vendor/etc/pitv-hwdecode.env",
- "seccomp":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
+ "v4l2_seccomp_ext":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
+ "ffmpeg_seccomp":"vendor/etc/seccomp_policy/android.hardware.media.c2@1.2-ffmpeg.policy",
  "avc_service":"vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2",
  "hevc_service":"vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg",
 }
