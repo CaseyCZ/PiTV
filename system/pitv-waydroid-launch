@@ -265,19 +265,24 @@ TRACK_PACKAGE=""
 
 if [ "$TARGET" = "--full-ui" ]; then
   # Explicit diagnostics only. The prewarmed Android home surface already
-  # exists, so simply tell PiTV that the Android workspace can be revealed.
+  # exists. Keep this lightweight command alive while the runtime is healthy
+  # so PiTV can track/close the diagnostic surface deterministically.
   mark_ready "--full-ui"
+  while runtime_ready; do
+    sleep 2
+  done
+  exit 0
 elif [ "$TARGET" = "--play-store" ]; then
   PACKAGE="$APK"
   valid_package "$PACKAGE" || exit 6
   package_installed "com.android.vending" || exit 7
   if ! printf '{"package":"%s"}' "$PACKAGE" |
       sudo -n /usr/local/libexec/pitv-helper waydroid-open-play-store         >>"$LOG" 2>&1; then
-    launch_package "com.android.vending" || exit 8
+    waydroid app launch "com.android.vending" >>"$LOG" 2>&1 || exit 8
   fi
-  if ! launch_package "com.android.vending"; then
-    log "Google Play did not become visible"
-    exit 8
+  if ! printf '{"package":"%s"}' "com.android.vending" |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible         >/dev/null 2>&1; then
+    launch_package "com.android.vending" || exit 8
   fi
   TRACK_PACKAGE="com.android.vending"
   mark_ready "$TRACK_PACKAGE"
