@@ -826,7 +826,6 @@ class PiTV:
         pygame.mouse.set_visible(False)
         self.w, self.h = self.screen.get_size()
         self._last_desktop_size = self._desktop_size()
-        self._last_display_repair_event = self._display_repair_event_token()
         self._last_display_probe_at = time.monotonic()
         self._last_fullscreen_repair_at = 0.0
         self._main_thread_id = threading.get_ident()
@@ -4210,19 +4209,6 @@ class PiTV:
             except Exception:
                 self._relay_echo.pop(key, None)
 
-    def _display_repair_event_file(self):
-        runtime = os.environ.get(
-            "XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"
-        )
-        return Path(runtime) / "pitv-display-repair"
-
-    def _display_repair_event_token(self):
-        """Return a monotonic-ish token for the last system HDMI repair."""
-        try:
-            return self._display_repair_event_file().stat().st_mtime_ns
-        except OSError:
-            return 0
-
     def _desktop_size(self):
         try:
             sizes = pygame.display.get_desktop_sizes()
@@ -4278,32 +4264,15 @@ class PiTV:
 
         now = time.monotonic()
         requested = self._fullscreen_repair_requested
-        repair_event = self._display_repair_event_token()
-        event_changed = bool(
-            repair_event and
-            repair_event != self._last_display_repair_event
-        )
-
-        # A same-resolution HDMI reconnect can leave a wlroots/SDL surface
-        # offset even though pygame still reports identical dimensions.
-        # pitv-display-watch publishes an event after it normalizes the DRM
-        # output; treat that event as a forced fullscreen re-bind.
-        if (not requested and not event_changed and
-                now - self._last_display_probe_at < 2.0):
+        if not requested and now - self._last_display_probe_at < 2.0:
             return
 
         self._last_display_probe_at = now
         self._fullscreen_repair_requested = False
         desktop = self._desktop_size()
-        needs_repair = (
-            requested or event_changed or
-            desktop != self._last_desktop_size or
-            tuple(self.screen.get_size()) != desktop
-        )
-        if needs_repair:
+        if (requested or desktop != self._last_desktop_size or
+                tuple(self.screen.get_size()) != desktop):
             self._repair_fullscreen(force=True)
-        if event_changed:
-            self._last_display_repair_event = repair_event
 
     def _task_key(self, app, kind=None):
         app = app or {}
