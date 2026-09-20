@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import re
+import signal
 from pathlib import Path
 
 import pygame
