@@ -148,8 +148,8 @@ Custom APK files:
 |---|---|
 | Arrows | navigation |
 | OK / Enter | confirm |
-| Back | back |
-| Home / Menu | return to PiTV |
+| Back | short press = app Back · hold 3 s = close app and return to PiTV |
+| Home / Menu | optional pause/return when supported; not required |
 | Volume ± | TV / receiver |
 | Mute | mute |
 
