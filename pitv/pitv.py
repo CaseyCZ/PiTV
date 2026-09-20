@@ -34,6 +34,9 @@ USER_APPS = Path.home() / ".config/pitv/apps.d"
 SYSTEM_SERVER_CATALOG = Path("/etc/pitv/store/server_catalog.json")
 BUNDLED_SERVER_CATALOG = Path(__file__).resolve().parent.parent / "store" / "server_catalog.json"
 LAUNCH_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "pitv-launch.json"
+SYSTEM_INPUTD = Path("/usr/local/libexec/pitv-inputd")
+SYSTEM_INPUT_READY = Path("/run/pitv/inputd.ready")
+GLOBAL_ACTION_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "pitv-global-action"
 
 DEFAULT_CONFIG = {
     "theme": "apple_dark",
@@ -734,6 +737,15 @@ def cec_available():
     return shutil.which("cec-ctl") is not None and any(Path("/dev").glob("cec*"))
 
 
+def system_input_managed():
+    """PiTV 1.5+ owns TV remote input below the visual shell."""
+    return SYSTEM_INPUTD.exists()
+
+
+def system_input_ready():
+    return system_input_managed() and SYSTEM_INPUT_READY.exists()
+
+
 def cec_send(commands):
     """Send CEC output through the same kernel CEC stack used for input."""
     if not cec_available():
@@ -1204,8 +1216,12 @@ class PiTV:
         self.cec_queue = queue.Queue()
         self.cec = None
         if self.cfg.get("cec_enabled", True):
-            self.cec = CECReader(self.cec_queue)
-            self.cec.start()
+            # PiTV 1.5 routes CEC below the shell through pitv-inputd/uinput.
+            # Keep the old in-process reader only as a compatibility fallback
+            # for machines that have not yet installed the 1.5 system layer.
+            if not system_input_managed():
+                self.cec = CECReader(self.cec_queue)
+                self.cec.start()
             if self.cfg.get("cec_wake_on_start", False):
                 threading.Thread(target=cec_tv_on, daemon=True).start()
         # One physical press = one navigation step. TV remotes already provide
@@ -3051,6 +3067,22 @@ class PiTV:
     def _apply_cec_enabled(self, enabled):
         enabled = bool(enabled)
         self._save_choice("cec_enabled", enabled)
+
+        if system_input_managed():
+            def worker():
+                ok, msg = run_privileged(
+                    "tv-input-enable", {"enabled": enabled}, 30
+                )
+                self.show_toast(
+                    "HDMI‑CEC zapnuto" if ok and enabled
+                    else "HDMI‑CEC vypnuto" if ok
+                    else (msg or "HDMI‑CEC změna selhala"),
+                    3,
+                )
+            threading.Thread(target=worker, daemon=True).start()
+            return
+
+        # Compatibility path for pre-1.5 installations.
         if enabled:
             if self.cec is None or not self.cec.is_alive():
                 self.cec = CECReader(self.cec_queue)
@@ -4676,17 +4708,41 @@ class PiTV:
         if self.cec:
             self.cec.clear_key_state()
 
-    def _refresh_cec_after_return(self):
-        """Restore CEC state without replacing a healthy input reader.
+    def _consume_global_tv_action(self):
+        """Apply compositor-level Home/long-Back without stealing app input."""
+        try:
+            action = GLOBAL_ACTION_FILE.read_text(
+                encoding="utf-8", errors="replace"
+            ).strip()
+        except Exception:
+            return
+        try:
+            GLOBAL_ACTION_FILE.unlink()
+        except OSError:
+            pass
 
-        PiTV 1.4.10 kept one CECReader alive for the launcher lifetime. The
-        reader already reconnects itself after HDMI/CEC resets, so replacing a
-        healthy reader on every app return only creates a cec-ctl ownership
-        race. Preserve that last-known-good behavior and re-create the reader
-        only if it actually died.
-        """
+        if action == "home":
+            if self.external_kind:
+                self.suspend_external()
+            else:
+                self._return_to_launcher("Domů", refresh_cec=False)
+        elif action == "close":
+            if self.external_kind:
+                self.stop_external()
+            else:
+                self._return_to_launcher("Domů", refresh_cec=False)
+
+    def _refresh_cec_after_return(self):
+        """Restore/announce CEC without taking input ownership from inputd."""
         if (not self.cfg.get("cec_enabled", True) or
                 not cec_available() or self._cec_refreshing):
+            return
+
+        if system_input_managed():
+            # The persistent service already owns remote input. Returning Home
+            # only re-announces the active HDMI source; never create a second
+            # cec-ctl monitor in the launcher.
+            threading.Thread(target=cec_active_source, daemon=True).start()
             return
         self._cec_refreshing = True
 
@@ -5674,6 +5730,7 @@ class PiTV:
 
     def run(self):
         while self.running:
+            self._consume_global_tv_action()
             while True:
                 try:
                     key = self.cec_queue.get_nowait()
