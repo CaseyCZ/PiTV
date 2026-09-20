@@ -162,6 +162,8 @@ jobs:
           grep -q 'waydroid-keyevent' system/pitv-helper
           grep -q 'waydroid-hw-codec-status' system/pitv-helper
           grep -q 'c2.v4l2.avc.decoder' system/pitv-helper
+          grep -q 'if sys.stdin.isatty():' system/pitv-helper
+          grep -q 'payload = json.loads(sys.stdin.read() or "{}")' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
           python3 system/pitv-inputd --self-test
