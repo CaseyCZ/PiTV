@@ -16,6 +16,12 @@ if [ "${1:-}" = "--cage-client" ]; then
   shift
 fi
 
+ACTION="${PITV_WAYDROID_ACTION:-launch}"
+if [ "$MODE" = "outer" ] && [ "${1:-}" = "--install-only" ]; then
+  ACTION="install"
+  shift
+fi
+
 TARGET="${1:-}"
 APK="${2:-}"
 [ -n "$TARGET" ] || exit 2
@@ -243,8 +249,8 @@ if [ "$MODE" = "outer" ]; then
   # session. labwc maps Cage to Android with follow=no, so PiTV stays visible
   # until the requested package is actually confirmed on screen.
   rm -f "$READY_FILE" "$RUNTIME_READY"
-  log "starting on-demand Android runtime for: $TARGET"
-  exec cage -d -- "$0" --cage-client "$TARGET" "$APK"
+  log "starting on-demand Android runtime for: $TARGET action=$ACTION"
+  exec env PITV_WAYDROID_ACTION="$ACTION"     cage -d -- "$0" --cage-client "$TARGET" "$APK"
 fi
 
 if [ "$MODE" = "client" ]; then
@@ -252,7 +258,7 @@ if [ "$MODE" = "client" ]; then
   # root container start -> unprivileged session start -> app install/launch.
   # The session exists only for this Android TV flow.
   export XDG_CURRENT_DESKTOP="cage"
-  log "on-demand Cage session socket: $WAYLAND_DISPLAY target=$TARGET"
+  log "on-demand Cage session socket: $WAYLAND_DISPLAY target=$TARGET action=$ACTION"
 
   SESSION_PID=""
   cleanup_runtime() {
@@ -374,6 +380,11 @@ else
       log "application package is not installed and APK is unavailable: $TARGET"
       exit 4
     fi
+  fi
+
+  if [ "$ACTION" = "install" ]; then
+    log "install-only completed: $TARGET"
+    exit 0
   fi
 
   if ! start_package "$TARGET"; then
