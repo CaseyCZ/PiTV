@@ -196,6 +196,15 @@ def delta_target(path):
     if path == "scripts/install-waydroid.sh":
         return Path("/usr/local/libexec/pitv-install-waydroid"), 0o755, None, set()
 
+    # Android image build/test helpers are repository tooling, not files copied
+    # into an installed PiTV appliance. Their changes must not force a full
+    # appliance reinstall during an ordinary self-update.
+    if path in {
+        "scripts/build-waydroid-rpi4-v4l2.sh",
+        "scripts/install-waydroid-rpi4-v4l2-image.sh",
+    }:
+        return None
+
     # These trees affect the installed appliance. Unknown files inside them
     # deliberately force the safe full installer instead of being guessed.
     if path.startswith(("pitv/", "config/", "store/", "system/", "scripts/")):
