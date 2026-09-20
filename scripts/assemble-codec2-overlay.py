@@ -12,6 +12,7 @@ owned={
  "android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml":"vendor/etc/media_codecs_ffmpeg_c2.xml",
  "android/waydroid-rpi4/codec2.vendor.ext.policy":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
  "android/waydroid-rpi4/hwdecode.env":"vendor/etc/pitv-hwdecode.env",
+ "android/waydroid-rpi4/vendor.prop":"vendor/etc/pitv-codec2.prop",
 }
 lines=[x for x in manifest.read_text().splitlines() if x.strip()]
 for source,rel in owned.items():
