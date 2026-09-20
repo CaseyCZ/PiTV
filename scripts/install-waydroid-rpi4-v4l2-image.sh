@@ -200,10 +200,13 @@ done
 [ "$ready" -eq 1 ] || fail_and_restore "Android did not reach boot_completed=1"
 
 codec_xml="$(printf '%s\n' 'cat /vendor/etc/media_codecs.xml' | waydroid shell 2>/dev/null || true)"
+ffmpeg_codec_xml="$(printf '%s\n' 'cat /vendor/etc/media_codecs_ffmpeg_c2.xml' | waydroid shell 2>/dev/null || true)"
 printf '%s\n' "$codec_xml" | grep -q 'c2.v4l2.avc.decoder' \
   || fail_and_restore "c2.v4l2.avc.decoder is missing from /vendor/etc/media_codecs.xml"
-printf '%s\n' "$codec_xml" | grep -q 'c2.ffmpeg.hevc.decoder' \
-  || fail_and_restore "c2.ffmpeg.hevc.decoder is missing from /vendor/etc/media_codecs.xml"
+printf '%s\n' "$codec_xml" | grep -q 'media_codecs_ffmpeg_c2.xml' \
+  || fail_and_restore "HEVC FFmpeg Codec2 include is missing from /vendor/etc/media_codecs.xml"
+printf '%s\n' "$ffmpeg_codec_xml" | grep -q 'c2.ffmpeg.hevc.decoder' \
+  || fail_and_restore "c2.ffmpeg.hevc.decoder is missing from /vendor/etc/media_codecs_ffmpeg_c2.xml"
 
 android_media_nodes="$(printf '%s\n' 'ls -1 /dev/media* 2>/dev/null' | waydroid shell 2>/dev/null || true)"
 printf '%s\n' "$android_media_nodes" | grep -q '^/dev/media' \
