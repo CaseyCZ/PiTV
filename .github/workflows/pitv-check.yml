@@ -56,6 +56,9 @@ jobs:
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
           python3 system/pitv-inputd --self-test
+          ! grep -q 'class CECReader' pitv/pitv.py
+          ! grep -q 'cec_queue' pitv/pitv.py
+          ! grep -q '_CEC_MANAGER' pitv/pitv.py
           grep -q 'python3-evdev' install.sh
           grep -q 'system/pitv-inputd /usr/local/libexec/pitv-inputd' install.sh
           grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
@@ -233,9 +236,7 @@ jobs:
             python3 - <<'PY'
           import time
           import pygame
-          import pitv as pitv_module
-          from queue import Queue
-          from pitv import CECReader, LEGACY_ANDROID_PACKAGES, PiTV, VERSION
+          from pitv import LEGACY_ANDROID_PACKAGES, PiTV, VERSION
 
           assert VERSION == "1.5.0"
           import inspect
@@ -245,38 +246,9 @@ jobs:
           assert "tv-runtime-reset" not in restart_src
 
 
-          # Regression: cec-ctl prints USER_CONTROL_PRESSED and ui-cmd on
-          # separate lines. OK/Back must survive both decoded and raw formats.
-          q = Queue()
-          cec = CECReader(q)
-          cec._handle_monitor_line("USER_CONTROL_PRESSED (0x44):\n")
-          cec._handle_monitor_line("  ui-cmd: select (0x00)\n")
-          assert q.get_nowait() == pygame.K_RETURN
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
-          cec._handle_monitor_line("> 01:44:0d\n")
-          assert q.get_nowait() == pygame.K_ESCAPE
-
-          # Back long-hold is a separate physical gesture from the raw-format
-          # parser test above. Clear the prior gesture state first; otherwise
-          # the deliberate 800 ms hold-continuity logic correctly treats this
-          # next Back as the same held button and suppresses it.
-          cec.clear_key_state()
-          # The first Back is delivered once. Older TVs can repeat
-          # press/release pairs while the button is held, so gesture duration
-          # must survive a short release gap.
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
-          cec._handle_monitor_line("> 01:44:0d\n")
-          assert q.get_nowait() == pygame.K_ESCAPE
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
-          assert cec.gesture_key == pygame.K_ESCAPE
-          cec.gesture_started_at = time.monotonic() - 3.1
-          cec.gesture_last_seen_at = time.monotonic()
-          cec._handle_monitor_line("> 01:44:0d\n")
-          assert q.empty()
-          assert cec.held_for(pygame.K_ESCAPE) >= 3.0
-          cec.clear_key_state()
-          assert cec.held_for(pygame.K_ESCAPE) == 0.0
-
+          # CEC wire parsing and long-hold semantics live exclusively in
+          # system/pitv-inputd and are covered by its self-test above. The UI
+          # must never grow a second CEC monitor again.
           assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
           assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
 
