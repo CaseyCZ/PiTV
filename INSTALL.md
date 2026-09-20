@@ -32,7 +32,8 @@ Ještě před instalací PiTV ověř:
 - šipky
 - OK
 - Back / Return
-- Home / Menu
+- Home / Menu (volitelné; starší TV ho nemusí mít)
+- podržení Back / Return 3 s pro ukončení aplikace a návrat do PiTV
 - Volume + / -
 - Mute
 
@@ -174,7 +175,8 @@ Po prvním spuštění ověř:
 - navigaci šipkami
 - OK
 - Back
-- Home / Menu
+- Home / Menu, pokud ho TV podporuje
+- podržení Back 3 s = ukončit aplikaci a vrátit PiTV
 - HDMI-CEC
 - HDMI audio
 - Wi-Fi
