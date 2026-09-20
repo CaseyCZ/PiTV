@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Keep this script quiet on success; CI failures are diagnosed by line number.
+trap 'echo "Codec2 static check failed at line $LINENO" >&2' ERR
 PY=(
  scripts/probe-codec2-prebuilt.py
  scripts/collect-codec2-prebuilt.py
