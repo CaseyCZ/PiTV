@@ -13,6 +13,9 @@ if set(sums)!=set(invmap) or set(sums)!=set(rbmap):
     raise SystemExit("metadata file sets differ")
 for rel,want in sums.items():
     p=(root/rel).resolve()
+    try: p.relative_to(root)
+    except ValueError: raise SystemExit(f"metadata path escapes payload: {rel}")
+    if not p.is_file(): raise SystemExit(f"metadata references missing file: {rel}")
     if hashlib.sha256(p.read_bytes()).hexdigest()!=want: raise SystemExit(f"checksum drift: {rel}")
     if invmap[rel].get("sha256")!=want: raise SystemExit(f"inventory drift: {rel}")
     if rbmap[rel].get("sha256")!=want: raise SystemExit(f"rollback drift: {rel}")
