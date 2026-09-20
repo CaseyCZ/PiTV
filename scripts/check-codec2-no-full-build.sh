@@ -231,3 +231,5 @@ grep -q 'unsupported metadata version' scripts/verify-codec2-metadata.py
 grep -q 'duplicate rollback metadata' scripts/verify-codec2-metadata.py
 grep -q 'codec XML escapes stage' scripts/check-codec2-payload-contract.py
 grep -q 'metadata symlink rejected' scripts/check-codec2-service-metadata.py
+! grep -q 'waydroid init -f || fail' scripts/install-codec2-overlay.sh
+grep -q 'forcing waydroid init here can replace them' scripts/install-codec2-overlay.sh
