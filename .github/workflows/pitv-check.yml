@@ -175,6 +175,8 @@ jobs:
           ! grep -q 'pitv-launcher-run' system/labwc/autostart
           grep -q '^exec /usr/bin/python3 /opt/pitv/pitv/pitv.py$' system/pitv-launcher-run
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
+          grep -q 'waydroid session start' system/pitv-waydroid-launch
+          test "$(grep -c 'waydroid session start' system/pitv-waydroid-launch)" -eq 1
           grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
           test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
           grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
@@ -198,6 +200,10 @@ jobs:
           warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
           warm = warm.split('MODE="command"', 1)[0]
           assert 'waydroid session stop' not in warm
+          assert 'waydroid session start' in wrapper
+          client = wrapper.split('if [ "$MODE" = "client" ]; then', 2)[2]
+          client = client.split('# From here we are a lightweight app command', 1)[0]
+          assert 'waydroid show-full-ui' not in client
           assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
           assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
           launch = wrapper.split('# Never trust only the exit status', 1)[1]
