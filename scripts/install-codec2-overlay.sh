@@ -4,7 +4,8 @@ set -euo pipefail
 # It patches a COPY of the current vendor.img, validates Android boot/codecs,
 # and automatically restores the original image on any failure.
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 2; }
-STAGE="${1:?verified staged payload required}"
+STAGE="$(readlink -f "${1:?verified staged payload required}")"
+[ -d "$STAGE" ] || { echo "stage missing" >&2; exit 2; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 python3 "$SCRIPT_DIR/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/check-codec2-payload-contract.py" "$STAGE" >/dev/null
@@ -47,6 +48,9 @@ find_image(){
 }
 SYSTEM="$(find_image system.img || true)"; VENDOR="$(find_image vendor.img || true)"
 [ -n "$SYSTEM" ] && [ -n "$VENDOR" ] || { echo "Waydroid images not found" >&2; exit 5; }
+need=$(( $(stat -c %s "$SYSTEM") + $(stat -c %s "$VENDOR") * 2 ))
+avail=$(df -PB1 "$STATE" 2>/dev/null | awk 'NR==2{print $4}' || true)
+[ -n "$avail" ] && [ "$avail" -ge "$need" ] || { echo "insufficient free space for rollback-safe Codec2 install" >&2; exit 6; }
 mkdir -p "$STATE/backups" "$MNT" "$SYS_MNT" "$CUR_VENDOR_MNT" "$EXTRA"
 mkdir "$BACKUP"
 cp --reflink=auto --sparse=always "$SYSTEM" "$BACKUP/system.img"
