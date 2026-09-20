@@ -42,22 +42,20 @@
     <keybind key="F13">
       <action name="Execute" command="/usr/local/libexec/pitv-global-action home" />
       <action name="GoToDesktop" to="PiTV" />
-      <action name="HideCursor" />
     </keybind>
     <keybind key="F14">
       <action name="Execute" command="/usr/local/libexec/pitv-global-action close" />
       <action name="GoToDesktop" to="PiTV" />
-      <action name="HideCursor" />
     </keybind>
 
     <keybind key="W-Home"><action name="Execute" command="wtype -k Home" /></keybind>
 
     <!-- Private PiTV compositor controls. PiTV sends these with wtype. -->
-    <keybind key="W-F8"><action name="GoToDesktop" to="Apps" /><action name="HideCursor" /></keybind>
-    <keybind key="W-F9"><action name="GoToDesktop" to="PiTV" /><action name="HideCursor" /></keybind>
-    <keybind key="W-F10"><action name="GoToDesktop" to="Kodi" /><action name="HideCursor" /></keybind>
-    <keybind key="W-F11"><action name="GoToDesktop" to="Stremio" /><action name="HideCursor" /></keybind>
-    <keybind key="W-F12"><action name="GoToDesktop" to="Android" /><action name="HideCursor" /></keybind>
+    <keybind key="W-F8"><action name="GoToDesktop" to="Apps" /></keybind>
+    <keybind key="W-F9"><action name="GoToDesktop" to="PiTV" /></keybind>
+    <keybind key="W-F10"><action name="GoToDesktop" to="Kodi" /></keybind>
+    <keybind key="W-F11"><action name="GoToDesktop" to="Stremio" /></keybind>
+    <keybind key="W-F12"><action name="GoToDesktop" to="Android" /></keybind>
   </keyboard>
 
   <windowRules>
