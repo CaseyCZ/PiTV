@@ -19,10 +19,10 @@ with tempfile.TemporaryDirectory() as td:
     (root / "vendor/etc").mkdir(parents=True)
     (root / "vendor/lib64/libdemo.so").write_bytes(b"demo")
     (root / "vendor/etc/media_codecs_pitv_rpi4.xml").write_text(
-        '<MediaCodec name="c2.v4l2.avc.decoder"/><Include href="media_codecs_ffmpeg_c2.xml"/>'
+        '<MediaCodecs><Decoders><MediaCodec name="c2.v4l2.avc.decoder" type="video/avc"/></Decoders><Include href="media_codecs_ffmpeg_c2.xml"/></MediaCodecs>'
     )
     (root / "vendor/etc/media_codecs_ffmpeg_c2.xml").write_text(
-        '<MediaCodec name="c2.ffmpeg.hevc.decoder"/>'
+        '<MediaCodecs><Decoders><MediaCodec name="c2.ffmpeg.hevc.decoder" type="video/hevc"/></Decoders></MediaCodecs>'
     )
     manifest = [
         "vendor/lib64/libdemo.so",
