@@ -1100,10 +1100,16 @@ class PiTV:
         # media applications own the PipeWire/HDMI audio path.
         pygame.display.init()
         pygame.font.init()
+        # Give labwc the PiTV title before the first map so its appliance
+        # window rule can maximize the launcher immediately.
+        pygame.display.set_caption(f"{APP_NAME} {VERSION}")
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption(f"{APP_NAME} {VERSION}")
         pygame.mouse.set_visible(False)
         self.w, self.h = self.screen.get_size()
+        self._last_desktop_size = self._desktop_size()
+        self._last_display_probe_at = time.monotonic()
+        self._last_fullscreen_repair_at = 0.0
         self.cfg = load_config()
         # PiTV is HDMI-only. Make the connected HDMI PipeWire/Pulse sink the
         # default before any TV app (Kodi, Stremio, Waydroid) is launched.
@@ -1148,6 +1154,11 @@ class PiTV:
         self.external_app = None
         self.external_task_key = None
         self.external_started_at = 0.0
+        # Android starts invisibly on its own workspace. Do not mark it as the
+        # foreground app until the requested package confirms it is running.
+        self.android_pending_proc = None
+        self.android_pending_package = ""
+        self.android_pending_app = None
         self.background_tasks = {}
         self._relay_echo = {}
         self._back_hold_triggered = False
@@ -2135,6 +2146,7 @@ class PiTV:
         was_asleep = self.screensaver_stage != "off" or self.screensaver_preview
         was_cec_standby = self.cec_standby_sent
         self.mark_activity()
+        self._repair_fullscreen(force=True)
         if was_cec_standby and self.cfg.get("cec_enabled", True) and cec_available():
             self.run_cec_action(cec_tv_on)
         return was_asleep
@@ -3517,11 +3529,15 @@ class PiTV:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        self._register_external(proc, "apk", app)
                         self.store_busy_id = ""
+                        self.android_pending_proc = proc
+                        self.android_pending_package = "com.android.vending"
+                        self.android_pending_app = dict(app)
                         self.set_operation(f"Otevírám {item.get('name','aplikaci')} v Google Play…")
                         self.show_toast(f"Otevírám {item.get('name','aplikaci')} v Google Play", 5)
-                        self._watch_launch(self.external_proc, "Google Play", "apk")
+                        self._watch_android_launch(
+                            proc, dict(app), "com.android.vending", "Google Play"
+                        )
                     except Exception as e:
                         finish(f"Google Play: {e}", False)
                     return
@@ -4350,6 +4366,65 @@ class PiTV:
             except Exception:
                 self._relay_echo.pop(key, None)
 
+    def _desktop_size(self):
+        try:
+            sizes = pygame.display.get_desktop_sizes()
+            if sizes:
+                return tuple(int(v) for v in sizes[0])
+        except Exception:
+            pass
+        try:
+            info = pygame.display.Info()
+            if info.current_w and info.current_h:
+                return (int(info.current_w), int(info.current_h))
+        except Exception:
+            pass
+        return tuple(self.screen.get_size()) if hasattr(self, "screen") else (0, 0)
+
+    def _repair_fullscreen(self, force=False):
+        """Re-bind SDL fullscreen after HDMI/EDID disconnect/reconnect.
+
+        Old TVs can temporarily disappear from KMS when powered off. labwc then
+        gets a fallback output size and SDL may return as a decorated floating
+        window when the HDMI output comes back. Recreating the fullscreen
+        surface is safe only while PiTV owns the visible workspace.
+        """
+        if os.environ.get("SDL_VIDEODRIVER", "").lower() == "dummy":
+            return False
+        if self.external_kind:
+            return False
+
+        now = time.monotonic()
+        if force and now - self._last_fullscreen_repair_at < 1.5:
+            return False
+
+        desktop = self._desktop_size()
+        current = tuple(self.screen.get_size())
+        changed = desktop != self._last_desktop_size or current != desktop
+        if not force and not changed:
+            return False
+
+        try:
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            pygame.display.set_caption(f"{APP_NAME} {VERSION}")
+            self.w, self.h = self.screen.get_size()
+            self._last_desktop_size = self._desktop_size()
+            self._last_fullscreen_repair_at = now
+            return True
+        except Exception:
+            return False
+
+    def _probe_display_geometry(self):
+        if self.external_kind:
+            return
+        now = time.monotonic()
+        if now - self._last_display_probe_at < 2.0:
+            return
+        self._last_display_probe_at = now
+        desktop = self._desktop_size()
+        if desktop != self._last_desktop_size or tuple(self.screen.get_size()) != desktop:
+            self._repair_fullscreen(force=True)
+
     def _task_key(self, app, kind=None):
         app = app or {}
         kind = kind or app.get("kind", "linux")
@@ -4536,6 +4611,7 @@ class PiTV:
         self.sidebar_focus = False
         self.selected = 0
         self._switch_workspace("PiTV")
+        self._repair_fullscreen(force=True)
         if refresh_cec:
             self._refresh_cec_after_return()
         if message:
@@ -4755,6 +4831,70 @@ class PiTV:
             # the foreground runtime and reveal PiTV, without relying on Home.
             self.stop_external()
 
+    def _android_ready_file(self):
+        runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+        return Path(runtime) / "pitv-waydroid-app-ready"
+
+    def _clear_android_pending(self, proc=None):
+        if proc is None or self.android_pending_proc is proc:
+            self.android_pending_proc = None
+            self.android_pending_package = ""
+            self.android_pending_app = None
+
+    def _watch_android_launch(self, proc, app, expected_package, name):
+        """Keep PiTV visible until the requested Android app is actually ready."""
+        ready_file = self._android_ready_file()
+
+        def worker():
+            deadline = time.monotonic() + 95.0
+            while time.monotonic() < deadline:
+                rc = proc.poll()
+                if rc is not None:
+                    self._clear_android_pending(proc)
+                    detail = tail_text_file("/tmp/pitv-waydroid-launch.log")
+                    self.finish_operation(
+                        detail or f"{name}: Android se nespustil ({rc})",
+                        False, 7.0,
+                    )
+                    self.show_toast(f"{name} se nepodařilo spustit", 5)
+                    return
+
+                try:
+                    marker = ready_file.read_text(
+                        encoding="utf-8", errors="replace"
+                    ).strip()
+                except Exception:
+                    marker = ""
+
+                if marker == expected_package:
+                    if self.android_pending_proc is not proc:
+                        return
+                    self._clear_android_pending(proc)
+                    self._register_external(proc, "apk", app)
+                    # Cage was mapped to Android with follow=no. Only now,
+                    # after the requested package is alive, reveal it.
+                    self._switch_workspace("Android")
+                    self.finish_operation(f"{name} spuštěno", True, 2.0)
+                    return
+                time.sleep(0.15)
+
+            self._clear_android_pending(proc)
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except Exception:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+            detail = tail_text_file("/tmp/pitv-waydroid-launch.log")
+            self.finish_operation(
+                detail or f"{name}: spuštění Androidu trvá příliš dlouho",
+                False, 7.0,
+            )
+            self.show_toast(f"{name}: spuštění selhalo", 5)
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _watch_launch(self, proc, name, kind, log_path=None):
         def worker():
             # A healthy GUI normally stays alive. Catch immediate launcher
@@ -4804,7 +4944,7 @@ class PiTV:
                     stdout=log,
                     stderr=subprocess.STDOUT,
                 )
-            self._register_external(proc, "linux")
+            self._register_external(proc, "linux", app)
             self.show_toast(f"Spouštím {name}")
             self._watch_launch(self.external_proc, name, "linux", str(log_path))
         except Exception as e:
@@ -4813,6 +4953,10 @@ class PiTV:
 
     def launch_apk(self, app):
         if self._resume_existing_for_app(app, "apk"):
+            return
+        if (self.android_pending_proc is not None and
+                self.android_pending_proc.poll() is None):
+            self.show_toast("Android aplikace se už připravuje…", 3)
             return
         if not self.legacy_android_migration_ready():
             return
@@ -4832,7 +4976,17 @@ class PiTV:
                 self.finish_operation(f"{name}: {problem}", False, 6.0)
                 return
 
-            self.set_operation(f"Spouštím {name}…")
+            # Keep PiTV visible while Cage + Android boot on the hidden Android
+            # workspace. The wrapper publishes a marker only after this exact
+            # package is running.
+            try:
+                self._android_ready_file().unlink()
+            except FileNotFoundError:
+                pass
+            except Exception:
+                pass
+
+            self.set_operation(f"Připravuji {name}…", 10)
             proc = subprocess.Popen(
                 ["/usr/local/bin/pitv-waydroid-launch", package, apk_path],
                 env=env,
@@ -4841,14 +4995,21 @@ class PiTV:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            self._register_external(proc, "apk")
+            self.android_pending_proc = proc
+            self.android_pending_package = package
+            self.android_pending_app = dict(app)
             self.show_toast(f"Připravuji {name}…")
-            self._watch_launch(self.external_proc, name, "apk")
+            self._watch_android_launch(proc, dict(app), package, name)
         except Exception as e:
+            self._clear_android_pending()
             self.finish_operation(f"Waydroid: {e}", False, 5.0)
             self.show_toast(f"Waydroid: {e}", 5)
 
     def launch(self, app):
+        if (self.android_pending_proc is not None and
+                self.android_pending_proc.poll() is None):
+            self.show_toast("Počkejte, Android aplikace se připravuje…", 3)
+            return
         if app.get("kind") == "apk":
             self.launch_apk(app)
         else:
@@ -5287,7 +5448,11 @@ class PiTV:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        self._register_external(proc, "apk")
+                        self._register_external(
+                            proc, "apk",
+                            {"name": "Android UI", "kind": "apk", "package": ""},
+                        )
+                        self._switch_workspace("Android")
                         self.show_toast("Spouštím Android UI")
                         self._watch_launch(self.external_proc, "Android UI", "apk")
                     except Exception as e:
@@ -5390,8 +5555,18 @@ class PiTV:
                 except queue.Empty:
                     break
             for event in pygame.event.get():
+                display_events = {
+                    value for value in (
+                        getattr(pygame, "WINDOWDISPLAYCHANGED", None),
+                        getattr(pygame, "WINDOWSIZECHANGED", None),
+                        getattr(pygame, "WINDOWRESTORED", None),
+                        getattr(pygame, "VIDEORESIZE", None),
+                    ) if value is not None
+                }
                 if event.type == pygame.QUIT:
                     self.running = False
+                elif event.type in display_events:
+                    self._repair_fullscreen(force=True)
                 elif event.type == pygame.KEYUP:
                     key = normalize_input_key(event.key)
                     if key == pygame.K_ESCAPE:
@@ -5415,6 +5590,7 @@ class PiTV:
 
             self._check_global_back_hold()
             self._reap_background_tasks()
+            self._probe_display_geometry()
 
             if self.external_proc is not None and self.external_proc.poll() is not None:
                 finished_kind = self.external_kind
@@ -5438,6 +5614,12 @@ class PiTV:
             self.clock.tick(30)
         if self.cec:
             self.cec.stop()
+        if (self.android_pending_proc is not None and
+                self.android_pending_proc.poll() is None):
+            try:
+                os.killpg(os.getpgid(self.android_pending_proc.pid), signal.SIGTERM)
+            except Exception:
+                pass
         pygame.quit()
 
 
