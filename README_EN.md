@@ -153,7 +153,7 @@ On a Raspberry Pi, verify the active codec path with:
 sudo /usr/local/libexec/pitv-helper waydroid-hw-codec-status
 ```
 
-The profile accelerates **H.264/AVC and HEVC/H.265**. VP9 and AV1 remain software fallbacks on Raspberry Pi 4 and are not advertised by PiTV as hardware codecs.
+The profile is prepared to accelerate **H.264/AVC and HEVC/H.265**; physical acceptance of the custom `vendor.img` on PiTV still has to confirm both hardware paths. VP9 and AV1 remain software fallbacks on Raspberry Pi 4 and are not advertised by PiTV as hardware codecs.
 
 Custom APK files:
 
