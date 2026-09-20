@@ -27,6 +27,10 @@ for item in lock["sources"]:
         if not (d/rel).is_file(): raise SystemExit(f"missing required source file: {item['name']}/{rel}")
     for rel in item.get("license_files",[]):
         if not (d/rel).is_file(): raise SystemExit(f"missing license: {item['name']}/{rel}")
+v4=root/"v4l2_codec2"/"service/service.cpp"
+v4text=v4.read_text(errors="ignore")
+for want in ["/vendor/etc/seccomp_policy/android.hardware.media.c2@1.2-default-seccomp_policy","/vendor/etc/seccomp_policy/codec2.vendor.ext.policy"]:
+    if want not in v4text: raise SystemExit(f"V4L2 Codec2 seccomp contract missing: {want}")
 ff=root/"ffmpeg"
 checks={
  "android/config-armv8-a.mak":["CONFIG_V4L2_REQUEST=yes","CONFIG_HEVC_V4L2REQUEST_HWACCEL=yes","CONFIG_LIBDRM=yes","CONFIG_LIBUDEV=yes"],
