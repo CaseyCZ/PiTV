@@ -96,8 +96,8 @@ jobs:
 
           helper = Path("system/pitv-helper").read_text()
           assert "process_probe = waydroid_shell(" in helper
-          assert '"media.c2" in process_text and "v4l2" in process_text' in helper
-          assert '"media.c2" in process_text and "ffmpeg" in process_text' in helper
+          assert 'any("media.c2" in line and "v4l2" in line for line in process_lines)' in helper
+          assert 'any("media.c2" in line and "ffmpeg" in line for line in process_lines)' in helper
 
           node_patch = Path("system/pitv-waydroid-device-patch").read_text()
           assert 'glob.glob("/dev/media*")' in node_patch
