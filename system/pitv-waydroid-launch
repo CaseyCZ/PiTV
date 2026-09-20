@@ -174,10 +174,11 @@ wait_package_installed() {
 
 wait_package_visible() {
   local package="$1"
-  # Warm Android should become visible quickly. Keep one launch attempt bounded
-  # so a missing/crashing app fails in seconds instead of leaving PiTV at 70%
-  # for a minute. Cold Android boot is handled before this function.
-  for _ in $(seq 1 75); do
+  local deadline=$((SECONDS + 15))
+  # Bound this by wall-clock time, not by iteration count. Each helper probe can
+  # itself spend seconds in Android dumpsys on a cold Pi 4; 75 such probes used
+  # to exceed PiTV's 120 s app watchdog before the explicit retry was reached.
+  while [ "$SECONDS" -lt "$deadline" ]; do
     if printf '{"package":"%s"}' "$package" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible >/dev/null 2>&1; then
       return 0
@@ -539,25 +540,16 @@ else
     exit 5
   fi
 
-  if ! wait_package_visible "$TARGET"; then
-    # The direct TV Activity already used the strongest deterministic launch
-    # path. Retry that same explicit intent once for slow first-run startup;
-    # never fall back to Waydroid's desktop app controller.
-    log "Android TV Activity not visible yet; retrying explicit launch: $TARGET"
-    if ! start_explicit_tv_activity "$TARGET"; then
-      log "explicit Android TV Activity retry failed: $TARGET"
-      diagnostics "$TARGET"
-      exit 5
-    fi
-    if ! wait_package_visible "$TARGET"; then
-      log "application failed to create a visible TV surface after explicit Activity retry: $TARGET"
-      diagnostics "$TARGET"
-      waydroid log >>"$LOG" 2>&1 || true
-      exit 5
-    fi
-  fi
+  # `am start -W` is now the deterministic launch contract for Android TV
+  # apps. Once it returns success the exact resolved Activity was accepted by
+  # ActivityManager, so publish the ready marker immediately. Waiting for a
+  # second dumpsys-based visibility proof kept the Android workspace hidden and
+  # could exceed the 120 s GUI watchdog on Pi 4. The lifecycle loop below still
+  # verifies the foreground flow every second and returns to PiTV if Android
+  # falls back to Home or the runtime disappears.
   TRACK_PACKAGE="$TARGET"
   mark_ready "$TRACK_PACKAGE"
+  log "explicit Android TV Activity accepted; ready marker published: $TARGET"
 fi
 
 # Keep the per-app command alive for the whole Android TV flow. SmartTube
