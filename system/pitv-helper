@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import json, os, pwd, re, shutil, subprocess, sys, tempfile, time, urllib.request
+import json, os, pwd, re, shutil, signal, subprocess, sys, tempfile, time, urllib.request
 import xml.etree.ElementTree as ET
 
 ALLOWED_STORE_APT = {"kodi", "kodi-eventclients-kodi-send"}
@@ -221,6 +221,44 @@ elif action == "tv-runtime-reset":
             timeout=timeout,
             check=False,
         )
+
+    # The CEC monitor is launched through sudo and therefore runs as root.
+    # If the Python launcher is killed/restarted, that child can survive as an
+    # orphan and compete with the next launcher for the same adapter. PiTV
+    # 1.4.10 effectively had one monitor for the launcher lifetime; enforce the
+    # same invariant at every supervisor/session recovery boundary.
+    stale_cec = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/cmdline", "rb") as proc_cmd:
+                raw = proc_cmd.read().split(b"\\0")
+            argv = [part.decode("utf-8", "replace") for part in raw if part]
+        except (OSError, PermissionError):
+            continue
+        if (len(argv) == 5 and os.path.basename(argv[0]) == "cec-ctl"
+                and argv[1] == "-d"
+                and re.fullmatch(r"/dev/cec[0-9]+", argv[2])
+                and argv[3:] == ["--monitor", "--show-raw"]):
+            stale_cec.append(int(entry))
+
+    for pid in stale_cec:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if stale_cec:
+        time.sleep(0.20)
+    for pid in stale_cec:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
     # Stop the user Waydroid session through the same pitv D-Bus it was
     # created on. Running "waydroid session stop" as root would target the
