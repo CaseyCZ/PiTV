@@ -151,3 +151,5 @@ grep -q 'v4l2_rank=' scripts/verify-codec2-runtime.sh
 grep -q 'c2_poolmask=' scripts/verify-codec2-runtime.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'evidence \[OUT\]'
 grep -q 'last_evidence=' scripts/codec2-no-full-build.sh
+grep -q 'check-codec2-xml-contract.py' scripts/prepare-codec2-overlay.sh
+grep -q 'check-codec2-xml-contract.py' scripts/build-minimal-codec2-modules.sh
