@@ -13,6 +13,13 @@ contract is the baseline for all future UI, Store and runtime changes.
 - `pitv-shell.service` owns tty1 and the Wayland TV session and uses
   `Restart=always`. A launcher/compositor failure is recovered by systemd,
   not by rebooting Linux.
+- labwc uses its native `-S` primary-client lifecycle: PiTV starts only after
+  Wayland is ready, and the compositor terminates when PiTV exits. systemd then
+  rebuilds the whole visual session as one unit.
+- `/run/user/<pitv-uid>/pitv-wayland-display` is the only canonical visible
+  compositor locator. Native applications and outer Android launchers must
+  never pick the first `wayland-*` socket because nested Cage owns a separate
+  socket in the same runtime directory.
 - Optional heavy runtimes are separate services. In particular Android warm-up
   must never be a child prerequisite of the Home launcher.
 - Hardware/input/display services must exist below the shell; applications must
