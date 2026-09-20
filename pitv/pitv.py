@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.24"
+VERSION = "1.4.25"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -3868,7 +3868,10 @@ class PiTV:
 
         if held >= 3.0 and not self._back_hold_triggered:
             self._back_hold_triggered = True
-            self.suspend_external()
+            # Universal TV escape: most media apps have inconsistent or hidden
+            # Quit actions. A deliberate 3-second Back hold must always close
+            # the foreground runtime and reveal PiTV, without relying on Home.
+            self.stop_external()
 
     def _watch_launch(self, proc, name, kind, log_path=None):
         def worker():
@@ -4062,8 +4065,9 @@ class PiTV:
         self.mark_activity()
 
         # PiTV owns HDMI-CEC. While an app is on top, short Back remains the
-        # app's Back. HOME (where available) and 3s Back perform the same TV
-        # multitasking action: pause/suspend and reveal PiTV without closing.
+        # app's Back. HOME is optional multitasking on remotes that have it;
+        # the guaranteed escape gesture is 3s Back, handled globally below,
+        # which fully closes the foreground app and returns to PiTV.
         if self.external_kind:
             if key == pygame.K_HOME:
                 self.suspend_external()
