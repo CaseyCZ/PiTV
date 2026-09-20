@@ -354,7 +354,9 @@ jobs:
           grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
           grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
           ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
-          grep -q '^Restart=always          grep -q 'loginctl enable-linger pitv' install.sh
+          grep -q '^Restart=always$' system/pitv-android-warm.service
+          grep -q '^TimeoutStopSec=40$' system/pitv-android-warm.service
+          grep -q 'loginctl enable-linger pitv' install.sh
           grep -q 'systemctl set-default pitv.target' install.sh
           grep -q 'systemctl mask getty@tty1.service' install.sh
           grep -q 'PITV_LEGACY_LIVE=0' install.sh
