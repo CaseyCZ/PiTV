@@ -252,11 +252,13 @@ if [ "$MODE" = "client" ]; then
       READY_MISSES=0
     else
       READY_MISSES=$((READY_MISSES + 1))
-      [ "$READY_MISSES" -ge 3 ] && break
+      if [ "$READY_MISSES" -ge 3 ]; then
+        log "hidden Android TV runtime lost; systemd will restart warm service"
+        exit 18
+      fi
     fi
     sleep 2
   done
-  exit 0
 fi
 
 # From here we are a lightweight app command attached to the persistent hidden
