@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
-"""Check whether a staged payload contains the expected AVC/HEVC codec markers.
-
-This is intentionally conservative: it scans file names and small text/XML
-files only. Runtime dumpsys validation remains mandatory on the Pi.
-"""
-import sys
+"""Validate exact staged AVC/HEVC Codec2 XML entries."""
+import sys,xml.etree.ElementTree as ET
 from pathlib import Path
 if len(sys.argv)!=2: raise SystemExit("usage: check-codec2-payload-contract.py STAGE")
 root=Path(sys.argv[1]).resolve()
-need={"c2.v4l2.avc.decoder":False,"c2.ffmpeg.hevc.decoder":False}
-for p in root.rglob("*"):
-    if not p.is_file(): continue
-    hay=str(p.relative_to(root))
-    if p.suffix.lower() in {".xml",".txt",".conf",".rc",".prop",".env"}:
-        try: hay+="\n"+p.read_text(errors="ignore")
-        except OSError: pass
-    for key in need:
-        if key in hay: need[key]=True
-missing=[k for k,v in need.items() if not v]
-if missing: raise SystemExit("missing codec contract marker(s): "+", ".join(missing))
+expected={
+ "vendor/etc/media_codecs_pitv_rpi4.xml":("c2.v4l2.avc.decoder","video/avc"),
+ "vendor/etc/media_codecs_ffmpeg_c2.xml":("c2.ffmpeg.hevc.decoder","video/hevc"),
+}
+for rel,pair in expected.items():
+    p=root/rel
+    if p.is_symlink() or not p.is_file(): raise SystemExit(f"missing codec XML: {rel}")
+    try: x=ET.parse(p).getroot()
+    except ET.ParseError as e: raise SystemExit(f"invalid codec XML {rel}: {e}")
+    found={(n.get("name"),n.get("type")) for n in x.iter("MediaCodec")}
+    if pair not in found: raise SystemExit(f"missing exact codec contract in {rel}: {pair[0]} {pair[1]}")
 print("CODEC2_CONTRACT_OK=1")
