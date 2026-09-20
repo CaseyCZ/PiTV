@@ -206,7 +206,7 @@ jobs:
           client = wrapper.split('if [ "$MODE" = "client" ]; then', 2)[2]
           client = client.split('# From here the Cage client owns', 1)[0]
           assert 'waydroid session stop' in client
-          assert 'waydroid-container-stop' in client
+          assert 'waydroid-container-stop' not in client
           assert 'waydroid show-full-ui' not in client
           assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
           assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
@@ -228,14 +228,20 @@ jobs:
           ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
           grep -q '"dumpsys", "activity", "top"' system/pitv-helper
           ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
-          grep -q 'for _ in $(seq 1 25)' system/pitv-waydroid-launch
+          grep -q 'for _ in $(seq 1 75)' system/pitv-waydroid-launch
           grep -q 'sleep 0.20' system/pitv-waydroid-launch
           grep -q 'waydroid-app-stop' system/pitv-helper
           grep -q 'waydroid-app-stop' pitv/pitv.py
           ! grep -q '\["waydroid", "session", "stop"\]' pitv/pitv.py
           grep -q 'android_key_queue' pitv/pitv.py
           grep -q 'One global activity banner' pitv/pitv.py
-          grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
+          ! grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
+          grep -q 'waydroid-user-ready' system/pitv-waydroid-launch
+          grep -q 'waydroid-user-ready' system/pitv-helper
+          grep -q 'systemctl", "start", "waydroid-container.service"' system/pitv-helper
+          grep -q '/home/pitv/.local/share/waydroid/data/media/0/PiTV-Media' system/pitv-helper
+          grep -q 'systemctl enable --now waydroid-container.service' scripts/install-waydroid.sh
+          grep -q 'timeout --signal=TERM --kill-after=5s 20s' system/pitv-waydroid-launch
           grep -q 'exec cage -d' system/pitv-waydroid-launch
           grep -q 'labwc cage wtype' install.sh
           grep -q 'pitv-launcher-run' install.sh
