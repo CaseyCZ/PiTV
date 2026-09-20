@@ -113,14 +113,14 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
     install = candidates[0]
     source = install.parent
     progress(60, "Balíček je v pořádku.")
+    progress(65, "Spouštím instalaci…")
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    # install.sh also uses this value. Keep the updater explicit so old
+    # PiTV builds downloading a new installer receive the same safe wait.
+    env["APT_LOCK_TIMEOUT"] = "600"
     try:
-        progress(65, "Spouštím instalaci…")
-        env = os.environ.copy()
-        env["DEBIAN_FRONTEND"] = "noninteractive"
-        # install.sh also uses this value. Keep the updater explicit so old
-        # PiTV builds downloading a new installer receive the same safe wait.
-        env["APT_LOCK_TIMEOUT"] = "600"
-        p = subprocess.Popen(
+        proc = subprocess.Popen(
             ["bash", str(install)],
             cwd=str(source),
             stdout=subprocess.PIPE,
@@ -129,26 +129,30 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
             bufsize=1,
             env=env,
         )
-        captured = []
-        try:
-            assert p.stdout is not None
-            for raw_line in p.stdout:
-                line = raw_line.rstrip()
-                if not line:
-                    continue
-                captured.append(line)
-                m = re.match(r"^PITV_PROGRESS\s+(\d+)\s+(.+)$", line)
-                if m:
-                    pct = max(65, min(95, int(m.group(1))))
-                    progress(pct, m.group(2))
-                else:
-                    print(f"PiTV [ ... ] {line}", flush=True)
-            returncode = p.wait(timeout=1800)
-        except subprocess.TimeoutExpired:
-            p.kill()
-            p.wait()
-            fail("Aktualizace PiTV vypršela")
-        p = subprocess.CompletedProcess(p.args, returncode, "\n".join(captured), None)
+    except OSError as e:
+        fail(f"Instalátor PiTV nelze spustit: {e}")
+
+    captured = []
+    try:
+        assert proc.stdout is not None
+        for raw_line in proc.stdout:
+            line = raw_line.rstrip()
+            if not line:
+                continue
+            captured.append(line)
+            m = re.match(r"^PITV_PROGRESS\s+(\d+)\s+(.+)$", line)
+            if m:
+                pct = max(65, min(95, int(m.group(1))))
+                progress(pct, m.group(2))
+            else:
+                print(f"PiTV [ ... ] {line}", flush=True)
+        returncode = proc.wait(timeout=1800)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        fail("Aktualizace PiTV vypršela")
+
+    p = subprocess.CompletedProcess(proc.args, returncode, "\n".join(captured), None)
     if p.returncode != 0:
         raw = (p.stdout or "").strip()
         lines = [line.strip() for line in raw.splitlines() if line.strip()]
