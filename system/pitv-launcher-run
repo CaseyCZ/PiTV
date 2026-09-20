@@ -9,6 +9,7 @@ fi
 export HOME=/home/pitv
 export USER=pitv
 export LOGNAME=pitv
+export PITV_SUPERVISED=1
 
 CHILD=""
 STOPPING=0
