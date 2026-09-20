@@ -74,15 +74,23 @@ def apt_installed(package):
         return False
 
 
-def _waydroid_packages():
+def _waydroid_packages_state():
+    """Return (authoritative, packages) for the current Waydroid runtime.
+
+    An empty package set is meaningful only when the command itself succeeded.
+    If Waydroid is stopped/unavailable, receipts remain the fallback source so
+    Store does not randomly forget installed Android apps while Android sleeps.
+    """
     if shutil.which("waydroid") is None:
-        return set()
+        return False, set()
     try:
         p = subprocess.run(
             ["waydroid", "app", "list"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, timeout=10, check=False,
         )
+        if p.returncode != 0:
+            return False, set()
         packages = set()
         for line in p.stdout.splitlines():
             m = re.search(r"package(?:Name)?\s*[:=]\s*([A-Za-z0-9_.]+)", line, re.I)
@@ -90,9 +98,13 @@ def _waydroid_packages():
                 packages.add(m.group(1))
             elif re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", line.strip()):
                 packages.add(line.strip())
-        return packages
+        return True, packages
     except Exception:
-        return set()
+        return False, set()
+
+
+def _waydroid_packages():
+    return _waydroid_packages_state()[1]
 
 
 def _receipt_path(store_id):
@@ -148,15 +160,26 @@ def store_state(item):
         return "installed" if p.returncode == 0 else "available"
     if kind in ("github_release_apk", "direct_apk", "stremio_tv_apk"):
         receipt = read_receipt(item.get("id", ""))
-        package = receipt.get("package", "")
-        # A successful PiTV install writes an installation receipt.  Do not
-        # downgrade that state merely because Waydroid is stopped: in that
-        # state `waydroid app list` may return no packages at all, which used
-        # to make Store offer INSTALOVAT again immediately after success.
-        if receipt.get("installed") and package:
+        package = (
+            installer.get("expected_package", "")
+            or receipt.get("package", "")
+        )
+        authoritative, packages = _waydroid_packages_state()
+
+        # When the Android runtime answers successfully, it is the source of
+        # truth. A stale receipt must never claim "installed" for a package
+        # that the running Waydroid package manager says is absent.
+        if authoritative and package:
+            if package in packages:
+                return "installed"
+            if receipt.get("installed"):
+                write_receipt(item.get("id", ""), installed=False)
+
+        # If Waydroid itself is unavailable/stopped, retain the last successful
+        # installation receipt instead of oscillating Store state.
+        elif receipt.get("installed") and package:
             return "installed"
-        if package and package in _waydroid_packages():
-            return "installed"
+
         path = receipt.get("path", "")
         if path and Path(path).is_file():
             return "downloaded"
