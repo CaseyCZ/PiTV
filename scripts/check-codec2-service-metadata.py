@@ -5,7 +5,7 @@ from pathlib import Path
 if len(sys.argv)<2: raise SystemExit("usage: check-codec2-service-metadata.py PAYLOAD [TARGET_ROOT...]")
 root=Path(sys.argv[1]).resolve()
 services={
- "v4l2":("/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64","@1.0::IComponentStore/default"),
+ "v4l2":("/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64","@1.0::IComponentStore/v4l2"),
  "ffmpeg":("/vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg","@1.2::IComponentStore/ffmpeg"),
 }
 rc_text="\n".join(p.read_text(errors="ignore") for p in root.rglob("*.rc"))
