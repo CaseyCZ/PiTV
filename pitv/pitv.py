@@ -2203,6 +2203,30 @@ class PiTV:
             rect, 3 if selected else 1, border_radius=17,
         )
 
+        app = item.get("app")
+        if app:
+            task_key = self._task_key(app, "apk" if app.get("kind") == "apk" else "linux")
+            if task_key in self.background_tasks:
+                badge = pygame.Rect(
+                    rect.x+8, rect.y+8,
+                    min(rect.w-16, int(self.w*.070)), int(self.h*.025),
+                )
+                badge_surf = pygame.Surface((badge.w, badge.h), pygame.SRCALPHA)
+                pygame.draw.rect(
+                    badge_surf, (4, 12, 26, 205), badge_surf.get_rect(),
+                    border_radius=badge.h//2,
+                )
+                self.screen.blit(badge_surf, badge.topleft)
+                pygame.draw.circle(
+                    self.screen, self.t["accent"],
+                    (badge.x+int(badge.h*.48), badge.centery), 3,
+                )
+                self.text(
+                    "POZASTAVENO", badge.x+int(badge.h*.80),
+                    badge.y+int(badge.h*.22), badge.h*.25,
+                    (235,244,255), True,
+                )
+
         if self.cfg.get("show_tile_labels", True):
             label = self.font(self.h*.0165, selected).render(
                 item.get("name",""), True, self.t["text"]
