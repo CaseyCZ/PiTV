@@ -570,6 +570,19 @@ elif action == "waydroid-ready":
         out("ready")
     out("Android framework ještě není připravený", 4)
 
+elif action == "waydroid-user-ready":
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    p = subprocess.run(
+        ["waydroid", "shell", "cmd", "user", "is-user-unlocked", "0"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=10, check=False,
+    )
+    value = (p.stdout or "").strip().lower()
+    if p.returncode == 0 and value.endswith("true"):
+        out("ready")
+    out(value or "Android user 0 ještě není odemčený", 4)
+
 elif action == "waydroid-keyevent":
     # Upstream Waydroid requires "waydroid shell" to run as root. PiTV owns
     # the TV CEC adapter and relays only this small allowlist into Android.
