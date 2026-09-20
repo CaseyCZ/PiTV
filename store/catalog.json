@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "apps": [
     {
       "id": "kodi",
@@ -29,7 +29,10 @@
         "type": "github_release_apk",
         "repo": "yuliskov/SmartTube",
         "asset_regex": "^SmartTube_stable_.*_arm64-v8a\\.apk$",
-        "expected_package": "org.smarttube.stable"
+        "expected_packages": [
+          "org.smarttube.stable",
+          "com.teamsmart.videomanager.tv"
+        ]
       }
     },
     {
