@@ -27,10 +27,14 @@ export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
 
 LOG="/tmp/pitv-waydroid-launch.log"
-[ "$MODE" = "client" ] || : >"$LOG"
+# Keep one append-only diagnostic stream across warm-runtime restarts and app
+# launches. Truncating here used to erase the actual APK failure as soon as
+# systemd restarted the warm service.
+touch "$LOG"
+chmod 0664 "$LOG" 2>/dev/null || true
 
 log() {
-  printf '%s\n' "PiTV: $*" >>"$LOG"
+  printf '%s\n' "$(date '+[%H:%M:%S]') PiTV[$]: $*" >>"$LOG"
 }
 
 valid_package() {
@@ -310,12 +314,20 @@ else
   # the supplied APK before sending the launch intent.
   if ! package_installed "$TARGET"; then
     if [ -n "$APK" ] && [ -f "$APK" ]; then
-      log "package missing; installing APK before launch: $TARGET"
-      waydroid app install "$APK" >>"$LOG" 2>&1 || exit 4
-      if ! package_installed "$TARGET"; then
-        log "APK install completed but package is still missing: $TARGET"
+      log "package missing; installing APK before launch: target=$TARGET apk=$APK"
+      if ! waydroid app install "$APK" >>"$LOG" 2>&1; then
+        rc=$?
+        log "waydroid app install failed rc=$rc target=$TARGET apk=$APK"
         exit 4
       fi
+      log "waydroid app install returned success: target=$TARGET"
+      if ! package_installed "$TARGET"; then
+        log "APK install completed but PackageManager still reports missing: $TARGET"
+        printf '{"package":"%s"}' "$TARGET" |
+          sudo -n /usr/local/libexec/pitv-helper waydroid-package-installed             >>"$LOG" 2>&1 || true
+        exit 4
+      fi
+      log "PackageManager verified installed package: $TARGET"
     else
       log "application package is not installed and APK is unavailable: $TARGET"
       exit 4
