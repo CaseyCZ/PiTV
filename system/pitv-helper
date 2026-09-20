@@ -322,13 +322,22 @@ elif action == "tv-runtime-reset":
     out("PiTV TV runtime vyčištěn")
 
 elif action == "waydroid-install":
-    if shutil.which("waydroid") is not None:
-        out("Waydroid už je nainstalovaný")
-    installer = "/usr/local/libexec/pitv-install-waydroid"
-    if not os.path.isfile(installer):
-        out("Waydroid instalátor PiTV není nainstalovaný", 2)
-    run([installer], timeout=1800)
-    out("Waydroid + Google Play nainstalován")
+    if shutil.which("waydroid") is None:
+        installer = "/usr/local/libexec/pitv-install-waydroid"
+        if not os.path.isfile(installer):
+            out("Waydroid instalátor PiTV není nainstalovaný", 2)
+        run([installer], timeout=1800)
+
+    # Android is an optional system service in PiTV 1.5. If Waydroid was not
+    # present at boot, start its warm runtime now instead of waiting for reboot.
+    subprocess.run(
+        ["systemctl", "restart", "pitv-android-warm.service"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=30,
+        check=False,
+    )
+    out("Waydroid + Google Play připraven")
 
 elif action == "waydroid-open-play-store":
     package = str(payload.get("package", "")).strip()
