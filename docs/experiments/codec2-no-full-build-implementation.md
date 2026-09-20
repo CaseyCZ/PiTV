@@ -60,3 +60,17 @@ and checksum before physical installation.
 
 Physical RPi4 validation is intentionally the final gate before any merge into
 Master.
+
+## Operator entry point
+
+Use `scripts/codec2-no-full-build.sh` for the experiment lifecycle. It exposes
+target probing, pinned source fetch, module-only build, donor preparation,
+staging, dry-run planning, installation, rollback, status and static checks.
+
+The module-only builder intentionally requires an existing Android 13 build
+tree and never performs `repo init` or `repo sync`. This keeps the experiment
+separate from the legacy full-source build and makes disk usage an explicit
+operator choice guarded by `PITV_CODEC2_MAX_GB`.
+
+Pinned source revisions are stored in
+`android/waydroid-rpi4/minimal-codec2-sources.lock.json`.
