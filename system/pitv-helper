@@ -135,7 +135,7 @@ def run(args, timeout=600, stdin=None, env=None):
 
 
 MEDIA_HOST = "/srv/pitv/Media"
-WAYDROID_MEDIA = "/var/lib/waydroid/data/media/0/PiTV-Media"
+WAYDROID_MEDIA = "/home/pitv/.local/share/waydroid/data/media/0/PiTV-Media"
 KODI_APPLIANCE_SOURCE = "/etc/pitv/kodi-appliance.xml"
 KODI_APPLIANCE_TARGET = "/usr/share/kodi/system/settings/appliance.xml"
 
@@ -525,18 +525,31 @@ elif action == "waydroid-warm-start":
 elif action == "waydroid-container-start":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
-    status = subprocess.run(
-        ["waydroid", "status"],
+
+    # Official Waydroid packages provide a persistent root D-Bus container
+    # manager. "waydroid container start" is that daemon itself and is not a
+    # one-shot request to boot Android. Keep the manager under systemd and let
+    # the unprivileged "waydroid session start" request the actual LXC session.
+    p = subprocess.run(
+        ["systemctl", "start", "waydroid-container.service"],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, timeout=10, check=False,
+        text=True, timeout=30, check=False,
     )
-    if not re.search(r"^Container:\s*RUNNING\s*$", status.stdout or "", re.M | re.I):
-        run(["waydroid", "container", "start"], timeout=60)
+    if p.returncode != 0:
+        out((p.stdout or "").strip() or "Waydroid container manager nelze spustit", 3)
+    active = subprocess.run(
+        ["systemctl", "is-active", "--quiet", "waydroid-container.service"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=10, check=False,
+    )
+    if active.returncode != 0:
+        out("Waydroid container manager není aktivní", 3)
+
     try:
         ensure_waydroid_media_bridge()
     except Exception as e:
-        out(f"Waydroid běží, ale sdílená složka PiTV Media se nepřipojila: {e}", 3)
-    out("Waydroid container spuštěn · PiTV Media připojeno")
+        out(f"Waydroid manager běží, ale sdílená složka PiTV Media se nepřipojila: {e}", 3)
+    out("Waydroid container manager připraven · PiTV Media připojeno")
 
 elif action == "waydroid-ready":
     if shutil.which("waydroid") is None:
