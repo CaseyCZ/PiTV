@@ -16,8 +16,12 @@ systemctl stop waydroid-container.service >/dev/null 2>&1 || true
 mkdir -p "$EXTRA"
 cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
 cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
+if command -v pitv-waydroid-device-patch >/dev/null 2>&1; then
+  pitv-waydroid-device-patch --remove || true
+fi
 waydroid init -f
 systemctl start waydroid-container.service
 systemctl start pitv-android-warm.service >/dev/null 2>&1 || true
 rm -f "$STATE/active-stage" "$STATE/active-vendor.sha256"
+printf '%s\n' "$BACKUP" >"$STATE/last-rollback"
 echo "Codec2 overlay rolled back: $BACKUP"
