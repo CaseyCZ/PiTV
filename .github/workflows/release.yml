@@ -58,7 +58,8 @@ jobs:
             system/pitv-helper \
             system/pitv-self-update \
             system/pitv-inputd \
-            system/pitv-displayd
+            system/pitv-displayd \
+            system/pitv-waydroid-device-patch
 
       - name: Shell syntax
         run: |
