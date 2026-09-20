@@ -16,6 +16,8 @@ entries=[]
 for rel in manifest.read_text().splitlines():
     rel=rel.strip()
     if not rel: continue
+    q=Path(rel)
+    if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe rollback path: {rel}")
     if rel not in sha: raise SystemExit(f"checksum missing for {rel}")
     target="/"+rel if rel.startswith("vendor/") else "/vendor/"+rel
     entries.append({"payload":rel,"target":target,"sha256":sha[rel],"backup_required":True})
