@@ -290,14 +290,16 @@ jobs:
           assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
           assert app._workspace_for_app(android_app, "apk") == "Android"
 
-          # Settings values are visible Kodi-style lists, not blind
-          # left/right cycling. Open Tile Size at Large, move to Extra large,
-          # confirm and verify the value changes only after confirmation.
+          # Settings are OK-only: Right must not trigger a hidden
+          # action. OK opens the visible list, then Up/Down + OK chooses.
           app.page = "appearance"
           app.sidebar_focus = False
           app.sub_selected = 2
           app.cfg["tile_scale"] = 1.15
           app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+          assert abs(float(app.cfg["tile_scale"]) - 1.15) < 0.001
+          app.handle_key(pygame.K_RETURN)
           assert app.choice_active
           assert app.choice_title == "Velikost dlaždic"
           app.handle_key(pygame.K_DOWN)
@@ -354,13 +356,37 @@ jobs:
           assert app.system_items()[-1][0] == "Otevřít Aktualizace"
           assert hasattr(app, "_installed_store_flatpak_ids")
 
-          # Application visibility is also a visible choice, not a blind
-          # toggle on OK.
-          demo_visibility = {"name": "Demo app", "visible": True}
-          app.open_app_visibility_choice(demo_visibility)
+          # Application management is a fixed Settings menu. No Right
+          # action is allowed; visibility and uninstall each open a list.
+          app.apps = [dict(native_stremio), dict(legacy_stremio)]
+          app.page = "apps"
+          app.settings_context = True
+          app.apps_selected = 1
+          app_menu = app.app_items()
+          assert [x["kind"] for x in app_menu] == [
+              "store", "visibility", "uninstall", "refresh"
+          ]
+          assert app_menu[1]["name"] == "Zobrazení aplikací"
+          assert app_menu[2]["name"] == "Odinstalovat aplikaci"
+
+          app.handle_key(pygame.K_RIGHT)
+          assert not app.choice_active
+
+          app.handle_key(pygame.K_RETURN)
           assert app.choice_active
-          assert app.choice_title == "Demo app"
+          assert app.choice_title == "Zobrazení aplikací"
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title in ("Stremio",)
           assert [x[1] for x in app.choice_options] == [True, False]
+          app.handle_key(pygame.K_ESCAPE)
+          assert not app.choice_active
+
+          app.apps_selected = 2
+          app.handle_key(pygame.K_RETURN)
+          assert app.choice_active
+          assert app.choice_title == "Odinstalovat aplikaci"
+          assert len(app.choice_options) >= 1
           app.handle_key(pygame.K_ESCAPE)
           assert not app.choice_active
 
