@@ -213,3 +213,7 @@ grep -q 'unsafe staging state' scripts/stage-codec2-payload.sh
 grep -q 'check-codec2-service-metadata.py' scripts/stage-codec2-payload.sh
 grep -Fq 'dest="$STATE/staged/${stamp}-$"' scripts/stage-codec2-payload.sh
 grep -q 'missing exact codec contract' scripts/check-codec2-payload-contract.py
+grep -q 'service-v4l2-64' scripts/codec2-payload-readiness.py
+grep -q 'service-v4l2-64' scripts/check-codec2-service-metadata.py
+grep -q 'service-v4l2-64' scripts/prepare-codec2-from-donor.sh
+grep -q "name 'android.hardware.media.c2@1.0-service-v4l2-64'" scripts/build-minimal-codec2-modules.sh
