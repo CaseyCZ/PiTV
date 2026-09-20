@@ -754,7 +754,21 @@ def cec_send(commands):
         commands = [commands]
 
     device = None
-    if _CEC_MANAGER is not None and _CEC_MANAGER.device is not None:
+
+    # PiTV 1.5 inputd selects the physically connected CEC adapter and
+    # publishes it for the rest of the appliance. Power/volume commands must
+    # use that same adapter rather than blindly choosing /dev/cec0.
+    try:
+        selected = Path("/run/pitv/cec-device").read_text(
+            encoding="utf-8", errors="replace"
+        ).strip()
+        if re.fullmatch(r"/dev/cec[0-9]+", selected) and Path(selected).exists():
+            device = selected
+    except Exception:
+        pass
+
+    # Pre-1.5 compatibility: the in-process reader knows its chosen adapter.
+    if not device and _CEC_MANAGER is not None and _CEC_MANAGER.device is not None:
         device = str(_CEC_MANAGER.device)
     if not device:
         devices = sorted(Path("/dev").glob("cec*"))
