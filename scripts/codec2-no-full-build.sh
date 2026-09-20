@@ -11,6 +11,7 @@ case "$cmd" in
   plan) exec bash "$HERE/plan-codec2-overlay-install.sh" "$@";;
   install) exec bash "$HERE/install-codec2-overlay.sh" "$@";;
   rollback) exec bash "$HERE/rollback-codec2-overlay.sh" "$@";;
+  verify) exec bash "$HERE/verify-codec2-runtime.sh" "$@";;
   check) exec bash "$HERE/check-codec2-no-full-build.sh" "$@";;
   status)
     state=/var/lib/pitv/codec2-experiment
@@ -30,6 +31,7 @@ PiTV Codec2 no-full-build experiment
   plan STAGE
   install STAGE                 (root, RPi4 only)
   rollback [BACKUP]             (root)
+  verify
   status
   check
 EOF
