@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 python3 "$SCRIPT_DIR/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/check-codec2-payload-contract.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/enforce-codec2-payload-scope.py" "$STAGE" >/dev/null
+python3 "$SCRIPT_DIR/check-codec2-manifest-closure.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/check-codec2-payload-size.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/inventory-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/codec2-payload-readiness.py" "$STAGE" >/dev/null
