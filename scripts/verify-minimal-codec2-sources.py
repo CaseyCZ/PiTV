@@ -27,4 +27,13 @@ for item in lock["sources"]:
         if not (d/rel).is_file(): raise SystemExit(f"missing required source file: {item['name']}/{rel}")
     for rel in item.get("license_files",[]):
         if not (d/rel).is_file(): raise SystemExit(f"missing license: {item['name']}/{rel}")
+ff=root/"ffmpeg"
+checks={
+ "android/config-armv8-a.mak":["CONFIG_V4L2_REQUEST=yes","CONFIG_HEVC_V4L2REQUEST_HWACCEL=yes","CONFIG_LIBDRM=yes","CONFIG_LIBUDEV=yes"],
+ "android/include/config_components.h":["#define CONFIG_HEVC_V4L2REQUEST_HWACCEL 1"],
+}
+for rel,wants in checks.items():
+    text=(ff/rel).read_text(errors="ignore")
+    for want in wants:
+        if want not in text: raise SystemExit(f"FFmpeg RPi4 HEVC request support missing: {rel}: {want}")
 print("MINIMAL_CODEC2_SOURCES_OK=1")
