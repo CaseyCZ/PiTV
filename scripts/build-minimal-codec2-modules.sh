@@ -18,11 +18,22 @@ if [ -f "$release_file" ] && ! grep -Eq 'PLATFORM_VERSION.*13|PLATFORM_VERSION_L
   echo "build tree does not look like Android 13" >&2; exit 3
 fi
 
+SRC_BACKUP="$(mktemp -d /tmp/pitv-codec2-src-backup.XXXXXX)"
+restore_sources(){
+  for dst in external/v4l2_codec2 external/ffmpeg external/ffmpeg_codec2 external/libudev-zero; do
+    target="$TREE/$dst"; key="${dst//\//__}"
+    rm -rf "$target"
+    [ ! -e "$SRC_BACKUP/$key" ] || mv "$SRC_BACKUP/$key" "$target"
+  done
+  rm -rf "$SRC_BACKUP"
+}
+trap restore_sources EXIT INT TERM
 install_src(){
   src="$1"; dst="$2"
   target="$(readlink -m "$TREE/$dst")"
   case "$target/" in "$TREE/external/"*) ;; *) echo "unsafe source install target: $target" >&2; exit 2;; esac
-  rm -rf "$target"
+  key="${dst//\//__}"
+  if [ -e "$target" ] || [ -L "$target" ]; then mv "$target" "$SRC_BACKUP/$key"; fi
   mkdir -p "$(dirname "$target")"
   cp -a "$SOURCES/$src" "$target"
 }
