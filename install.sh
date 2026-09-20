@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.26 installer =="
+echo "== PiTV v1.4.27 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -17,11 +17,20 @@ esac
 ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
 echo "Architektura: $ARCH"
 
-apt-get update
-apt-get install -y software-properties-common
+# Ubuntu can start unattended-upgrades in the background shortly after boot.
+# Never fail a PiTV update just because APT/DPKG is temporarily busy. apt-get waits
+# safely for the existing package transaction to finish instead of killing it or
+# deleting package-manager lock files.
+APT_LOCK_TIMEOUT="${APT_LOCK_TIMEOUT:-600}"
+apt_run() {
+  apt-get -o "DPkg::Lock::Timeout=$APT_LOCK_TIMEOUT" "$@"
+}
+
+apt_run update
+apt_run install -y software-properties-common
 add-apt-repository -y universe >/dev/null 2>&1 || true
-apt-get update
-apt-get install -y \
+apt_run update
+apt_run install -y \
   python3 python3-pygame \
   labwc cage wtype cec-utils v4l-utils \
   dbus-user-session pipewire pipewire-pulse wireplumber pulseaudio-utils flatpak \
@@ -34,7 +43,7 @@ apt-get install -y \
 # Netplan override deliberately hands the same persistent Netplan definitions
 # to NetworkManager. Netplan supports this renderer switch and merges later
 # YAML files over earlier cloud-init files.
-apt-get install -y network-manager
+apt_run install -y network-manager
 
 cat >/etc/netplan/90-pitv-network-manager.yaml <<'EOF'
 network:
