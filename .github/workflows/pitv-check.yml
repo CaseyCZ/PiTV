@@ -139,6 +139,30 @@ jobs:
 
           app = PiTV()
 
+          # TV remote contract: Home, when available, and the global long-Back
+          # gesture both return to PiTV without destroying the foreground app.
+          demo_app = {"name": "Demo", "command": "demo-player"}
+          demo_key = app._task_key(demo_app, "linux")
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app.handle_key(pygame.K_HOME)
+          assert app.external_kind is None
+          assert app.page == "home"
+          assert demo_key in app.background_tasks
+          app.background_tasks.clear()
+
+          app.external_kind = "linux"
+          app.external_app = dict(demo_app)
+          app.external_task_key = demo_key
+          app.external_proc = None
+          app._keyboard_back_down_at = time.monotonic() - 3.1
+          app._check_global_back_hold()
+          assert app.external_kind is None
+          assert demo_key in app.background_tasks
+          app.background_tasks.clear()
+
           # Regression: a legacy Android Stremio APK must stay removable and
           # must not be mistaken for today's native Linux Stremio Flatpak just
           # because both can share the same visible app name.
