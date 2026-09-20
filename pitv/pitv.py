@@ -401,53 +401,38 @@ def uptime():
 
 
 def build_gui_env():
-    """Return a normalized environment for children launched inside labwc."""
+    """Return the canonical PiTV TV-session environment for GUI children."""
     env = os.environ.copy()
-    # Never trust an inherited SSH/admin runtime. PiTV GUI is owned by the
-    # current kiosk UID and all session-bound children must use its logind
-    # runtime regardless of caller environment.
     runtime = f"/run/user/{os.getuid()}"
+    runtime_path = Path(runtime)
     env["HOME"] = "/home/pitv"
     env["USER"] = "pitv"
     env["LOGNAME"] = "pitv"
     env["XDG_RUNTIME_DIR"] = runtime
     env["XDG_SESSION_TYPE"] = "wayland"
     env["XDG_CURRENT_DESKTOP"] = "labwc"
-    env["PULSE_RUNTIME_PATH"] = str(Path(runtime) / "pulse")
+    env["PULSE_RUNTIME_PATH"] = str(runtime_path / "pulse")
 
-    display = env.get("WAYLAND_DISPLAY", "")
-    runtime_path = Path(runtime)
-    if display.startswith("/"):
-        candidate = Path(display)
-        try:
-            valid_display = candidate.is_socket() and candidate.parent.resolve() == runtime_path.resolve()
-        except Exception:
-            valid_display = False
-        if valid_display:
-            env["WAYLAND_DISPLAY"] = candidate.name
-        else:
-            env.pop("WAYLAND_DISPLAY", None)
+    # One source of truth for the visible TV compositor. Nested Cage/Android
+    # sockets live in the same runtime directory, so choosing the first
+    # wayland-* socket can launch a native app into Android by accident.
+    marker = runtime_path / "pitv-wayland-display"
+    try:
+        display = marker.read_text(encoding="utf-8").splitlines()[0].strip()
+    except Exception:
+        display = ""
+    if (re.fullmatch(r"wayland-[0-9]+", display or "") and
+            (runtime_path / display).is_socket()):
+        env["WAYLAND_DISPLAY"] = display
     else:
-        candidate = runtime_path / display if display else None
-        valid_display = bool(candidate and candidate.is_socket())
+        env.pop("WAYLAND_DISPLAY", None)
 
-    if not valid_display:
-        try:
-            sockets = [p for p in sorted(runtime_path.glob("wayland-*")) if p.is_socket()]
-        except Exception:
-            sockets = []
-        if sockets:
-            env["WAYLAND_DISPLAY"] = sockets[0].name
-        else:
-            env.pop("WAYLAND_DISPLAY", None)
-
-    bus = Path(runtime) / "bus"
+    bus = runtime_path / "bus"
     if bus.is_socket():
         env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
     else:
         env.pop("DBUS_SESSION_BUS_ADDRESS", None)
     return env
-
 
 def gui_env_error(env):
     runtime = env.get("XDG_RUNTIME_DIR", "")
