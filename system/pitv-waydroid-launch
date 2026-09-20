@@ -168,17 +168,9 @@ if [ "$MODE" = "outer" ]; then
     /usr/bin/flock -n 9 || exit 0
     rm -f "$READY_FILE" "$RUNTIME_READY"
 
-    # Bind a fresh Waydroid user session to the hidden Cage output. Recovery
-    # cleanup owns the destructive stop path; normal app launches never do.
-    waydroid session stop >>"$LOG" 2>&1 || true
-    for _ in $(seq 1 50); do
-      if ! waydroid status 2>/dev/null |
-          grep -Eq '^Session:[[:space:]]*RUNNING'; then
-        break
-      fi
-      sleep 0.1
-    done
-
+    # Recovery/session teardown is owned by systemd + tv-runtime-reset.
+    # Do not stop Waydroid again here: it adds cold-start latency and can race
+    # the already-owned Android lifecycle.
     log "prewarming hidden Android TV runtime from $WAYLAND_DISPLAY"
     exec cage -d -- "$0" --cage-client --warm ""
   fi
