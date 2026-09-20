@@ -101,3 +101,7 @@ grep -q 'verify-codec2-metadata.py' scripts/install-codec2-overlay.sh
 grep -q 'verify-codec2-metadata.py' scripts/stage-codec2-payload.sh
 grep -q 'check-codec2-payload-size.py' scripts/install-codec2-overlay.sh
 grep -q 'MAX_TOTAL=512' scripts/check-codec2-payload-size.py
+grep -q 'codec2-payload-readiness.py' scripts/prepare-codec2-from-donor.sh
+grep -q 'verify-codec2-metadata.py' scripts/prepare-codec2-from-donor.sh
+grep -q 'codec2-payload-readiness.py' scripts/build-minimal-codec2-modules.sh
+grep -q 'verify-codec2-metadata.py' scripts/build-minimal-codec2-modules.sh
