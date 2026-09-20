@@ -154,6 +154,9 @@ jobs:
           grep -q 'key="F14"' system/labwc/rc.xml
           grep -q 'pitv-global-action home' system/labwc/rc.xml
           grep -q 'pitv-global-action close' system/labwc/rc.xml
+          grep -q 'id -u pitv' system/pitv-global-action
+          grep -q 'exec runuser -u pitv' system/pitv-global-action
+          grep -q 'wtype -M logo -k F9 -m logo' system/pitv-global-action
           grep -q 'tv-input-enable' system/pitv-helper
           grep -q 'system_input_managed' pitv/pitv.py
           grep -q '_consume_global_tv_action' pitv/pitv.py
