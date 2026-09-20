@@ -242,19 +242,19 @@ if [ "$MODE" = "outer" ]; then
 fi
 
 if [ "$MODE" = "client" ]; then
-  # This is the one persistent Cage client. It keeps Android's own full UI
-  # alive only as a hidden backing surface on the Android workspace. The user
-  # never sees it during normal application launch because labwc uses
-  # follow=no and PiTV changes workspace only after the requested app is ready.
+  # Keep exactly one Waydroid user session bound to Cage's private Wayland
+  # display. This follows Waydroid's documented manual lifecycle:
+  # container -> session start -> app launch. Do not use show-full-ui as the
+  # session owner: PiTV needs a hidden Android session, not Android Home.
   export XDG_CURRENT_DESKTOP="cage"
-  log "persistent Cage client socket: $WAYLAND_DISPLAY"
+  log "persistent Cage session socket: $WAYLAND_DISPLAY"
 
-  UI_PID=""
+  SESSION_PID=""
   cleanup_runtime() {
     rm -f "$READY_FILE" "$RUNTIME_READY"
     waydroid session stop >/dev/null 2>&1 || true
-    if [ -n "$UI_PID" ]; then
-      wait "$UI_PID" 2>/dev/null || true
+    if [ -n "$SESSION_PID" ]; then
+      wait "$SESSION_PID" 2>/dev/null || true
     fi
   }
   trap cleanup_runtime EXIT TERM INT HUP
@@ -265,17 +265,23 @@ if [ "$MODE" = "client" ]; then
     exit 10
   fi
 
-  # show-full-ui is used only to own the persistent Wayland/Android session.
-  # It stays hidden behind the PiTV workspace; direct TV app launches happen
-  # later through 'waydroid app launch'.
-  waydroid show-full-ui >>"$LOG" 2>&1 &
-  UI_PID=$!
+  # The foreground session manager captures this Cage WAYLAND_DISPLAY and stays
+  # alive for the complete warm-runtime lifetime. Android app surfaces launched
+  # later are therefore created inside the same hidden Cage compositor.
+  waydroid session start >>"$LOG" 2>&1 &
+  SESSION_PID=$!
+  log "Waydroid session manager started pid=$SESSION_PID"
 
   if ! wait_ready; then
-    log "Android framework did not become ready inside persistent Cage"
+    log "Android framework did not become ready inside persistent Cage session"
     waydroid status >>"$LOG" 2>&1 || true
     waydroid log >>"$LOG" 2>&1 || true
     exit 3
+  fi
+
+  if ! kill -0 "$SESSION_PID" 2>/dev/null; then
+    log "Waydroid session manager exited after framework startup"
+    exit 18
   fi
 
   if ! waydroid prop set persist.waydroid.multi_windows false       >>"$LOG" 2>&1; then
@@ -283,11 +289,16 @@ if [ "$MODE" = "client" ]; then
     exit 17
   fi
 
-  printf '%s\n' "$$" >"$RUNTIME_READY"
-  log "hidden Android TV runtime ready pid=$$"
+  printf '%s\n' "$" >"$RUNTIME_READY"
+  log "hidden Android TV runtime ready pid=$ session_pid=$SESSION_PID"
 
   READY_MISSES=0
   while true; do
+    if ! kill -0 "$SESSION_PID" 2>/dev/null; then
+      log "Waydroid session manager exited; systemd will restart warm service"
+      exit 18
+    fi
+
     if printf '{}' |
         sudo -n /usr/local/libexec/pitv-helper waydroid-ready           >/dev/null 2>&1; then
       if [ "$READY_MISSES" -gt 0 ]; then
@@ -297,8 +308,7 @@ if [ "$MODE" = "client" ]; then
     else
       READY_MISSES=$((READY_MISSES + 1))
       # Binder/PackageManager can briefly disappear while Android services
-      # settle. Three 2-second misses physically caused PiTV to tear down an
-      # otherwise healthy Pi 4 runtime. Require a sustained outage instead.
+      # settle. Require a sustained outage before replacing the session.
       log "Android readiness transient miss $READY_MISSES/10"
       if [ "$READY_MISSES" -ge 10 ]; then
         log "hidden Android TV runtime unavailable persistently; systemd will restart warm service"
@@ -314,9 +324,12 @@ fi
 TRACK_PACKAGE=""
 
 if [ "$TARGET" = "--full-ui" ]; then
-  # Explicit diagnostics only. The prewarmed Android home surface already
-  # exists. Keep this lightweight command alive while the runtime is healthy
-  # so PiTV can track/close the diagnostic surface deterministically.
+  # Explicit diagnostics only. The warm runtime now owns a session, not Android
+  # Home, so request the full Android UI only when the user explicitly opens it.
+  if ! waydroid show-full-ui >>"$LOG" 2>&1; then
+    log "full Android UI request failed"
+    exit 8
+  fi
   mark_ready "--full-ui"
   while runtime_ready; do
     sleep 2
