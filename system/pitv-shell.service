@@ -3,6 +3,7 @@ Description=PiTV TV Shell
 After=systemd-user-sessions.service NetworkManager.service
 Wants=NetworkManager.service
 Conflicts=getty@tty1.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -26,7 +27,6 @@ Environment=SDL_VIDEODRIVER=wayland
 ExecStart=/usr/local/bin/pitv-session
 Restart=always
 RestartSec=2
-StartLimitIntervalSec=0
 KillMode=control-group
 TimeoutStopSec=15
 
