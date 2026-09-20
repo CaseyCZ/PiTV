@@ -56,6 +56,11 @@ contract is the baseline for all future UI, Store and runtime changes.
   ordinary app-exit operation.
 - A transient readiness timeout must not immediately throw the user back to
   PiTV.
+- Android permission/account/Settings activities are part of the foreground TV
+  session. A package handoff must not be interpreted as an app crash.
+- The per-app wrapper may return to PiTV automatically when Android reaches its
+  Home/Launcher surface; system Settings and permission flows remain visible
+  and controllable until the user finishes them or uses the global escape.
 - Warm readiness is a local liveness contract, not a synchronous status
   probe on every launch. The persistent Cage client writes its PID to
   `pitv-waydroid-runtime-ready` only after Android reaches `boot_completed`;
