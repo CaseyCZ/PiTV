@@ -115,8 +115,8 @@ restore_previous() {
 fail_and_restore() {
   local message="$1"
   echo "V4L2 vendor validation failed: $message" >&2
-  RESTORE_NEEDED=0
   restore_previous
+  RESTORE_NEEDED=0
   echo "Previous Waydroid images restored." >&2
   exit 20
 }
