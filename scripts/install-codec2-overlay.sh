@@ -68,7 +68,7 @@ restore(){
   if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
     /usr/local/libexec/pitv-waydroid-device-patch --remove >/dev/null 2>&1 || true
   fi
-  waydroid init -f >/dev/null 2>&1 || true
+  # Images are already initialized; forcing waydroid init here can replace them.
   systemctl start waydroid-container.service >/dev/null 2>&1 || true
   systemctl start pitv-android-warm.service >/dev/null 2>&1 || true
 }
@@ -155,7 +155,7 @@ RESTORE=1
 if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
   PITV_WAYDROID_PATCH_STRICT=1 /usr/local/libexec/pitv-waydroid-device-patch || fail "media-node passthrough patch"
 fi
-waydroid init -f || fail "waydroid init"
+# Do not run waydroid init -f after swapping the tested image: it may refresh/replace images.
 systemctl start waydroid-container.service || fail "container start"
 systemctl start pitv-android-warm.service >/dev/null 2>&1 || true
 
