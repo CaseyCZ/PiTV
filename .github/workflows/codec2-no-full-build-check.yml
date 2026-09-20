@@ -3,6 +3,12 @@ name: Codec2 No Full Build Check
 on:
   push:
     branches: [experiment/rpi4-codec2-no-full-build]
+  pull_request:
+    paths:
+      - 'scripts/*codec2*'
+      - 'docs/experiments/*codec2*'
+      - 'android/waydroid-rpi4/**'
+      - '.github/workflows/codec2-no-full-build-check.yml'
   workflow_dispatch:
 
 permissions:
@@ -10,7 +16,7 @@ permissions:
 
 jobs:
   static:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Validate no-full-build helpers
