@@ -27,7 +27,8 @@ jobs:
             pitv/store_backend.py \
             pitv/update_backend.py \
             system/pitv-helper \
-            system/pitv-self-update
+            system/pitv-self-update \
+            system/pitv-inputd
 
       - name: Shell syntax
         run: |
@@ -61,6 +62,29 @@ jobs:
           grep -q 'waydroid-keyevent' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
+          python3 system/pitv-inputd --self-test
+          grep -q 'python3-evdev' install.sh
+          grep -q 'system/pitv-inputd /usr/local/libexec/pitv-inputd' install.sh
+          grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
+          grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
+          grep -q 'systemctl enable pitv-inputd.service pitv-shell.service' install.sh
+          grep -q 'pitv-inputd.service' system/pitv.target
+          grep -q 'After=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-inputd.service' system/pitv-shell.service
+          grep -q '^ConditionPathExists=!/var/lib/pitv/cec-disabled$' system/pitv-inputd.service
+          grep -q '^Restart=always$' system/pitv-inputd.service
+          grep -q 'PiTV TV Remote' system/pitv-inputd
+          grep -q -- '--no-rc-passthrough' system/pitv-inputd
+          grep -q 'KEY_F13' system/pitv-inputd
+          grep -q 'KEY_F14' system/pitv-inputd
+          grep -q 'key="F13"' system/labwc/rc.xml
+          grep -q 'key="F14"' system/labwc/rc.xml
+          grep -q 'pitv-global-action home' system/labwc/rc.xml
+          grep -q 'pitv-global-action close' system/labwc/rc.xml
+          grep -q 'tv-input-enable' system/pitv-helper
+          grep -q 'system_input_managed' pitv/pitv.py
+          grep -q '_consume_global_tv_action' pitv/pitv.py
+          grep -q 'if not system_input_managed()' pitv/pitv.py
           ! grep -q 'tv-runtime-reset' system/pitv-launcher-run
           grep -q '^exec labwc -S /usr/local/bin/pitv-launcher-run$' system/pitv-session
           grep -q 'pitv-wayland-display' system/pitv-session
