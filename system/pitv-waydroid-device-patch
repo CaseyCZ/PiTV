@@ -85,6 +85,7 @@ def remove_once(path, patched, plain):
 lxc_plain = '    for n in glob.glob("/dev/video*"):\n        make_entry(n)\n'
 lxc_patched = (
     lxc_plain
+    + '    # PiTV: stateless HEVC Media Request API\n'
     + '    for n in glob.glob("/dev/media*"):\n        make_entry(n)\n'
 )
 mgr_plain = (
@@ -92,8 +93,9 @@ mgr_plain = (
     '        perm_list.extend(glob.glob("/dev/video*"))\n'
 )
 mgr_patched = (
-    '        # Videos / media-controller request nodes\n'
+    '        # Videos\n'
     '        perm_list.extend(glob.glob("/dev/video*"))\n'
+    '        # PiTV: stateless HEVC Media Request API\n'
     '        perm_list.extend(glob.glob("/dev/media*"))\n'
 )
 
