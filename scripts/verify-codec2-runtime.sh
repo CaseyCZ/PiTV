@@ -9,6 +9,7 @@ codecs="$(printf 'dumpsys media.codec\n' | waydroid shell 2>/dev/null || true)"
 procs="$(printf "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'\n" | waydroid shell 2>/dev/null || true)"
 rank="$(printf 'getprop persist.v4l2_codec2.rank.decoder\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
 instances="$(printf 'getprop ro.vendor.v4l2_codec2.decode_concurrent_instances\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
+ffmpeg_hw="$(printf 'getprop persist.ffmpeg_codec2.v4l2.h265\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
 pool="$(printf 'getprop debug.stagefright.c2-poolmask\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
 ok=1
 [ "$release" = 13 ] || ok=0
@@ -22,6 +23,7 @@ printf '%s\n' "$procs" | grep -Eiq 'media\.c2.*ffmpeg|ffmpeg.*media\.c2' || ok=0
 [ "$rank" = 128 ] || ok=0
 [ "$pool" = 0x350000 ] || ok=0
 [ "$instances" = 4 ] || ok=0
+[ "$ffmpeg_hw" = 1 ] || ok=0
 echo "android_release=$release"
 echo "boot_completed=$boot"
 echo "video_nodes=$([ -n "$video" ] && echo yes || echo no)"
@@ -31,5 +33,6 @@ echo "hevc_codec=$(printf '%s\n' "$codecs" | grep -q 'c2.ffmpeg.hevc.decoder' &&
 echo "v4l2_rank=$rank"
 echo "c2_poolmask=$pool"
 echo "v4l2_instances=$instances"
+echo "ffmpeg_hevc_v4l2_request=$ffmpeg_hw"
 echo "codec2_runtime=$([ "$ok" -eq 1 ] && echo healthy || echo failed)"
 [ "$ok" -eq 1 ]
