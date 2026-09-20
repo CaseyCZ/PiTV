@@ -202,3 +202,4 @@ grep -q 'evidence output already exists' scripts/capture-codec2-evidence.sh
 grep -Fq 'BACKUP="$STATE/backups/${STAMP}-$"' scripts/install-codec2-overlay.sh
 grep -q 'check-codec2-payload-contract.py' scripts/codec2-install-readiness.sh
 grep -q '"android_video_nodes"' scripts/evaluate-codec2-target.py
+grep -q 'staged path is a symlink' scripts/verify-staged-codec2-payload.py
