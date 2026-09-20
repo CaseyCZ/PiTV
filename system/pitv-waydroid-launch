@@ -117,13 +117,11 @@ package_installed() {
     grep -Fxq "$package"
 }
 
-launch_package() {
+wait_package_visible() {
   local package="$1"
-  waydroid app launch "$package" >>"$LOG" 2>&1 || return 1
-
-  # Do not reveal Android just because its process exists. Wait until
-  # WindowManager/ActivityManager can actually see the requested app.
-  for _ in $(seq 1 60); do
+  # Process existence is not enough for TV UX. Reveal Android only after the
+  # requested package owns a visible Activity/Window.
+  for _ in $(seq 1 80); do
     if printf '{"package":"%s"}' "$package" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible >/dev/null 2>&1; then
       return 0
@@ -131,6 +129,17 @@ launch_package() {
     sleep 0.25
   done
   return 1
+}
+
+start_package() {
+  local package="$1"
+  waydroid app launch "$package" >>"$LOG" 2>&1
+}
+
+launch_package() {
+  local package="$1"
+  start_package "$package" || return 1
+  wait_package_visible "$package"
 }
 
 READY_FILE="$RUNTIME/pitv-waydroid-app-ready"
@@ -145,9 +154,15 @@ mark_ready() {
 }
 
 runtime_ready() {
-  [ -f "$RUNTIME_READY" ] || return 1
-  printf '{}' |
-    sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1
+  # The persistent Cage client writes its own PID only after Android reached
+  # boot_completed. That process remains alive for the warm-runtime lifetime,
+  # so ordinary app launches can validate readiness locally without running
+  # expensive waydroid status/getprop commands through sudo on every check.
+  [ -s "$RUNTIME_READY" ] || return 1
+  local pid
+  pid="$(head -n1 "$RUNTIME_READY" 2>/dev/null || true)"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null
 }
 
 request_warmer() {
@@ -236,8 +251,8 @@ if [ "$MODE" = "client" ]; then
     exit 17
   fi
 
-  printf '%s\n' "ready" >"$RUNTIME_READY"
-  log "hidden Android TV runtime ready"
+  printf '%s\n' "$$" >"$RUNTIME_READY"
+  log "hidden Android TV runtime ready pid=$$"
 
   READY_MISSES=0
   while true; do
@@ -288,20 +303,27 @@ else
     exit 2
   }
 
-  if [ -n "$APK" ] && [ -f "$APK" ] && ! package_installed "$TARGET"; then
-    waydroid app install "$APK" >>"$LOG" 2>&1 || exit 4
+  # Fast TV path: do not enumerate the whole Android app catalog before every
+  # launch. Try the installed package immediately. Only if Android reports that
+  # launch itself failed do we install the supplied APK and retry.
+  if ! start_package "$TARGET"; then
+    if [ -n "$APK" ] && [ -f "$APK" ]; then
+      log "package launch failed; installing APK fallback: $TARGET"
+      waydroid app install "$APK" >>"$LOG" 2>&1 || exit 4
+      start_package "$TARGET" || exit 5
+    else
+      log "application is not launchable: $TARGET"
+      exit 4
+    fi
   fi
 
-  if ! package_installed "$TARGET"; then
-    log "package is not installed after install step: $TARGET"
-    exit 4
-  fi
-
-  if ! launch_package "$TARGET"; then
-    log "first app launch did not create a visible activity; retrying"
-    sleep 0.5
-    if ! launch_package "$TARGET"; then
-      log "application failed to start: $TARGET"
+  if ! wait_package_visible "$TARGET"; then
+    # A slow first Activity creation can survive the package process itself.
+    # Retry only the lightweight launch intent; never reinstall a healthy app.
+    log "application not visible yet; retrying launch intent: $TARGET"
+    start_package "$TARGET" || true
+    if ! wait_package_visible "$TARGET"; then
+      log "application failed to create a visible TV surface: $TARGET"
       waydroid log >>"$LOG" 2>&1 || true
       exit 5
     fi
