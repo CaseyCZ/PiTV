@@ -183,7 +183,7 @@ jobs:
           grep -q 'pid = int(raw)' pitv/pitv.py
           grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
           grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
-          grep -q 'Fast TV path' system/pitv-waydroid-launch
+          grep -q 'Never trust only the exit status' system/pitv-waydroid-launch
           grep -q 'maintenance must never block an app launch' pitv/pitv.py
           python3 - <<'PYLIFECYCLE'
           from pathlib import Path
@@ -196,13 +196,14 @@ jobs:
           warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
           warm = warm.split('MODE="command"', 1)[0]
           assert 'waydroid session stop' not in warm
-          assert 'printf \'%s\\n\' "$$" >"$RUNTIME_READY"' in wrapper
-          assert 'waydroid app list' in wrapper  # diagnostics/Play Store only
-          fast = wrapper.split('# Fast TV path:', 1)[1]
-          fast = fast.split('TRACK_PACKAGE="$TARGET"', 1)[0]
-          assert 'package_installed "$TARGET"' not in fast
-          assert 'start_package "$TARGET"' in fast
-          assert 'wait_package_visible "$TARGET"' in fast
+          assert 'printf \'%s\\n\' "$" >"$RUNTIME_READY"' in wrapper
+          assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
+          launch = wrapper.split('# Never trust only the exit status', 1)[1]
+          launch = launch.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          assert 'package_installed "$TARGET"' in launch
+          assert 'waydroid app install "$APK"' in launch
+          assert 'start_package "$TARGET"' in launch
+          assert 'wait_package_visible "$TARGET"' in launch
           print("PiTV 1.5 warm lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
@@ -214,7 +215,7 @@ jobs:
           ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
           grep -q '"dumpsys", "activity", "top"' system/pitv-helper
           ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
-          grep -q 'for _ in $(seq 1 50)' system/pitv-waydroid-launch
+          grep -q 'for _ in $(seq 1 25)' system/pitv-waydroid-launch
           grep -q 'sleep 0.20' system/pitv-waydroid-launch
           grep -q 'waydroid-app-stop' system/pitv-helper
           grep -q 'waydroid-app-stop' pitv/pitv.py
