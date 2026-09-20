@@ -35,6 +35,14 @@ cleanup(){
 }
 trap cleanup EXIT INT TERM
 source_dev=""
+if command -v lpdump >/dev/null 2>&1 && lpdump "$SOURCE" >/dev/null 2>&1; then
+  command -v lpunpack >/dev/null || { echo "lpunpack required for dynamic/super donor image" >&2; exit 6; }
+  LPDIR="$TMP/lp"; mkdir -p "$LPDIR"
+  lpunpack "$SOURCE" "$LPDIR"
+  mapfile -t vendors < <(find "$LPDIR" -maxdepth 1 -type f \( -name 'vendor.img' -o -name 'vendor_*.img' \) | sort)
+  [ "${#vendors[@]}" -eq 1 ] || { echo "super image must contain exactly one vendor image" >&2; exit 6; }
+  SOURCE="${vendors[0]}"
+fi
 DESC="$(file -b "$SOURCE" 2>/dev/null || true)"
 if printf '%s\n' "$DESC" | grep -qi 'Android sparse image'; then
   command -v simg2img >/dev/null || { echo "simg2img required for sparse Android image" >&2; exit 2; }
