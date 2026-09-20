@@ -27,7 +27,13 @@ cleanup(){
 }
 trap cleanup EXIT INT TERM
 source_dev=""
-if file -b "$SOURCE" 2>/dev/null | grep -qi 'ext[234] filesystem'; then
+DESC="$(file -b "$SOURCE" 2>/dev/null || true)"
+if printf '%s\n' "$DESC" | grep -qi 'Android sparse image'; then
+  command -v simg2img >/dev/null || { echo "simg2img required for sparse Android image" >&2; exit 2; }
+  RAW="$TMP/vendor.raw.img"; simg2img "$SOURCE" "$RAW"; SOURCE="$RAW"
+  DESC="$(file -b "$SOURCE" 2>/dev/null || true)"
+fi
+if printf '%s\n' "$DESC" | grep -qi 'ext[234] filesystem'; then
   loop="$(losetup --find --show --read-only "$SOURCE")"; source_dev="$loop"
 else
   loop="$(losetup --find --show --read-only --partscan "$SOURCE")"
