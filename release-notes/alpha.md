@@ -1,5 +1,19 @@
 # PiTV Alpha
 
+### PiTV 1.4.30 · jednotné Nastavení a jednoduché „Aktualizovat vše“
+- všechny sekce otevřené z **Nastavení** používají stejný TV/Kodi-style model jako Vzhled: seznam kategorií vlevo, položky uprostřed a vysvětlení vybrané volby vpravo
+- sjednocení platí pro Spořič, Síť, Zvuk, HDMI/CEC, Aplikace, Server Store, Android/APK, Aktualizace, Systém, Napájení i O PiTV; sdílené top-level stránky si při otevření ze sidebaru zachovávají svůj plnohodnotný layout
+- Wi‑Fi už se po OK nepřepíná naslepo; otevře viditelnou nabídku **Zapnuto / Vypnuto**
+- HDMI/CEC nově přímo nabízí **HDMI‑CEC ovládání Zapnuto/Vypnuto** a **Probudit TV při startu Zapnuto/Vypnuto** stejným seznamovým způsobem
+- stránka Aktualizace už není mřížka deseti podobných dlaždic: nahoře je jeden společný přehled stavu a pod ním dominantní tlačítko **Aktualizovat vše**
+- **Aktualizovat vše** provede doporučený sled: Store + Server katalogy → nainstalované Linux Store aplikace → Ubuntu → PiTV; PiTV se aktualizuje poslední a potom se restartuje jen TV UI
+- jednotlivé aktualizace zůstávají dostupné pod **Pokročilé možnosti**, takže zkušenější uživatel může aktualizovat jen PiTV, katalogy, Store aplikace nebo Ubuntu
+- Systém už neduplikuje několik aktualizačních tlačítek; obsahuje stav zařízení a jediný vstup **Otevřít Aktualizace**
+- otevření stránky Aktualizace samo nespouští dlouhý APT scan; uživatel si zvolí **Zkontrolovat aktualizace** nebo rovnou **Aktualizovat vše**
+- zachované jsou opravy 1.4.29: persistentní CEC reader podle fyzicky funkčního základu 1.4.10, cleanup orphanovaných CEC monitorů a per-adapter singleton lock
+
+
+
 ### PiTV 1.4.29 · návrat k persistentnímu CEC ovládání z 1.4.10
 - fyzická historie potvrzuje PiTV 1.4.10 jako poslední známý stav, kde na této TV fungovaly šipky, OK a Zpět; Home na použitém ovladači nebyl spolehlivý/není k dispozici
 - návrat z aplikace už nezastavuje a nevytváří nový `CECReader`; zdravý kernel CEC monitor zůstává po celý život launcheru stejný jako v 1.4.10 a pouze se vyčistí stav kláves + znovu oznámí Active Source
