@@ -132,6 +132,7 @@ class CECTranslator:
     # one step, while a held arrow repeats only after a deliberate delay.
     REPEAT_WINDOW = 0.45
     BACK_CONTINUITY = 0.80
+    BACK_TRIPLE_WINDOW = 1.20
     LONG_BACK_SECONDS = 3.0
 
     def __init__(self, sink):
@@ -145,6 +146,8 @@ class CECTranslator:
         self.back_physical_down = False
         self.back_short_sent = False
         self.back_long_sent = False
+        self.back_tap_count = 0
+        self.back_last_tap_at = 0.0
 
     def _reset_back_if_idle(self, now):
         if (self.back_started and not self.back_physical_down and
@@ -153,6 +156,10 @@ class CECTranslator:
             self.back_last_seen = 0.0
             self.back_short_sent = False
             self.back_long_sent = False
+        if (self.back_last_tap_at and
+                now - self.back_last_tap_at > self.BACK_TRIPLE_WINDOW):
+            self.back_tap_count = 0
+            self.back_last_tap_at = 0.0
 
     def _press(self, code, now=None):
         now = time.monotonic() if now is None else now
@@ -174,17 +181,39 @@ class CECTranslator:
                 self.back_started > 0 and
                 now - self.back_last_seen <= self.BACK_CONTINUITY
             )
+            new_physical_press = not self.back_physical_down
             if not continuing:
                 self.back_started = now
                 self.back_short_sent = False
                 self.back_long_sent = False
+
+            if new_physical_press:
+                # Some TVs (physically confirmed on SKYDATA) expose a five
+                # second hold exactly like one short CEC press + release, so
+                # hold duration is unknowable. Keep native long-hold support
+                # for remotes that repeat, and add a deterministic fallback:
+                # three distinct Back presses within 1.2 s means EXIT to PiTV.
+                if (self.back_last_tap_at and
+                        now - self.back_last_tap_at <= self.BACK_TRIPLE_WINDOW):
+                    self.back_tap_count += 1
+                else:
+                    self.back_tap_count = 1
+                self.back_last_tap_at = now
+
+                if self.back_tap_count >= 3:
+                    self.back_tap_count = 0
+                    self.back_last_tap_at = 0.0
+                    self.back_long_sent = True
+                    self.sink.tap(KEY_F14)
+                else:
+                    # Each real short press remains an ordinary Back. Raw and
+                    # decoded duplicates for the same press are suppressed by
+                    # back_physical_down until USER_CONTROL_RELEASED.
+                    self.sink.tap(KEY_ESC)
+                    self.back_short_sent = True
+
             self.back_last_seen = now
             self.back_physical_down = True
-            # One short Back only. TVs that encode a held button as repeated
-            # press/release pairs must not walk backwards through many menus.
-            if not self.back_short_sent:
-                self.sink.tap(KEY_ESC)
-                self.back_short_sent = True
             self.key_down_code = code
             self.last_code = code
             self.last_code_at = now
@@ -368,19 +397,39 @@ def self_test():
         assert sink.events[before:] == [KEY_F13], (code, sink.events[before:])
         tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 0.20)
 
-    # Back and Previous-channel are both appliance Back. Older TVs may encode
-    # one physical hold as repeated press/release pairs: send one short Back,
-    # preserve gesture continuity, then emit one F14 after three seconds.
+    # Back and Previous-channel are both appliance Back.
     for back_code in (0x0D, 0x32):
         base = t + 20.0 + back_code
+
+        # Physical SKYDATA trace: even a five-second hold can arrive as exactly
+        # one press + one release. It must stay a normal short Back and must
+        # never become a delayed false EXIT.
         before = len(sink.events)
         tr.feed(f"> 01:44:{back_code:02x}\n", base)
         tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 0.10)
-        tr.feed(f"> 01:44:{back_code:02x}\n", base + 0.30)
+        tr.tick(base + 5.00)
         assert sink.events[before:] == [KEY_ESC], sink.events[before:]
-        tr.tick(base + 3.20)
-        assert sink.events[before:] == [KEY_ESC, KEY_F14], sink.events[before:]
-        tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 3.30)
+
+        # Universal fallback for TVs where hold duration is invisible:
+        # three distinct Back presses inside 1.2 s => one global F14.
+        base += 10.0
+        before = len(sink.events)
+        for off in (0.00, 0.35, 0.70):
+            tr.feed(f"> 01:44:{back_code:02x}\n", base + off)
+            tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + off + 0.08)
+        assert sink.events[before:] == [KEY_ESC, KEY_ESC, KEY_F14], sink.events[before:]
+
+        # Remotes that really repeat a held Back still keep the original
+        # three-second long-hold behavior.
+        base += 10.0
+        before = len(sink.events)
+        tr.feed(f"> 01:44:{back_code:02x}\n", base)
+        for off in (0.60, 1.20, 1.80, 2.40, 3.05):
+            tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + off - 0.05)
+            tr.feed(f"> 01:44:{back_code:02x}\n", base + off)
+            tr.tick(base + off)
+        assert KEY_F14 in sink.events[before:], sink.events[before:]
+        tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 3.20)
         tr.tick(base + 4.20)
 
     # Media and volume keys remain ordinary Linux input events.
