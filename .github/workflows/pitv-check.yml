@@ -50,6 +50,48 @@ jobs:
           PYWAYDROID
           sudo python3 system/pitv-helper self-test </dev/null
           python3 system/pitv-self-update --self-test
+          python3 - <<'PYSTORESTATE'
+          import sys, tempfile
+          from pathlib import Path
+          sys.path.insert(0, "pitv")
+          import store_backend as sb
+
+          item = {
+              "id": "smarttube",
+              "installer": {
+                  "type": "github_release_apk",
+                  "expected_package": "org.smarttube.stable",
+              },
+          }
+          with tempfile.TemporaryDirectory() as td:
+              apk = Path(td) / "smarttube.apk"
+              apk.write_bytes(b"apk")
+              sb.read_receipt = lambda _sid: {
+                  "installed": True,
+                  "package": "org.smarttube.stable",
+                  "path": str(apk),
+              }
+              writes = []
+              sb.write_receipt = lambda *args, **kwargs: writes.append((args, kwargs))
+
+              sb._waydroid_packages_state = lambda: (True, set())
+              assert sb.store_state(item) == "downloaded"
+              assert writes and writes[-1][1].get("installed") is False
+
+              sb._waydroid_packages_state = lambda: (
+                  True, {"org.smarttube.stable"}
+              )
+              assert sb.store_state(item) == "installed"
+
+              sb._waydroid_packages_state = lambda: (False, set())
+              sb.read_receipt = lambda _sid: {
+                  "installed": True,
+                  "package": "org.smarttube.stable",
+                  "path": str(apk),
+              }
+              assert sb.store_state(item) == "installed"
+          print("Android Store live-package state regression OK")
+          PYSTORESTATE
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
           bash -n system/pitv-cec-control
