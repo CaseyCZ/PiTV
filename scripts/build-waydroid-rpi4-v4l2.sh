@@ -83,9 +83,7 @@ checkout_external external/ffmpeg_codec2 "$FFMPEG_CODEC2_REPO" "$RPI_ANDROID_BRA
 checkout_external external/libudev-zero "$LIBUDEV_ZERO_REPO" "$RPI_ANDROID_BRANCH"
 
 # PiTV's RPi4 FFmpeg Codec2 service exists only for stateless HEVC hardware
-# decoding. Do not depend on Android persistent-property access to enable the
-# Request API path, and do not publish FFmpeg software codecs that duplicate
-# Android's normal software fallbacks.
+# decoding. Force the Request API path at build time and publish HEVC only.
 python3 - <<'PYFFMPEG'
 from pathlib import Path
 
@@ -96,20 +94,19 @@ old = (
     '!property_get_bool("persist.ffmpeg_codec2.v4l2.h265", 0))\n'
     '        return 0;\n'
 )
-new = (
-    '    // PiTV/RPi4: this dedicated Codec2 service is shipped only for HEVC.\\n'
-    '    // Always try FFmpeg V4L2 Request API; install-time validation ensures\\n'
-    '    // rpivid media/video request nodes are present before this vendor is kept.\\n'
-    '    if (avctx->codec_id != AV_CODEC_ID_HEVC)\\n'
-    '        return 0;\\n'
-)
-new = new.replace('\\n', '\n')
+new = """    // PiTV/RPi4: this dedicated Codec2 service is shipped only for HEVC.
+    // Always try FFmpeg V4L2 Request API; install-time validation ensures
+    // rpivid media/video request nodes are present before this vendor is kept.
+    if (avctx->codec_id != AV_CODEC_ID_HEVC)
+        return 0;
+"""
 if old not in src:
     raise SystemExit("Unexpected FFmpeg HEVC hwaccel property gate")
 hw.write_text(src.replace(old, new, 1), encoding="utf-8")
 
 service = Path("external/ffmpeg_codec2/service.cpp")
 src = service.read_text(encoding="utf-8")
+
 start = src.find("static const C2FFMPEGComponentInfo kFFMPEGVideoComponents[] = {")
 end = src.find("\n};", start)
 if start < 0 or end < 0:
@@ -136,7 +133,7 @@ static const size_t kNumAudioComponents = 0;""",
 old_ranks = """        uint32_t defaultRank = ::android::base::GetUintProperty("persist.ffmpeg_codec2.rank", 0x110u);
         uint32_t defaultRankAudio = ::android::base::GetUintProperty("persist.ffmpeg_codec2.rank.audio", defaultRank);
         uint32_t defaultRankVideo = ::android::base::GetUintProperty("persist.ffmpeg_codec2.rank.video", defaultRank);"""
-new_ranks = """        // Fixed PiTV ranks remove the last dependency on persistent-property
+new_ranks = """        // Fixed PiTV ranks remove the dependency on persistent-property
         // SELinux visibility. Audio is disabled; HEVC is preferred to software.
         uint32_t defaultRank = 0x100u;
         uint32_t defaultRankAudio = 0xFFFFFFFFu;
@@ -151,11 +148,8 @@ PYFFMPEG
 cp "$PITV_ROOT/android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml" \
   external/ffmpeg_codec2/media_codecs_ffmpeg_c2.xml
 
-# Raspberry Pi 4 only has a useful stateful V4L2 hardware path for H.264 in
-# this Codec2 implementation. The upstream component store also advertises
-# VP8/VP9 unconditionally, which could make Android try non-existent Pi 4 HW
-# decoders. Keep the V4L2 store deliberately AVC-only; HEVC is provided by the
-# separate FFmpeg/rpivid Request-API path below.
+# The upstream V4L2 store advertises VP8/VP9 too. On Pi 4 this backend is used
+# only for the stateful H.264 hardware decoder; HEVC uses FFmpeg/rpivid.
 python3 - <<'PYV4L2STORE'
 from pathlib import Path
 
@@ -189,7 +183,7 @@ rm -rf vendor/pitv/rpi4
 mkdir -p vendor/pitv/rpi4
 cp -a "$PITV_ROOT/android/waydroid-rpi4/." vendor/pitv/rpi4/
 
-python3 - <<'PY'
+python3 - <<'PYDEVICE'
 from pathlib import Path
 
 device = Path("device/waydroid/waydroid/device.mk")
@@ -227,7 +221,7 @@ if sepolicy not in src:
 if vendor_prop not in src:
     src += "\n# PiTV Raspberry Pi 4 hardware media properties\n" + vendor_prop + "\n"
 board.write_text(src, encoding="utf-8")
-PY
+PYDEVICE
 
 echo "Building Waydroid ARM64 vendor image..."
 lunch lineage_waydroid_arm64-userdebug
@@ -239,56 +233,19 @@ test -x "$OUT/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64"
 test -x "$OUT/vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg"
 test -s "$OUT/vendor/etc/seccomp_policy/codec2.vendor.ext.policy"
 test -s "$OUT/vendor/etc/pitv-hwdecode.env"
-grep -q '^HEVC_V4L2_REQUEST=compiled
-rm -rf "$DIST"
-mkdir -p "$DIST"
-cp "$OUT/vendor.img" "$DIST/vendor.img"
-
-V4L2_REV="$(git -C external/v4l2_codec2 rev-parse HEAD)"
-FFMPEG_REV="$(git -C external/ffmpeg rev-parse HEAD)"
-FFMPEG_CODEC2_REV="$(git -C external/ffmpeg_codec2 rev-parse HEAD)"
-LIBUDEV_ZERO_REV="$(git -C external/libudev-zero rev-parse HEAD)"
-WAYDROID_DEVICE_REV="$(git -C device/waydroid/waydroid rev-parse HEAD)"
-{
-  echo "PITV_WAYDROID_IMAGE_FORMAT=2"
-  echo "ANDROID_RELEASE=13"
-  echo "LINEAGE_BRANCH=$LINEAGE_BRANCH"
-  echo "WAYDROID_BRANCH=$WAYDROID_BRANCH"
-  echo "WAYDROID_DEVICE_REV=$WAYDROID_DEVICE_REV"
-  echo "V4L2_CODEC2_REV=$V4L2_REV"
-  echo "FFMPEG_REV=$FFMPEG_REV"
-  echo "FFMPEG_CODEC2_REV=$FFMPEG_CODEC2_REV"
-  echo "LIBUDEV_ZERO_REV=$LIBUDEV_ZERO_REV"
-  echo "TARGET=lineage_waydroid_arm64-userdebug"
-  echo "HW_DECODER_AVC=c2.v4l2.avc.decoder"
-  echo "HW_DECODER_HEVC=c2.ffmpeg.hevc.decoder"
-  echo "HEVC_V4L2_REQUEST=compiled"
-} > "$DIST/build-info.env"
-
-(
-  cd "$DIST"
-  sha256sum vendor.img build-info.env > SHA256SUMS
-  xz -T0 -9 -f -k vendor.img
-  sha256sum vendor.img.xz >> SHA256SUMS
-)
-
-echo
-echo "PiTV RPi4 AVC+HEVC Waydroid vendor image built:"
-echo "  $DIST/vendor.img"
-echo "  $DIST/vendor.img.xz"
-echo
-cat "$DIST/build-info.env"
- "$OUT/vendor/etc/pitv-hwdecode.env"
+grep -q '^HEVC_V4L2_REQUEST=compiled$' "$OUT/vendor/etc/pitv-hwdecode.env"
 grep -q 'c2.v4l2.avc.decoder' "$OUT/vendor/etc/media_codecs.xml"
 grep -q 'media_codecs_ffmpeg_c2.xml' "$OUT/vendor/etc/media_codecs.xml"
 grep -q 'c2.ffmpeg.hevc.decoder' "$OUT/vendor/etc/media_codecs_ffmpeg_c2.xml"
 ! grep -q 'c2.ffmpeg.vp9.decoder' "$OUT/vendor/etc/media_codecs_ffmpeg_c2.xml"
 ! grep -q 'c2.ffmpeg.av1.decoder' "$OUT/vendor/etc/media_codecs_ffmpeg_c2.xml"
 ! grep -q 'c2.ffmpeg.h264.decoder' "$OUT/vendor/etc/media_codecs_ffmpeg_c2.xml"
-! grep -q 'persist.ffmpeg_codec2.v4l2.h265' external/ffmpeg_codec2/ffmpeg_utils/ffmpeg_hwaccel.c
+! grep -q 'persist.ffmpeg_codec2.v4l2.h265' \
+  external/ffmpeg_codec2/ffmpeg_utils/ffmpeg_hwaccel.c
 grep -q 'PiTV/RPi4: this dedicated Codec2 service is shipped only for HEVC' \
   external/ffmpeg_codec2/ffmpeg_utils/ffmpeg_hwaccel.c
-grep -q 'static const size_t kNumAudioComponents = 0;' external/ffmpeg_codec2/service.cpp
+grep -q 'static const size_t kNumAudioComponents = 0;' \
+  external/ffmpeg_codec2/service.cpp
 ! grep -q 'c2.v4l2.vp9.decoder' "$OUT/vendor/etc/media_codecs.xml"
 
 rm -rf "$DIST"
@@ -313,6 +270,7 @@ WAYDROID_DEVICE_REV="$(git -C device/waydroid/waydroid rev-parse HEAD)"
   echo "TARGET=lineage_waydroid_arm64-userdebug"
   echo "HW_DECODER_AVC=c2.v4l2.avc.decoder"
   echo "HW_DECODER_HEVC=c2.ffmpeg.hevc.decoder"
+  echo "HEVC_V4L2_REQUEST=compiled"
 } > "$DIST/build-info.env"
 
 (
