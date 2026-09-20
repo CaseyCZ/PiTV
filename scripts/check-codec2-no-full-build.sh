@@ -160,3 +160,8 @@ grep -q 'service/android.hardware.media.c2@1.0-service-v4l2-64.rc' scripts/verif
 grep -q 'avc_service.*vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2' scripts/codec2-payload-readiness.py
 grep -q 'hevc_service.*vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg' scripts/codec2-payload-readiness.py
 grep -q 'both codec service ELF binaries' scripts/codec2-payload-readiness.py
+grep -q 'payload path escapes root' scripts/check-codec2-payload-size.py
+grep -q 'metadata path escapes payload' scripts/verify-codec2-metadata.py
+grep -q 'init metadata missing exact service path' scripts/check-codec2-service-metadata.py
+grep -q 'check-codec2-service-metadata.py' scripts/prepare-codec2-from-donor.sh
+grep -q 'check-codec2-service-metadata.py' scripts/build-minimal-codec2-modules.sh
