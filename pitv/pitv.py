@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.5.0"
+VERSION = "1.4.31"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -742,66 +742,63 @@ def count_updates():
         return None
 
 _CEC_MANAGER = None
-PITV_INPUTD_SOCKET = "/run/pitv/inputd.sock"
-
-
-def _inputd_command(command, timeout=2.5):
-    """Send one synchronous command to the persistent TV Shell input daemon."""
-    try:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        sock.connect(PITV_INPUTD_SOCKET)
-        sock.sendall(f"CMD\t{command}\n".encode("utf-8"))
-        data = b""
-        while b"\n" not in data and len(data) < 2048:
-            chunk = sock.recv(512)
-            if not chunk:
-                break
-            data += chunk
-        sock.close()
-        line = data.split(b"\n", 1)[0].decode("utf-8", "replace")
-        parts = line.split("\t", 3)
-        if len(parts) >= 4 and parts[0] == "ACK" and parts[1] == command:
-            return parts[2] == "1", parts[3]
-        return False, "Neplatná odpověď PiTV Input Service"
-    except FileNotFoundError:
-        return False, "PiTV Input Service neběží"
-    except (ConnectionRefusedError, socket.timeout):
-        return False, "PiTV Input Service není dostupný"
-    except Exception as e:
-        return False, f"CEC chyba: {e}"
 
 
 def cec_available():
-    """CEC availability comes from the one persistent libCEC owner."""
-    manager = _CEC_MANAGER
-    if manager is not None:
-        return manager.is_ready()
-    return Path(PITV_INPUTD_SOCKET).exists()
+    # Input uses the kernel CEC API; libCEC is only an optional output fallback.
+    return shutil.which("cec-ctl") is not None and any(Path("/dev").glob("cec*"))
 
 
 def cec_send(commands):
-    """Route all CEC output through the same libCEC connection as TV input."""
+    """Send CEC output through the same kernel CEC stack used for input."""
+    if not cec_available():
+        return False, "cec-ctl nebo CEC adaptér není dostupný"
     if isinstance(commands, str):
         commands = [commands]
 
+    device = None
+    if _CEC_MANAGER is not None and _CEC_MANAGER.device is not None:
+        device = str(_CEC_MANAGER.device)
+    if not device:
+        devices = sorted(Path("/dev").glob("cec*"))
+        if devices:
+            device = str(devices[0])
+    if not device:
+        return False, "CEC adaptér nebyl nalezen"
+
     modes = {
-        "on 0": "POWER_ON",
-        "as": "ACTIVE",
-        "standby 0": "STANDBY",
-        "volup": "VOLUP",
-        "voldown": "VOLDOWN",
-        "mute": "MUTE",
+        "on 0": "on",
+        "as": "active",
+        "standby 0": "standby",
+        "volup": "volup",
+        "voldown": "voldown",
+        "mute": "mute",
     }
-    last_message = ""
+    outputs = []
     for command in commands:
-        action = modes.get(str(command).strip().lower())
-        if not action:
+        mode = modes.get(str(command).strip().lower())
+        if not mode:
             return False, f"Nepodporovaný CEC příkaz: {command}"
-        ok, last_message = _inputd_command(action)
-        if not ok:
-            return False, last_message
-    return True, last_message or "CEC příkaz odeslán"
+        try:
+            p = subprocess.run(
+                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", device, mode],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=6,
+                check=False,
+            )
+            out = (p.stdout or "").strip()
+            if out:
+                outputs.append(out[-180:])
+            if p.returncode != 0:
+                return False, out[-180:] if out else f"CEC chyba {p.returncode}"
+        except subprocess.TimeoutExpired:
+            return False, "CEC timeout"
+        except Exception as e:
+            return False, f"CEC chyba: {e}"
+
+    return True, outputs[-1] if outputs else "CEC příkaz odeslán"
 
 
 def cec_tv_on():
@@ -835,52 +832,73 @@ def cec_mute():
 
 
 class CECReader(threading.Thread):
-    """PiTV client for the persistent libCEC TV Shell input service.
+    """Read TV remote keys from the Linux kernel HDMI-CEC API.
 
-    This class intentionally does not open /dev/cec*, spawn cec-ctl or
-    implement the HDMI-CEC protocol. pitv-inputd owns libCEC for the appliance
-    lifetime and sends normalized keypress callbacks over one local socket.
-    PiTV only maps those key codes to its cross-app TV input model.
+    Ubuntu on Raspberry Pi 4/5 exposes vc4 HDMI CEC as /dev/cec*.  The
+    distro libCEC can still auto-select its legacy RPI backend, which detects
+    an adapter but cannot open it with vc4-kms.  cec-ctl talks to the kernel
+    API directly and is therefore the primary PiTV input path.
     """
-
     def __init__(self, event_queue):
         super().__init__(daemon=True)
         self.event_queue = event_queue
-        self.sock = None
+        self.proc = None
         self.device = None
-        self.connected = False
         self.last_key = None
         self.last_key_at = 0.0
         self.press_started_at = 0.0
         self.key_released = True
-        # This is a TV-shell gesture layer, not a CEC parser. It preserves a
-        # deliberate long Back across TVs that report a held key as short
-        # press/release bursts even after libCEC has normalized the protocol.
+        # Some older TVs represent one long CEC hold as repeated
+        # press/release pairs instead of one press followed by a late release.
+        # Keep a short continuity window so "Back held 3 s" works in both forms.
         self.gesture_key = None
         self.gesture_started_at = 0.0
         self.gesture_last_seen_at = 0.0
+        self._awaiting_ui_cmd = False
         self._stop_event = threading.Event()
 
+    def _devices(self):
+        return sorted(Path("/dev").glob("cec*"))
+
+    def _device_info(self, device):
+        try:
+            p = subprocess.run(
+                ["cec-ctl", "-d", str(device), "--show-topology"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, timeout=4, check=False,
+            )
+            return p.stdout or ""
+        except Exception:
+            return ""
+
+    def _pick_device(self):
+        devices = self._devices()
+        if not devices:
+            return None
+        # Prefer a connector with a real HDMI physical address.  0.0.0.0 and
+        # f.f.f.f are not connected to a usable CEC topology.
+        for dev in devices:
+            info = self._device_info(dev)
+            m = re.search(r"Physical Address\s*:\s*([^\s]+)", info, re.I)
+            if m and m.group(1).lower() not in ("0.0.0.0", "f.f.f.f"):
+                return dev
+        return devices[0]
+
     def is_ready(self):
-        return self.connected and self.sock is not None
+        return self.device is not None and self.proc is not None and self.proc.poll() is None
 
     def send(self, commands):
         return cec_send(commands)
 
-    def clear_key_state(self):
-        self.last_key = None
-        self.last_key_at = 0.0
-        self.press_started_at = 0.0
-        self.key_released = True
-        self.gesture_key = None
-        self.gesture_started_at = 0.0
-        self.gesture_last_seen_at = 0.0
-
-    def _press(self, mapped):
+    def _queue_mapped(self, mapped):
         if mapped is None:
             return
         now = time.monotonic()
         same_hold = mapped == self.last_key and not self.key_released
+
+        # Gesture continuity survives a short CEC release/re-press cycle.
+        # This is required by older TVs which synthesize a held remote button
+        # as repeated USER_CONTROL_PRESSED / USER_CONTROL_RELEASED pairs.
         continuing_gesture = (
             mapped == self.gesture_key and
             self.gesture_started_at > 0 and
@@ -891,151 +909,181 @@ class CECReader(threading.Thread):
             self.gesture_started_at = now
         self.gesture_last_seen_at = now
 
-        # Back is both an app key and the universal PiTV escape gesture.
-        # Deliver its first press only; repeats extend held_for() without
-        # walking backwards through several app screens.
+        # Back has a global PiTV long-press gesture. Send only the first Back to
+        # the foreground app. All repeat frames belong to the 3-second escape
+        # gesture and must not walk backwards through multiple app screens.
         if continuing_gesture and mapped == pygame.K_ESCAPE:
             self.last_key = mapped
             self.last_key_at = now
             self.key_released = False
             return
 
-        # Native TV repeats are accepted after a deliberate delay so one short
-        # physical press is one navigation step.
+        # A short TV remote press must produce exactly one UI step. Some TVs
+        # repeat USER_CONTROL_PRESSED aggressively; accept held-key navigation
+        # repeats only after a deliberate delay.
         if same_hold and (now - self.last_key_at) < 0.45:
             return
 
         if not same_hold:
             self.press_started_at = now
-        self.last_key = mapped
-        self.last_key_at = now
+        self.last_key, self.last_key_at = mapped, now
         self.key_released = False
         self.event_queue.put(mapped)
 
-    def _release(self, mapped, duration_ms):
-        now = time.monotonic()
-        if mapped is not None:
-            if self.gesture_key != mapped:
-                self.gesture_key = mapped
-                self.gesture_started_at = max(
-                    0.0, now - max(0, duration_ms) / 1000.0
-                )
-            elif duration_ms > 0:
-                # libCEC's release duration is authoritative when it is longer
-                # than the locally observed gesture.
-                candidate = now - duration_ms / 1000.0
-                self.gesture_started_at = min(
-                    self.gesture_started_at or candidate, candidate
-                )
-            self.gesture_last_seen_at = now
-        self.key_released = True
-        self.last_key = None
-        self.last_key_at = 0.0
-        self.press_started_at = 0.0
-
-    def _handle_keypress(self, code, duration_ms):
-        mapped = CEC_CODE_MAP.get(code)
-        if mapped is None:
-            return
-        if duration_ms <= 0:
-            self._press(mapped)
-        else:
-            self._release(mapped, duration_ms)
-
     def held_for(self, mapped):
         now = time.monotonic()
-        continuous = 0.0
+
+        # Standard CEC behavior: one Press, then a Release when the button is
+        # physically released.
         if (not self.key_released and self.last_key == mapped and
                 self.press_started_at > 0):
             continuous = max(0.0, now - self.press_started_at)
+        else:
+            continuous = 0.0
 
-        burst = 0.0
+        # Older-TV behavior: repeated press/release pairs. Consider them one
+        # gesture while the next frame arrives within 800 ms.
+        repeated = 0.0
         if (self.gesture_key == mapped and self.gesture_started_at > 0 and
                 (now - self.gesture_last_seen_at) <= 0.80):
-            burst = max(0.0, now - self.gesture_started_at)
-        return max(continuous, burst)
+            repeated = max(0.0, now - self.gesture_started_at)
 
-    def _handle_daemon_line(self, line):
-        parts = line.rstrip("\r\n").split("\t")
-        if not parts:
+        return max(continuous, repeated)
+
+    def clear_key_state(self):
+        self.last_key = None
+        self.last_key_at = 0.0
+        self.press_started_at = 0.0
+        self.key_released = True
+        self.gesture_key = None
+        self.gesture_started_at = 0.0
+        self.gesture_last_seen_at = 0.0
+        self._awaiting_ui_cmd = False
+
+    def _emit(self, name):
+        key = re.sub(r"\s*\(.*$", "", name).strip().lower()
+        key = key.replace("_", " ").replace("-", " ")
+        aliases = {
+            "device root menu": "root menu",
+            "device setup menu": "root menu",
+            "setup menu": "root menu",
+            "favorite menu": "root menu",
+            "media top menu": "top menu",
+            "media context sensitive menu": "top menu",
+            "device vendor specific": "home",
+            "previous channel": "back",
+            "ok": "select",
+        }
+        self._queue_mapped(CEC_MAP.get(aliases.get(key, key)))
+
+    def _emit_code(self, code):
+        self._queue_mapped(CEC_CODE_MAP.get(code))
+
+    def _handle_monitor_line(self, line):
+        """Parse one cec-ctl monitor line; supports split decoded output + raw frames."""
+        upper = line.upper()
+
+        if ("USER_CONTROL_RELEASED" in upper or
+                re.search(r"(?:^|[\s>])[0-9A-Fa-f]{2}:45(?:\s|$)", line)):
+            self._awaiting_ui_cmd = False
+            self.key_released = True
+            self.last_key = None
+            self.last_key_at = 0.0
+            self.press_started_at = 0.0
+            # Deliberately keep gesture_* until its 800 ms continuity window
+            # expires; held_for() then supports TVs that repeat press/release.
             return
-        if parts[0] == "STATE" and len(parts) >= 2:
-            self.connected = parts[1] == "connected"
-            self.device = parts[2] if len(parts) >= 3 and parts[2] else None
-            if not self.connected:
-                self.clear_key_state()
-            return
-        if parts[0] == "KEY" and len(parts) >= 3:
-            try:
-                self._handle_keypress(int(parts[1]), int(parts[2]))
-            except ValueError:
-                pass
+
+        # Raw frame fallback is version-independent:
+        # <header>:44:<ui-command>, e.g. 01:44:00 for Select/OK.
+        raw = re.search(
+            r"(?:^|[\s>])[0-9A-Fa-f]{2}:44:([0-9A-Fa-f]{2})(?:\s|$)",
+            line,
+        )
+        if raw:
+            self._emit_code(int(raw.group(1), 16))
+
+        if "USER_CONTROL_PRESSED" in upper:
+            self._awaiting_ui_cmd = True
+
+        # cec-ctl normally prints USER_CONTROL_PRESSED and ui-cmd on separate
+        # lines, so remember that a UI operand is expected.
+        if self._awaiting_ui_cmd or "UI-CMD:" in upper:
+            m = re.search(r"ui-cmd:\s*([^\(\r\n]+)", line, re.I)
+            if m:
+                self._awaiting_ui_cmd = False
+                self._emit(m.group(1))
 
     def run(self):
         global _CEC_MANAGER
+        if shutil.which("cec-ctl") is None:
+            return
+
         _CEC_MANAGER = self
         try:
             while not self._stop_event.is_set():
-                sock = None
-                try:
-                    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                    sock.settimeout(2.0)
-                    sock.connect(PITV_INPUTD_SOCKET)
-                    sock.sendall(b"SUBSCRIBE\n")
-                    sock.settimeout(1.0)
-                    self.sock = sock
+                self.device = self._pick_device()
+                if self.device is None:
+                    self._stop_event.wait(1.0)
+                    continue
 
-                    buffer = b""
-                    while not self._stop_event.is_set():
-                        try:
-                            chunk = sock.recv(1024)
-                        except socket.timeout:
-                            continue
-                        if not chunk:
+                try:
+                    registered = subprocess.run(
+                        ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor",
+                         str(self.device), "register"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, timeout=5, check=False,
+                    )
+                    if registered.returncode != 0:
+                        self.device = None
+                        self._stop_event.wait(1.0)
+                        continue
+
+                    self.proc = subprocess.Popen(
+                        ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor",
+                         str(self.device), "monitor"],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, bufsize=1,
+                    )
+
+                    for line in self.proc.stdout:
+                        if self._stop_event.is_set():
                             break
-                        buffer += chunk
-                        if len(buffer) > 16384:
-                            buffer = b""
-                        while b"\n" in buffer:
-                            raw, buffer = buffer.split(b"\n", 1)
-                            self._handle_daemon_line(
-                                raw.decode("utf-8", "replace")
-                            )
-                except (FileNotFoundError, ConnectionRefusedError,
-                        socket.timeout, OSError):
+                        self._handle_monitor_line(line)
+                except Exception:
                     pass
                 finally:
-                    self.connected = False
-                    self.device = None
-                    self.clear_key_state()
-                    self.sock = None
-                    if sock is not None:
+                    proc = self.proc
+                    self.proc = None
+                    if proc is not None and proc.poll() is None:
                         try:
-                            sock.close()
+                            proc.terminate()
+                            proc.wait(timeout=1)
                         except Exception:
-                            pass
+                            try:
+                                proc.kill()
+                            except Exception:
+                                pass
 
+                # HDMI hotplug / CEC resets can terminate cec-ctl. Reconnect
+                # automatically instead of permanently losing the remote.
                 if not self._stop_event.is_set():
-                    self._stop_event.wait(0.50)
+                    self._stop_event.wait(0.75)
         finally:
+            self.device = None
             if _CEC_MANAGER is self:
                 _CEC_MANAGER = None
 
     def stop(self):
         global _CEC_MANAGER
         self._stop_event.set()
-        sock = self.sock
-        if sock is not None:
-            try:
-                sock.shutdown(socket.SHUT_RDWR)
-            except Exception:
-                pass
-            try:
-                sock.close()
-            except Exception:
-                pass
         if _CEC_MANAGER is self:
             _CEC_MANAGER = None
+        try:
+            if self.proc:
+                self.proc.terminate()
+        except Exception:
+            pass
 
 
 class PiTV:
