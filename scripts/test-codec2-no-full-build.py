@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as td:
     (root / "vendor/lib64").mkdir(parents=True)
     (root / "vendor/etc").mkdir(parents=True)
     (root / "vendor/lib64/libdemo.so").write_bytes(b"demo")
-    (root / "vendor/etc/media_codecs.xml").write_text(
+    (root / "vendor/etc/media_codecs_pitv_rpi4.xml").write_text(
         '<MediaCodec name="c2.v4l2.avc.decoder"/><Include href="media_codecs_ffmpeg_c2.xml"/>'
     )
     (root / "vendor/etc/media_codecs_ffmpeg_c2.xml").write_text(
@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory() as td:
     )
     manifest = [
         "vendor/lib64/libdemo.so",
-        "vendor/etc/media_codecs.xml",
+        "vendor/etc/media_codecs_pitv_rpi4.xml",
         "vendor/etc/media_codecs_ffmpeg_c2.xml",
     ]
     (root / "PITV-CODEC2-PAYLOAD.txt").write_text("\n".join(manifest) + "\n")
@@ -61,7 +61,7 @@ with tempfile.TemporaryDirectory() as td:
     payload=Path(td)/"payload"; payload.mkdir()
     run("bash",str(repo/"scripts/add-pitv-codec2-config-to-payload.sh"),str(payload))
     lines=(payload/"PITV-CODEC2-PAYLOAD.txt").read_text().splitlines()
-    assert "vendor/etc/media_codecs.xml" in lines
+    assert "vendor/etc/media_codecs_pitv_rpi4.xml" in lines
     assert "vendor/etc/media_codecs_ffmpeg_c2.xml" in lines
     assert "vendor/etc/pitv-codec2.prop" in lines
     assert "vendor/etc/pitv-hwdecode.env" in lines
