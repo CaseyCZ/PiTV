@@ -117,6 +117,7 @@ install -d -m 0755 /etc/pitv/apps.d
 cp -a config/apps.d/. /etc/pitv/apps.d/
 install -m 0755 system/pitv-session /usr/local/bin/pitv-session
 install -m 0755 system/pitv-session-run /usr/local/bin/pitv-session-run
+install -m 0755 system/pitv-launcher-run /usr/local/bin/pitv-launcher-run
 install -m 0755 system/pitv-waydroid-launch /usr/local/bin/pitv-waydroid-launch
 install -m 0755 system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch
 install -m 0755 system/pitv-kodi-addon /usr/local/bin/pitv-kodi-addon
@@ -201,7 +202,23 @@ ExecStart=-/sbin/agetty --autologin pitv --noclear %I $TERM
 Type=idle
 EOF
 
+# Compatibility/recovery command. Older manual PiTV setups used a
+# pitv-launcher system service that restarted only Python and could leave a
+# fullscreen Waydroid/Kodi surface behind. Replace that unit with a stateless
+# helper: "sudo systemctl restart pitv-launcher" now restarts the complete TV
+# session (getty -> labwc -> launcher supervisor) but never reboots Linux or
+# touches background server services.
+cat >/etc/systemd/system/pitv-launcher.service <<'EOF'
+[Unit]
+Description=PiTV TV-session restart helper
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart getty@tty1.service
+EOF
+
 systemctl daemon-reload
+systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
 systemctl enable getty@tty1.service
 
 # Older/manual PiTV repair sessions could leave duplicate vc4-kms-v3d overlays.
