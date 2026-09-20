@@ -67,8 +67,7 @@ stop_android(){
 restore(){
   [ "$mounted" -eq 0 ] || { umount "$MNT" >/dev/null 2>&1 || true; mounted=0; }
   stop_android
-  cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
-  cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
+  cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$VENDOR"
   if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
     /usr/local/libexec/pitv-waydroid-device-patch --remove >/dev/null 2>&1 || true
   fi
@@ -152,8 +151,7 @@ while IFS= read -r rel; do
 done <"$STAGE/PITV-CODEC2-PAYLOAD.txt"
 sync
 umount "$MNT"; mounted=0
-cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
-cp --reflink=auto --sparse=always "$TMP/vendor.img" "$EXTRA/vendor.img"
+cp --reflink=auto --sparse=always "$TMP/vendor.img" "$VENDOR"
 RESTORE=1
 
 if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
@@ -191,7 +189,8 @@ printf '%s\n' "$procs" | grep -Eiq 'media\.c2.*ffmpeg|ffmpeg.*media\.c2' || fail
 
 RESTORE=0
 mkdir -p "$STATE"
-sha256sum "$EXTRA/vendor.img" >"$STATE/active-vendor.sha256"
+sha256sum "$VENDOR" >"$STATE/active-vendor.sha256"
+printf '%s\n' "$VENDOR" >"$STATE/active-vendor-path"
 printf '%s\n' "$BACKUP" >"$STATE/last-backup"
 printf '%s\n' "$STAGE" >"$STATE/active-stage"
 echo "Codec2 overlay installed and validated"
