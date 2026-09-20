@@ -35,8 +35,8 @@ risky=re.compile(r"(gralloc|mapper|allocator|egl|gles|vulkan|camera|audio|wifi|b
 def elf(p):
     try:
         o=subprocess.check_output([readelf,"-h",str(p)],stderr=subprocess.DEVNULL,text=True)
-        return "AArch64" in o
-    except subprocess.CalledProcessError:
+        return "ELF64" in o and "AArch64" in o
+    except (subprocess.CalledProcessError,OSError):
         return False
 
 def needed(p):
@@ -44,12 +44,15 @@ def needed(p):
     return re.findall(r"\(NEEDED\).*?\[([^\]]+)\]",out)
 
 files=[Path(x).resolve() for x in sys.argv[2:]]
+for p in files:
+    try: p.relative_to(root)
+    except ValueError: raise SystemExit(f"ELF outside ROOT: {p}")
 if not files:
     files=[p for p in root.rglob("*") if p.is_file() and elf(p)]
 
 byname={}
 for p in root.rglob("*"):
-    if p.is_file(): byname.setdefault(p.name,[]).append(p)
+    if not p.is_symlink() and p.is_file() and elf(p): byname.setdefault(p.name,[]).append(p)
 
 bad_arch=[]; missing={}; donor=[]; absolute=[]
 for p in files:
