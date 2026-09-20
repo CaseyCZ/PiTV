@@ -352,6 +352,21 @@ elif action == "waydroid-open-play-store":
     ], timeout=30)
     out("Google Play detail otevřen")
 
+elif action == "waydroid-warm-start":
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+    p = subprocess.run(
+        ["systemctl", "start", "pitv-android-warm.service"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if p.returncode != 0:
+        out((p.stdout or "").strip() or "Android warm službu nelze spustit", 3)
+    out("Android warm služba spuštěna")
+
 elif action == "waydroid-container-start":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
