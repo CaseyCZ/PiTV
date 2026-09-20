@@ -30,4 +30,6 @@ pool="$(shell 'getprop debug.stagefright.c2-poolmask' | tail -n1 || true)"
 check c2_poolmask_property '[ "$pool" = 0x350000 ]'
 instances="$(shell 'getprop ro.vendor.v4l2_codec2.decode_concurrent_instances' | tail -n1 || true)"
 check v4l2_instances_property '[ "$instances" = 4 ]'
+ffmpeg_hw="$(shell 'getprop persist.ffmpeg_codec2.v4l2.h265' | tail -n1 || true)"
+check ffmpeg_hevc_v4l2_request_property '[ "$ffmpeg_hw" = 1 ]'
 exit "$fail"
