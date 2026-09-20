@@ -49,10 +49,12 @@ The script:
    - `raspberry-vanilla/android_external_ffmpeg` for stateless HEVC;
    - `raspberry-vanilla/android_external_ffmpeg_codec2`;
    - `raspberry-vanilla/android_external_libudev-zero`;
-4. injects the PiTV media profile, properties, seccomp policy and SELinux labels;
-5. builds `lineage_waydroid_arm64-userdebug` vendor image;
-6. verifies both Codec2 services and both advertised decoder components;
-7. writes `vendor.img`, `vendor.img.xz`, `build-info.env` and
+4. restricts the V4L2 Codec2 store to AVC and the FFmpeg Codec2 store to HEVC;
+5. compiles the HEVC FFmpeg path to always use V4L2 Request API on this RPi4-specific image, without a persistent-property gate;
+6. injects the PiTV media profiles, build marker, properties, seccomp policy and SELinux labels;
+7. builds `lineage_waydroid_arm64-userdebug` vendor image;
+8. verifies both Codec2 services and both advertised decoder components;
+9. writes `vendor.img`, `vendor.img.xz`, `build-info.env` and
    `SHA256SUMS` to `dist/waydroid-rpi4-v4l2/`.
 
 ## Installation safety
@@ -67,7 +69,7 @@ all of these are true:
 - the V4L2 AVC Codec2 HAL is running;
 - `c2.ffmpeg.hevc.decoder` is registered;
 - the FFmpeg Codec2 HAL is running;
-- `persist.ffmpeg_codec2.v4l2.h265=true`;
+- the vendor build marker reports `HEVC_V4L2_REQUEST=compiled`;
 - `/dev/video*` and `/dev/media*` are visible inside Android.
 
 If validation fails, the installer restores the previous images automatically.
