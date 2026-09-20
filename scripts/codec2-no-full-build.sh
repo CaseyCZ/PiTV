@@ -3,15 +3,15 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cmd="${1:-help}"; shift || true
 case "$cmd" in
-  target-probe) exec "$HERE/probe-waydroid-codec2-target.sh" "$@";;
+  target-probe) exec bash "$HERE/probe-waydroid-codec2-target.sh" "$@";;
   fetch-sources) exec python3 "$HERE/fetch-minimal-codec2-sources.py" "$@";;
-  build-modules) exec "$HERE/build-minimal-codec2-modules.sh" "$@";;
-  prepare) exec "$HERE/prepare-codec2-overlay.sh" "$@";;
-  stage) exec "$HERE/stage-codec2-payload.sh" "$@";;
-  plan) exec "$HERE/plan-codec2-overlay-install.sh" "$@";;
-  install) exec "$HERE/install-codec2-overlay.sh" "$@";;
-  rollback) exec "$HERE/rollback-codec2-overlay.sh" "$@";;
-  check) exec "$HERE/check-codec2-no-full-build.sh" "$@";;
+  build-modules) exec bash "$HERE/build-minimal-codec2-modules.sh" "$@";;
+  prepare) exec bash "$HERE/prepare-codec2-overlay.sh" "$@";;
+  stage) exec bash "$HERE/stage-codec2-payload.sh" "$@";;
+  plan) exec bash "$HERE/plan-codec2-overlay-install.sh" "$@";;
+  install) exec bash "$HERE/install-codec2-overlay.sh" "$@";;
+  rollback) exec bash "$HERE/rollback-codec2-overlay.sh" "$@";;
+  check) exec bash "$HERE/check-codec2-no-full-build.sh" "$@";;
   status)
     state=/var/lib/pitv/codec2-experiment
     echo "experiment=codec2-no-full-build"
