@@ -14,7 +14,6 @@
 //   daemon -> "ACK\t<command>\t0|1\t<message>\n"
 
 #include <libcec/cec.h>
-#include <libcec/cecc.h>
 
 #include <algorithm>
 #include <atomic>
@@ -120,13 +119,13 @@ class InputDaemon {
   }
 
   bool initialise() {
-    connection_ = libcec_initialise(&config_);
-    if (!connection_) {
-      std::cerr << "pitv-inputd: libcec_initialise failed\n";
+    adapter_ = CECInitialise(&config_);
+    if (!adapter_) {
+      std::cerr << "pitv-inputd: CECInitialise failed\n";
       return false;
     }
-    libcec_init_video_standalone(connection_);
-    const char* info = libcec_get_lib_info(connection_);
+    adapter_->InitVideoStandalone();
+    const char* info = adapter_->GetLibInfo();
     std::cerr << "pitv-inputd: "
               << (info ? clean_field(info) : std::string("libCEC"))
               << "\n";
@@ -257,11 +256,11 @@ class InputDaemon {
   }
 
   bool open_adapter() {
-    if (!connection_)
+    if (!adapter_)
       return false;
 
     cec_adapter_descriptor adapters[16]{};
-    int8_t count = libcec_detect_adapters(connection_, adapters, 16, nullptr, 0);
+    int8_t count = adapter_->DetectAdapters(adapters, 16, nullptr, false);
 
     std::vector<int> order;
     for (int i = 0; i < count; ++i)
@@ -291,7 +290,7 @@ class InputDaemon {
                                   : adapters[idx].strComPath;
       if (!candidate || !candidate[0])
         continue;
-      if (libcec_open(connection_, candidate, kOpenTimeoutMs)) {
+      if (adapter_->Open(candidate, kOpenTimeoutMs)) {
         adapter_name_ = candidate;
         connected_.store(true);
         std::cerr << "pitv-inputd: connected " << adapter_name_ << "\n";
@@ -302,7 +301,7 @@ class InputDaemon {
 
     // libCEC also supports nullptr = first usable adapter. Keep this as a
     // compatibility path for distro builds that do not return descriptors.
-    if (libcec_open(connection_, nullptr, kOpenTimeoutMs)) {
+    if (adapter_->Open(nullptr, kOpenTimeoutMs)) {
       adapter_name_ = "auto";
       connected_.store(true);
       std::cerr << "pitv-inputd: connected (auto)\n";
@@ -318,25 +317,25 @@ class InputDaemon {
   }
 
   void close_adapter_only() {
-    if (!connection_)
+    if (!adapter_)
       return;
     if (connected_.exchange(false)) {
-      libcec_close(connection_);
+      adapter_->Close();
       std::cerr << "pitv-inputd: CEC connection closed for reconnect\n";
     } else {
       // Close is safe even after a connection-lost alert and makes the next
       // open re-run adapter detection/address allocation.
-      libcec_close(connection_);
+      adapter_->Close();
     }
     adapter_name_.clear();
   }
 
   void close_cec() {
-    if (!connection_)
+    if (!adapter_)
       return;
-    libcec_close(connection_);
-    libcec_destroy(connection_);
-    connection_ = nullptr;
+    adapter_->Close();
+    CECDestroy(adapter_);
+    adapter_ = nullptr;
     connected_.store(false);
   }
 
@@ -465,31 +464,33 @@ class InputDaemon {
       message = connected_.load() ? adapter_name_ : "disconnected";
       return connected_.load();
     }
-    if (!connected_.load() || !connection_) {
+    if (!connected_.load() || !adapter_) {
       message = "CEC disconnected";
       return false;
     }
 
     int rc = 0;
     if (command == "ACTIVE") {
-      rc = libcec_set_active_source(connection_,
-                                    CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
+      rc = adapter_->SetActiveSource(CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
     } else if (command == "POWER_ON") {
-      rc = libcec_power_on_devices(connection_, CECDEVICE_TV);
+      rc = adapter_->PowerOnDevices(CECDEVICE_TV);
     } else if (command == "STANDBY") {
-      rc = libcec_standby_devices(connection_, CECDEVICE_TV);
+      rc = adapter_->StandbyDevices(CECDEVICE_TV);
     } else if (command == "VOLUP") {
-      rc = libcec_volume_up(connection_, 1);
+      adapter_->VolumeUp(true);
+      rc = 1;
     } else if (command == "VOLDOWN") {
-      rc = libcec_volume_down(connection_, 1);
+      adapter_->VolumeDown(true);
+      rc = 1;
     } else if (command == "MUTE") {
 #if CEC_LIB_VERSION_MAJOR >= 5
-      rc = libcec_mute_audio(connection_, 1);
+      adapter_->MuteAudio();
+      rc = 1;
 #else
-      rc = libcec_send_keypress(connection_, CECDEVICE_AUDIOSYSTEM,
-                                CEC_USER_CONTROL_CODE_MUTE, 1);
+      rc = adapter_->SendKeypress(CECDEVICE_AUDIOSYSTEM,
+                                  CEC_USER_CONTROL_CODE_MUTE, true);
       if (rc)
-        rc = libcec_send_key_release(connection_, CECDEVICE_AUDIOSYSTEM, 1);
+        rc = adapter_->SendKeyRelease(CECDEVICE_AUDIOSYSTEM, true);
 #endif
     } else if (command == "RECONNECT") {
       reconnect_requested_.store(true);
@@ -525,7 +526,7 @@ class InputDaemon {
 
   libcec_configuration config_;
   ICECCallbacks callbacks_;
-  libcec_connection_t connection_{nullptr};
+  ICECAdapter* adapter_{nullptr};
 
   std::atomic<bool> connected_{false};
   std::atomic<bool> reconnect_requested_{false};
