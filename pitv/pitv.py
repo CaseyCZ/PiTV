@@ -2529,10 +2529,14 @@ class PiTV:
                       self.t["accent"] if active else self.t["muted"], True)
             self.text(name, rr.x+int(rr.h*.76), rr.y+int(rr.h*.23), rr.h*.27,
                       self.t["text"] if active else self.t["muted"], active)
-            chevron = self.font(rr.h*.28, True).render("›", True,
-                        self.t["accent"] if active else self.t["muted"])
-            self.screen.blit(chevron, (rr.right-chevron.get_width()-12,
-                                      rr.y+(rr.h-chevron.get_height())//2))
+            ok_hint = self.font(rr.h*.19, True).render(
+                "OK", True, self.t["accent"] if active else self.t["muted"]
+            )
+            self.screen.blit(
+                ok_hint,
+                (rr.right-ok_hint.get_width()-12,
+                 rr.y+(rr.h-ok_hint.get_height())//2),
+            )
         return pygame.Rect(left, top, width, row_h*len(self.SETTINGS))
 
     def draw_settings(self):
@@ -2821,12 +2825,19 @@ class PiTV:
                       self.t["text"],active)
             value_surf=self.font(rr.h*.235,False).render(value,True,
                         self.t["accent"] if active else self.t["muted"])
-            chev=self.font(rr.h*.30,True).render("›",True,
-                        self.t["accent"] if active else self.t["muted"])
-            self.screen.blit(chev,(rr.right-chev.get_width()-10,
-                                  rr.y+(rr.h-chev.get_height())//2))
-            self.screen.blit(value_surf,(rr.right-chev.get_width()-value_surf.get_width()-24,
-                                        rr.y+(rr.h-value_surf.get_height())//2))
+            ok_hint=self.font(rr.h*.19,True).render(
+                "OK",True,self.t["accent"] if active else self.t["muted"]
+            )
+            self.screen.blit(
+                ok_hint,
+                (rr.right-ok_hint.get_width()-10,
+                 rr.y+(rr.h-ok_hint.get_height())//2),
+            )
+            self.screen.blit(
+                value_surf,
+                (rr.right-ok_hint.get_width()-value_surf.get_width()-24,
+                 rr.y+(rr.h-value_surf.get_height())//2),
+            )
 
         # Live preview mirrors the selected tile size and accent.
         preview=pygame.Rect(info.x+22,info.y+28,info.w-44,int(self.h*.225))
