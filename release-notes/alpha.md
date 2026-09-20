@@ -22,7 +22,8 @@
 - 3s držení Zpět je globální F14 appliance escape: funguje i když focus vlastní Kodi nebo Android, vrátí PiTV a ukončí foreground aplikaci; krátké Zpět zůstává aplikaci
 - input služba přežívá restart launcheru/compositoru, sama se připojuje po HDMI/CEC změně a publikuje skutečně použitý adaptér v `/run/pitv/cec-device`; stejné zařízení pak používají i Power/Active Source/Volume CEC příkazy
 - Nastavení HDMI/CEC přímo ukazuje systémový TV input a aktivní `/dev/cecN`, případně stav čekání na HDMI‑CEC
-- `uinput` se načítá při bootu a 1.5 installer zachovává uživatelovu volbu HDMI‑CEC Zapnuto/Vypnuto; starý launcherový CECReader zůstává jen jako kompatibilní fallback pro před-1.5 instalaci
+- `uinput` se načítá při bootu a 1.5 installer zachovává uživatelovu volbu HDMI‑CEC Zapnuto/Vypnuto; starý launcherový `CECReader` byl z 1.5 úplně odstraněn, takže existuje jen jeden CEC input owner
+- CEC výstup je oddělený do statického `pitv-cec-control`: umí pouze Power/Standby/Active Source/Volume/Mute; historický `pitv-cec-monitor` s režimy register/monitor se při upgradu maže
 - technický kontrakt projektu je v `docs/tv-appliance-contract.md`; priorita je input/focus → rychlost aplikací → fullscreen/session → playback → Store → vzhled
 
 ### PiTV 1.4.31 · TV-appliance runtime: rychlé aplikace, focus a globální stav
