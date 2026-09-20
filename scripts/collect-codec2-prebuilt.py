@@ -72,8 +72,9 @@ for p in sorted(chosen):
     rel=p.relative_to(src)
     # Android vendor executables are installed under bin/hw; keep that exact
     # target path so init .rc and VINTF fragments remain valid.
-    dest=out/rel; dest.parent.mkdir(parents=True,exist_ok=True)
-    shutil.copy2(p,dest); rels.append(str(rel))
+    payload_rel=Path("vendor")/rel
+    dest=out/payload_rel; dest.parent.mkdir(parents=True,exist_ok=True)
+    shutil.copy2(p,dest); rels.append(str(payload_rel))
 
 manifest=out/"PITV-CODEC2-PAYLOAD.txt"
 manifest.write_text("\n".join(rels)+"\n",encoding="utf-8")
