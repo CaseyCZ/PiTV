@@ -2,7 +2,7 @@
 set -euo pipefail
 
 case "${1:-}" in
-  home|close) ACTION="$1" ;;
+  home|close|display) ACTION="$1" ;;
   *) exit 2 ;;
 esac
 
