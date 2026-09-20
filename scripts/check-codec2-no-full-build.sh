@@ -233,3 +233,5 @@ grep -q 'codec XML escapes stage' scripts/check-codec2-payload-contract.py
 grep -q 'metadata symlink rejected' scripts/check-codec2-service-metadata.py
 ! grep -q 'waydroid init -f || fail' scripts/install-codec2-overlay.sh
 grep -q 'forcing waydroid init here can replace them' scripts/install-codec2-overlay.sh
+grep -q 'AMBIGUOUS' scripts/audit-codec2-payload-deps.py
+grep -q 'byte-identical' scripts/audit-codec2-payload-deps.py
