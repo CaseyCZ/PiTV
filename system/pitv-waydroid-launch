@@ -554,11 +554,16 @@ fi
 
 # Keep the per-app command alive for the whole Android TV flow. SmartTube
 # and other TV apps can hand foreground control to Android Settings, permission
-# controllers or account pickers; those are not app exits. Return to PiTV only
-# when Android reaches its Home launcher, the runtime is lost, or PiTV closes
-# the wrapper through the global appliance action.
+# controllers or account pickers; those are not app exits. SmartTube's
+# SplashActivity explicitly starts BrowseActivity and then finishes itself, so
+# Android Home can briefly become top during that hand-off. Give only the
+# initial transition a bounded grace period; after one non-Home app flow has
+# been observed, Home again means the viewer really left the Android TV app.
 SESSION_MISSES=0
 RUNTIME_MISSES=0
+SESSION_SEEN_ACTIVE=0
+STARTUP_HOME_GRACE_UNTIL=$((SECONDS + 20))
+STARTUP_HOME_LOGGED=0
 while true; do
   if runtime_ready; then
     RUNTIME_MISSES=0
@@ -573,12 +578,29 @@ while true; do
   if [ -n "$TRACK_PACKAGE" ]; then
     if printf '{"package":"%s"}' "$TRACK_PACKAGE" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-session-active           >/dev/null 2>&1; then
+      if [ "$SESSION_SEEN_ACTIVE" -eq 0 ]; then
+        log "Android TV foreground flow verified: $TRACK_PACKAGE"
+      fi
+      SESSION_SEEN_ACTIVE=1
       SESSION_MISSES=0
     else
-      SESSION_MISSES=$((SESSION_MISSES + 1))
-      if [ "$SESSION_MISSES" -ge 2 ]; then
-        log "Android TV session returned Home: $TRACK_PACKAGE"
-        break
+      if [ "$SESSION_SEEN_ACTIVE" -eq 0 ] &&
+         [ "$SECONDS" -lt "$STARTUP_HOME_GRACE_UNTIL" ]; then
+        if [ "$STARTUP_HOME_LOGGED" -eq 0 ]; then
+          log "Android Home observed during startup Activity hand-off; allowing 20s grace: $TRACK_PACKAGE"
+          STARTUP_HOME_LOGGED=1
+        fi
+        SESSION_MISSES=0
+      else
+        SESSION_MISSES=$((SESSION_MISSES + 1))
+        if [ "$SESSION_MISSES" -ge 2 ]; then
+          if [ "$SESSION_SEEN_ACTIVE" -eq 0 ]; then
+            log "Android TV foreground never appeared after startup grace: $TRACK_PACKAGE"
+            diagnostics "$TRACK_PACKAGE"
+          fi
+          log "Android TV session returned Home: $TRACK_PACKAGE"
+          break
+        fi
       fi
     fi
   fi
