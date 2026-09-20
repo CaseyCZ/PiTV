@@ -3,9 +3,9 @@ set -euo pipefail
 # Build only the PiTV Codec2 modules inside an existing Android 13 build tree.
 # This script never runs repo init/sync and therefore cannot create the old
 # full ~300GB workspace by itself.
-TREE="${1:?Android 13 build tree required}"
-SOURCES="${2:?directory from fetch-minimal-codec2-sources.py required}"
-OUT="${3:?output payload directory required}"
+TREE="$(readlink -f "${1:?Android 13 build tree required}")"
+SOURCES="$(readlink -f "${2:?directory from fetch-minimal-codec2-sources.py required}")"
+OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
@@ -20,9 +20,11 @@ fi
 
 install_src(){
   src="$1"; dst="$2"
-  rm -rf "$TREE/$dst"
-  mkdir -p "$(dirname "$TREE/$dst")"
-  cp -a "$SOURCES/$src" "$TREE/$dst"
+  target="$(readlink -m "$TREE/$dst")"
+  case "$target/" in "$TREE/external/"*) ;; *) echo "unsafe source install target: $target" >&2; exit 2;; esac
+  rm -rf "$target"
+  mkdir -p "$(dirname "$target")"
+  cp -a "$SOURCES/$src" "$target"
 }
 install_src v4l2_codec2 external/v4l2_codec2
 install_src ffmpeg external/ffmpeg
@@ -62,7 +64,7 @@ for pattern in \
   'android.hardware.media.c2@1.0-service-v4l2*.xml' \
   'android.hardware.media.c2@1.2-service-ffmpeg*.rc' \
   'android.hardware.media.c2@1.2-service-ffmpeg*.xml' \
-  '*v4l2*policy*' '*ffmpeg*policy*'
+  '*v4l2*policy*' '*ffmpeg*policy*' 'media_codecs_ffmpeg_c2.xml'
 do
   while IFS= read -r p; do
     [ -n "$p" ] || continue
