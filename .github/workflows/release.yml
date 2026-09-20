@@ -305,7 +305,16 @@ jobs:
           assert app._task_key(kodi_app, "linux") == "kodi"
           assert app._task_key(plex_app, "linux") == "kodi"
           assert app._task_key(native_stremio, "linux") == "stremio"
-          assert app._task_key(android_app, "apk") == "android"
+          assert app._task_key(android_app, "apk") == (
+              "android:com.teamsmart.videomanager.tv"
+          )
+          second_android = {
+              "name": "Second APK", "kind": "apk",
+              "package": "com.example.second",
+          }
+          assert app._task_key(second_android, "apk") != app._task_key(
+              android_app, "apk"
+          )
           assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
           assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
           assert app._workspace_for_app(android_app, "apk") == "Android"
