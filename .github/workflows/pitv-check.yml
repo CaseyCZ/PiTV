@@ -356,6 +356,9 @@ jobs:
           ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
           grep -q '^Restart=always$' system/pitv-android-warm.service
           grep -q '^TimeoutStopSec=40$' system/pitv-android-warm.service
+          grep -q 'waydroid-warm-start' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-helper
+          grep -q 'systemctl", "start", "pitv-android-warm.service"' system/pitv-helper
           grep -q 'loginctl enable-linger pitv' install.sh
           grep -q 'systemctl set-default pitv.target' install.sh
           grep -q 'systemctl mask getty@tty1.service' install.sh
