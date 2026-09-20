@@ -9,6 +9,8 @@ test -f "$PAYLOAD/PITV-CODEC2-SHA256.json"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 python3 "$HERE/verify-staged-codec2-payload.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/enforce-codec2-payload-scope.py" "$PAYLOAD" >/dev/null
+python3 "$HERE/check-codec2-manifest-closure.py" "$PAYLOAD" >/dev/null
+python3 "$HERE/check-codec2-payload-size.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/codec2-payload-readiness.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/verify-codec2-metadata.py" "$PAYLOAD" >/dev/null
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -18,5 +20,7 @@ cp -a "$PAYLOAD/." "$dest/"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 python3 "$HERE/verify-staged-codec2-payload.py" "$dest" >/dev/null
 python3 "$HERE/make-codec2-rollback-manifest.py" "$dest" >/dev/null
+python3 "$HERE/verify-codec2-metadata.py" "$dest" >/dev/null
+python3 "$HERE/check-codec2-manifest-closure.py" "$dest" >/dev/null
 printf '%s\n' "$dest" > "$STATE/current-stage"
 echo "STAGED=$dest"
