@@ -24,6 +24,10 @@
 - Nastavení HDMI/CEC přímo ukazuje systémový TV input a aktivní `/dev/cecN`, případně stav čekání na HDMI‑CEC
 - `uinput` se načítá při bootu a 1.5 installer zachovává uživatelovu volbu HDMI‑CEC Zapnuto/Vypnuto; starý launcherový `CECReader` byl z 1.5 úplně odstraněn, takže existuje jen jeden CEC input owner
 - CEC výstup je oddělený do statického `pitv-cec-control`: umí pouze Power/Standby/Active Source/Volume/Mute; historický `pitv-cec-monitor` s režimy register/monitor se při upgradu maže
+- **warm SmartTube/APK start je zkrácený**: připravený persistentní Cage klient zapisuje do `pitv-waydroid-runtime-ready` vlastní živý PID, takže běžné spuštění už nedělá synchronní `waydroid status + getprop` při každém readiness testu
+- běžná APK cesta už před spuštěním nedělá `waydroid app list`; nejdřív pošle přímo `waydroid app launch <package>`, APK instalace se použije až pokud skutečný launch selže
+- po úspěšném launch intentu PiTV čeká jen na skutečně viditelnou Activity cílového package; při pomalém prvním vykreslení zopakuje pouze launch intent a nikdy zbytečně nepřeinstaluje zdravou aplikaci
+- jednorázový úklid starých Android Stremio/Plex už **nikdy neblokuje SmartTube/APK**; běží jen v klidném okně warm runtime a pokud je Android aplikace pending/foreground, údržba čeká
 - technický kontrakt projektu je v `docs/tv-appliance-contract.md`; priorita je input/focus → rychlost aplikací → fullscreen/session → playback → Store → vzhled
 
 ### PiTV 1.4.31 · TV-appliance runtime: rychlé aplikace, focus a globální stav
