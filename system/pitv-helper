@@ -719,15 +719,19 @@ elif action == "waydroid-hw-codec-status":
 
     release_value = (release.stdout or "").strip()
     xml_text = xml.stdout or ""
-    process_text = (process_probe.stdout or "").lower()
+    process_lines = [
+        line.strip().lower()
+        for line in (process_probe.stdout or "").splitlines()
+        if line.strip()
+    ]
     avc_service_value = (
         "running"
-        if "media.c2" in process_text and "v4l2" in process_text
+        if any("media.c2" in line and "v4l2" in line for line in process_lines)
         else "missing"
     )
     hevc_service_value = (
         "running"
-        if "media.c2" in process_text and "ffmpeg" in process_text
+        if any("media.c2" in line and "ffmpeg" in line for line in process_lines)
         else "missing"
     )
     hevc_hw_value = (hevc_hw.stdout or "").strip()
