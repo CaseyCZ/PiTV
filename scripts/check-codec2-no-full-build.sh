@@ -81,3 +81,5 @@ bash scripts/codec2-no-full-build.sh help | grep -q 'add-config'
 grep -q 'CODEC2_REGISTRY' scripts/probe-waydroid-codec2-target.sh
 grep -q 'TARGET_PREREQUISITES_OK' scripts/evaluate-codec2-target.py
 bash scripts/codec2-no-full-build.sh help | grep -q 'target-check'
+grep -q 'plan-codec2-backup.py' scripts/install-codec2-overlay.sh
+grep -q 'preflight-codec2-overlay.py' scripts/install-codec2-overlay.sh
