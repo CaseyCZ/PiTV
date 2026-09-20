@@ -4,6 +4,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 cmd="${1:-help}"; shift || true
 case "$cmd" in
   target-probe) exec bash "$HERE/probe-waydroid-codec2-target.sh" "$@";;
+  extract-donor) exec bash "$HERE/extract-codec2-donor-image.sh" "$@";;
+  prepare-donor) exec bash "$HERE/prepare-codec2-from-donor.sh" "$@";;
   fetch-sources) exec python3 "$HERE/fetch-minimal-codec2-sources.py" "$@";;
   build-modules) exec bash "$HERE/build-minimal-codec2-modules.sh" "$@";;
   prepare) exec bash "$HERE/prepare-codec2-overlay.sh" "$@";;
@@ -24,6 +26,8 @@ case "$cmd" in
     cat <<'EOF'
 PiTV Codec2 no-full-build experiment
   target-probe [OUT]
+  extract-donor IMAGE OUT_VENDOR
+  prepare-donor VENDOR_TREE PAYLOAD_OUT
   fetch-sources WORKDIR
   build-modules ANDROID13_TREE SOURCES_DIR PAYLOAD_OUT
   prepare DONOR_TREE PAYLOAD_OUT ROOT_ELF...
