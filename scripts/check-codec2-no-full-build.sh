@@ -15,6 +15,7 @@ PY=(
  scripts/make-codec2-rollback-manifest.py
  scripts/register-pitv-codec2-config.py
  scripts/inventory-codec2-payload.py
+ scripts/evaluate-codec2-target.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -77,3 +78,5 @@ grep -q 'c2.ffmpeg.hevc.decoder' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'vendor.prop.*pitv-codec2.prop' scripts/assemble-codec2-overlay.py
 grep -q 'register-pitv-codec2-config.py' scripts/add-pitv-codec2-config-to-payload.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'add-config'
+grep -q 'CODEC2_REGISTRY' scripts/probe-waydroid-codec2-target.sh
+grep -q 'TARGET_PREREQUISITES_OK' scripts/evaluate-codec2-target.py
