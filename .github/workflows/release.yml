@@ -29,6 +29,18 @@ jobs:
             system/pitv-helper \
             system/pitv-self-update
 
+      - name: Build TV Shell libCEC input daemon
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libcec-dev g++ pkg-config
+          g++ -std=c++17 -O2 -Wall -Wextra \
+            system/pitv-inputd.cpp -o /tmp/pitv-inputd \
+            $(pkg-config --cflags --libs libcec) -pthread
+          test -x /tmp/pitv-inputd
+          grep -q 'libcec_initialise' system/pitv-inputd.cpp
+          grep -q 'libcec_detect_adapters' system/pitv-inputd.cpp
+          grep -q '/run/pitv/inputd.sock' system/pitv-inputd.cpp
+
       - name: Shell syntax
         run: |
           bash -n install.sh
@@ -62,6 +74,15 @@ jobs:
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
           grep -q 'tv-runtime-reset' system/pitv-launcher-run
+          grep -q 'libcec-dev g++ pkg-config' install.sh
+          grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
+          grep -q 'systemctl enable pitv-inputd.service' install.sh
+          grep -q 'systemctl restart pitv-inputd.service' install.sh
+          grep -q 'PITV_INPUTD_SOCKET' pitv/pitv.py
+          grep -q 'SUBSCRIBE' pitv/pitv.py
+          grep -q 'CMD\\t' system/pitv-inputd.cpp
+          ! grep -q 'cec-ctl.*--monitor' pitv/pitv.py
+          ! grep -q 'pitv-cec-monitor.*monitor' pitv/pitv.py
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
           grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
           test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
@@ -165,37 +186,45 @@ jobs:
           from queue import Queue
           from pitv import CECReader, LEGACY_ANDROID_PACKAGES, PiTV, VERSION
 
-          # Regression: cec-ctl prints USER_CONTROL_PRESSED and ui-cmd on
-          # separate lines. OK/Back must survive both decoded and raw formats.
+          # PiTV 1.5 TV Shell: libCEC already normalizes the protocol.
+          # The launcher receives keycode + duration over the local inputd socket.
           q = Queue()
           cec = CECReader(q)
-          cec._handle_monitor_line("USER_CONTROL_PRESSED (0x44):\n")
-          cec._handle_monitor_line("  ui-cmd: select (0x00)\n")
-          assert q.get_nowait() == pygame.K_RETURN
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
-          cec._handle_monitor_line("> 01:44:0d\n")
-          assert q.get_nowait() == pygame.K_ESCAPE
+          cec.sock = object()
+          cec._handle_daemon_line("STATE\tconnected\t/dev/cec0")
+          assert cec.connected
+          assert cec.device == "/dev/cec0"
+          assert cec.is_ready()
 
-          # Back long-hold is a separate physical gesture from the raw-format
-          # parser test above. Clear the prior gesture state first; otherwise
-          # the deliberate 800 ms hold-continuity logic correctly treats this
-          # next Back as the same held button and suppresses it.
+          # Select/OK press then release.
+          cec._handle_daemon_line("KEY\t0\t0")
+          assert q.get_nowait() == pygame.K_RETURN
+          cec._handle_daemon_line("KEY\t0\t120")
+          assert q.empty()
+
+          # Back is CEC user-control code 0x0d = 13.
           cec.clear_key_state()
-          # The first Back is delivered once. Older TVs can repeat
-          # press/release pairs while the button is held, so gesture duration
-          # must survive a short release gap.
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
-          cec._handle_monitor_line("> 01:44:0d\n")
+          cec._handle_daemon_line("KEY\t13\t0")
           assert q.get_nowait() == pygame.K_ESCAPE
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+          cec._handle_daemon_line("KEY\t13\t80")
+          assert q.empty()
           assert cec.gesture_key == pygame.K_ESCAPE
+
+          # A TV that reports a held Back as short press/release bursts still
+          # produces one PiTV 3-second escape gesture without multiple Back steps.
           cec.gesture_started_at = time.monotonic() - 3.1
           cec.gesture_last_seen_at = time.monotonic()
-          cec._handle_monitor_line("> 01:44:0d\n")
+          cec._handle_daemon_line("KEY\t13\t0")
           assert q.empty()
           assert cec.held_for(pygame.K_ESCAPE) >= 3.0
           cec.clear_key_state()
           assert cec.held_for(pygame.K_ESCAPE) == 0.0
+
+          # Connection loss clears any held-key state; inputd itself owns
+          # libCEC reconnect and the launcher just waits for STATE connected.
+          cec._handle_daemon_line("STATE\tdisconnected\t")
+          assert not cec.connected
+          assert cec.device is None
 
           assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
           assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
