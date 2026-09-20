@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.28 installer =="
+echo "== PiTV v1.4.29 installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -35,7 +35,7 @@ apt_run install -y \
   labwc cage wtype cec-utils v4l-utils \
   dbus-user-session pipewire pipewire-pulse wireplumber pulseaudio-utils flatpak \
   fonts-dejavu-core \
-  iproute2 sudo alsa-utils openssh-server \
+  iproute2 sudo alsa-utils openssh-server util-linux \
   aapt apktool
 
 # PiTV's on-screen Wi-Fi UI uses nmcli. Ubuntu Server boots the cloud-init
@@ -148,6 +148,12 @@ case "$MODE" in
     exec /usr/bin/cec-ctl -d "$DEV" --no-rc-passthrough --playback -o PiTV
     ;;
   monitor)
+    # One persistent monitor per physical adapter. The lock survives exec
+    # because fd 9 stays open in cec-ctl and prevents duplicate root monitors
+    # after launcher crashes/restarts.
+    LOCK="/run/lock/pitv-cec-monitor-${DEV##*/}.lock"
+    exec 9>"$LOCK"
+    /usr/bin/flock -n 9 || exit 11
     exec /usr/bin/cec-ctl -d "$DEV" --monitor --show-raw
     ;;
   on)
