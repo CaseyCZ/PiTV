@@ -245,3 +245,6 @@ grep -q 'restore_sources' scripts/build-minimal-codec2-modules.sh
 grep -q 'pitv-codec2-src-backup' scripts/build-minimal-codec2-modules.sh
 grep -q 'MODIFIED=()' scripts/build-minimal-codec2-modules.sh
 grep -q 'MODIFIED+=("$dst")' scripts/build-minimal-codec2-modules.sh
+grep -q 'v4l2_seccomp_base' scripts/codec2-payload-readiness.py
+grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/build-minimal-codec2-modules.sh
+grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/prepare-codec2-from-donor.sh
