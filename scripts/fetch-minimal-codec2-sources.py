@@ -17,3 +17,4 @@ for item in lock["sources"]:
     for rel in item.get("license_files",[]):
         if not (dst/rel).is_file(): raise SystemExit(f"missing license file {item['name']}/{rel}")
     print(f"{item['name']}={got}")
+subprocess.run([sys.executable,str(repo/"scripts/verify-minimal-codec2-sources.py"),str(out)],check=True)
