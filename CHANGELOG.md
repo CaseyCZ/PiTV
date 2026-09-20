@@ -49,7 +49,7 @@ All notable PiTV changes are documented here.
 - clean install/start/self-update/uninstall on Ubuntu 24.04 x64 and ARM64 CI,
 - Kodi Store install path,
 - Homebridge, Tailscale, Docker and ATVLoadly install on ARM64 CI,
-- SmartTube and Stremio ARM64 APK download/package inspection.
+- SmartTube ARM64 APK download/package inspection and native Linux Stremio Flatpak path.
 
 ### Hardware verification still required
 - Raspberry Pi 4 HDMI/KMS,
