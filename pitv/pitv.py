@@ -1237,6 +1237,29 @@ class PiTV:
                         except Exception:
                             pass
 
+                # An older/manual PiTV build may also have left a managed APK
+                # copy. discover_apks() would surface it again even after the
+                # Android package itself is removed. Delete only APKs whose
+                # inspected package ID is one of PiTV's known obsolete IDs.
+                managed_roots = (
+                    Path("/var/lib/pitv/apks").resolve(),
+                    (Path.home() / "PiTV" / "APKs").resolve(),
+                )
+                for app in list(self.apps):
+                    if (app.get("kind") != "apk" or
+                            app.get("package") not in LEGACY_ANDROID_PACKAGES):
+                        continue
+                    apk_path = str(app.get("apk_path", "") or "").strip()
+                    if not apk_path:
+                        continue
+                    try:
+                        target = Path(apk_path).resolve()
+                        if (target.suffix.lower() == ".apk" and
+                                any(root in target.parents for root in managed_roots)):
+                            target.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
                 MIGRATION_DIR.mkdir(parents=True, exist_ok=True)
                 marker.write_text(
                     "PiTV legacy Android media migration completed\n",
