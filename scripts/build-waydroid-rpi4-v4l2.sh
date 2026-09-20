@@ -118,8 +118,11 @@ device.write_text(src, encoding="utf-8")
 
 src = board.read_text(encoding="utf-8")
 sepolicy = "BOARD_VENDOR_SEPOLICY_DIRS += vendor/pitv/rpi4/sepolicy"
+vendor_prop = "TARGET_VENDOR_PROP += vendor/pitv/rpi4/vendor.prop"
 if sepolicy not in src:
     src += "\n# PiTV Raspberry Pi 4 media HAL SELinux labels\n" + sepolicy + "\n"
+if vendor_prop not in src:
+    src += "\n# PiTV Raspberry Pi 4 hardware media properties\n" + vendor_prop + "\n"
 board.write_text(src, encoding="utf-8")
 PY
 
