@@ -41,6 +41,7 @@ jobs:
           bash -n system/pitv-waydroid-launch
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
+          bash -n system/pitv-cec-control
           ! grep -q 'dbus-run-session' system/pitv-session
           ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
           grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
@@ -68,6 +69,12 @@ jobs:
           ! grep -q '_CEC_MANAGER' pitv/pitv.py
           grep -q 'python3-evdev' install.sh
           grep -q 'system/pitv-inputd /usr/local/libexec/pitv-inputd' install.sh
+          grep -q 'system/pitv-cec-control /usr/local/libexec/pitv-cec-control' install.sh
+          grep -q '/usr/local/libexec/pitv-cec-control' pitv/pitv.py
+          ! grep -q '/usr/local/libexec/pitv-cec-monitor' pitv/pitv.py
+          ! grep -q "cat >/usr/local/libexec/pitv-cec-monitor" install.sh
+          ! grep -q 'register)' system/pitv-cec-control
+          ! grep -q 'monitor)' system/pitv-cec-control
           grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
           grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
           grep -q 'systemctl enable pitv-inputd.service pitv-shell.service' install.sh
