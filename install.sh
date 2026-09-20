@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.31 installer =="
+echo "== PiTV v1.5.0 TV Shell installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -124,6 +124,10 @@ install -m 0755 system/pitv-kodi-addon /usr/local/bin/pitv-kodi-addon
 install -d -m 0755 /usr/local/libexec
 install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
+install -m 0755 system/pitv-android-warm /usr/local/libexec/pitv-android-warm
+install -m 0644 system/pitv.target /etc/systemd/system/pitv.target
+install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
+install -m 0644 system/pitv-android-warm.service /etc/systemd/system/pitv-android-warm.service
 
 # Kodi's upstream Linux default disables the DRM PRIME decoder. Physical Pi 4
 # testing proved that PiTV needs DRM PRIME enabled for smooth playback. Apply
@@ -189,7 +193,11 @@ install -d -o pitv -g pitv /home/pitv/.config/pitv
 install -d -o pitv -g pitv /home/pitv/.config/labwc
 cp -a system/labwc/. /home/pitv/.config/labwc/
 chown -R pitv:pitv /home/pitv/.config/labwc
-install -m 0644 -o pitv -g pitv system/bash_profile /home/pitv/.bash_profile
+
+# PiTV 1.5 is a supervised TV appliance service, not a tty autologin shell.
+# Remove the old boot hook on upgrades so a manual console login can never
+# start a second compositor/session.
+rm -f /home/pitv/.bash_profile
 
 # PiTV privileged boundary: power, the validated root helper, and kernel CEC.
 # cec-ctl monitor mode needs CAP_NET_ADMIN; expose only the fixed cec-ctl binary
@@ -199,33 +207,34 @@ pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
 EOF
 chmod 0440 /etc/sudoers.d/pitv-power
 
-# tty1 becomes the dedicated local TV session. SSH sessions are unaffected.
-mkdir -p /etc/systemd/system/getty@tty1.service.d
-cat >/etc/systemd/system/getty@tty1.service.d/pitv-autologin.conf <<'EOF'
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin pitv --noclear %I $TERM
-Type=idle
-EOF
+# LibreELEC-style appliance boot:
+# - pitv.target is the TV-oriented default target above multi-user.target;
+# - pitv-shell.service owns tty1/Wayland and is supervised by systemd;
+# - no getty/autologin/.bash_profile trampoline is involved.
+rm -f /etc/systemd/system/getty@tty1.service.d/pitv-autologin.conf
+rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
 
-# Compatibility/recovery command. Older manual PiTV setups used a
-# pitv-launcher system service that restarted only Python and could leave a
-# fullscreen Waydroid/Kodi surface behind. Replace that unit with a stateless
-# helper: "sudo systemctl restart pitv-launcher" now restarts the complete TV
-# session (getty -> labwc -> launcher supervisor) but never reboots Linux or
-# touches background server services.
+# Prevent the generic console getty from racing the TV shell for tty1 on the
+# next boot. This does not affect SSH or any server/background service.
+systemctl mask getty@tty1.service >/dev/null 2>&1 || true
+
+# Compatibility/recovery command retained for existing documentation and SSH
+# habits: restarting "pitv-launcher" now restarts the whole supervised TV shell,
+# equivalent to LibreELEC restarting its mediacenter service.
 cat >/etc/systemd/system/pitv-launcher.service <<'EOF'
 [Unit]
-Description=PiTV TV-session restart helper
+Description=PiTV TV-shell restart helper
+After=pitv-shell.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl restart getty@tty1.service
+ExecStart=/usr/bin/systemctl restart pitv-shell.service
 EOF
 
 systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
-systemctl enable getty@tty1.service
+systemctl enable pitv-shell.service pitv-android-warm.service
+systemctl set-default pitv.target
 
 # Older/manual PiTV repair sessions could leave duplicate vc4-kms-v3d overlays.
 # Keep the first vc4-kms-v3d line only; duplicate KMS overlays can confuse HDMI/CEC.
@@ -243,7 +252,7 @@ echo
 echo "PiTV je nainstalováno."
 echo "Po restartu se na HDMI automaticky spustí PiTV."
 echo
-echo "Test bez restartu (z lokální tty): sudo systemctl restart getty@tty1"
+echo "TV shell spravuje systemd: sudo systemctl restart pitv-shell.service"
 echo "SSH zůstává normálně dostupné."
 echo
 echo "TV aplikace instaluj z PiTV Store; Homebridge, Tailscale, Docker a ATVLoadly ze Server Store."
