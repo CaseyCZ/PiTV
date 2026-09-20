@@ -212,6 +212,8 @@ jobs:
           assert 'flock -n 9' in outer
           assert 'cleanup_stale_android_runtime' in outer
           assert outer.index('flock -n 9') < outer.index('cleanup_stale_android_runtime')
+          assert 'cage_rc=$?' in outer
+          assert 'exit "$cage_rc"' in outer
           client = wrapper.split('if [ "$MODE" = "client" ]; then', 2)[2]
           client = client.split('# From here the Cage client owns', 1)[0]
           assert 'waydroid session stop' in client
@@ -254,7 +256,8 @@ jobs:
           grep -q '/home/pitv/.local/share/waydroid/data/media/0/PiTV-Media' system/pitv-helper
           grep -q 'systemctl enable --now waydroid-container.service' scripts/install-waydroid.sh
           grep -q 'timeout --signal=TERM --kill-after=5s 20s' system/pitv-waydroid-launch
-          grep -q 'exec cage -d' system/pitv-waydroid-launch
+          grep -Fq 'cage -d -- "$0" --cage-client' system/pitv-waydroid-launch
+          grep -Fq 'exit "$cage_rc"' system/pitv-waydroid-launch
           grep -q 'labwc cage wtype' install.sh
           grep -q 'pitv-launcher-run' install.sh
           grep -q 'pitv-launcher.service' install.sh
