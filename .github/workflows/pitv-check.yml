@@ -41,6 +41,10 @@ jobs:
           grep -q 'Kodi/Plex musí běžet v TV session uživatele pitv' system/pitv-kodi-addon
           grep -q 'Kodi musí běžet v TV session uživatele pitv' system/pitv-kodi-launch
           grep -q 'pitv-kodi-launch' config/apps.d/kodi.json
+          grep -q 'kodi-appliance-defaults' system/pitv-helper
+          grep -q 'system/kodi/appliance.xml /etc/pitv/kodi-appliance.xml' install.sh
+          grep -q 'videoplayer.useprimedecoder' system/kodi/appliance.xml
+          grep -q 'videoplayer.useprimedecoderforhw' system/kodi/appliance.xml
           grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
           grep -q 'waydroid-app-uninstall' system/pitv-helper
           grep -q 'waydroid-clean-legacy' system/pitv-helper
@@ -94,6 +98,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json
+          import xml.etree.ElementTree as ET
           for path in (
               "store/catalog.json",
               "store/server_catalog.json",
@@ -102,6 +107,16 @@ jobs:
               with open(path, encoding="utf-8") as f:
                   json.load(f)
               print("OK", path)
+
+          root = ET.parse("system/kodi/appliance.xml").getroot()
+          values = {}
+          for node in root.iter("setting"):
+              default = node.find("default")
+              if node.get("id") and default is not None:
+                  values[node.get("id")] = (default.text or "").strip().lower()
+          assert values["videoplayer.useprimedecoder"] == "true"
+          assert values["videoplayer.useprimedecoderforhw"] == "true"
+          print("Kodi DRM PRIME appliance defaults OK")
           PY
 
       - name: Runtime render with Ubuntu Pygame
