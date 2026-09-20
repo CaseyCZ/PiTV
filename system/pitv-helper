@@ -697,12 +697,11 @@ elif action == "waydroid-hw-codec-status":
 
     release = waydroid_shell(["getprop", "ro.build.version.release"], timeout=10)
     xml = waydroid_shell(["cat", "/vendor/etc/media_codecs.xml"], timeout=10)
-    avc_service = waydroid_shell(
-        ["getprop", "init.svc.android-hardware-media-c2-v4l2-hal-1-0"],
-        timeout=10,
-    )
-    hevc_service = waydroid_shell(
-        ["getprop", "init.svc.android-hardware-media-c2-ffmpeg-hal-1-2"],
+    process_probe = waydroid_shell(
+        [
+            "sh", "-c",
+            "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'",
+        ],
         timeout=10,
     )
     hevc_hw = waydroid_shell(
@@ -720,8 +719,17 @@ elif action == "waydroid-hw-codec-status":
 
     release_value = (release.stdout or "").strip()
     xml_text = xml.stdout or ""
-    avc_service_value = (avc_service.stdout or "").strip()
-    hevc_service_value = (hevc_service.stdout or "").strip()
+    process_text = (process_probe.stdout or "").lower()
+    avc_service_value = (
+        "running"
+        if "media.c2" in process_text and "v4l2" in process_text
+        else "missing"
+    )
+    hevc_service_value = (
+        "running"
+        if "media.c2" in process_text and "ffmpeg" in process_text
+        else "missing"
+    )
     hevc_hw_value = (hevc_hw.stdout or "").strip()
     video_nodes = [
         line.strip()
