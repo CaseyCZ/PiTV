@@ -239,3 +239,5 @@ grep -q 'insufficient free space for rollback-safe Codec2 install' scripts/insta
 grep -q 'STAGE="$(readlink -f' scripts/install-codec2-overlay.sh
 grep -q 'donor exceeds extraction limit' scripts/extract-codec2-donor-image.sh
 grep -q 'refusing symlink output' scripts/extract-codec2-donor-image.sh
+grep -q 'lpunpack required for dynamic/super donor image' scripts/extract-codec2-donor-image.sh
+grep -q 'super image must contain exactly one vendor image' scripts/extract-codec2-donor-image.sh
