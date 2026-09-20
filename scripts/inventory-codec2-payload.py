@@ -10,7 +10,11 @@ entries=[]
 for rel in manifest.read_text().splitlines():
     rel=rel.strip()
     if not rel: continue
-    p=(root/rel).resolve()
+    q=Path(rel)
+    if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe inventory path: {rel}")
+    raw=root/q
+    if raw.is_symlink(): raise SystemExit(f"inventory symlink rejected: {rel}")
+    p=raw.resolve()
     try: p.relative_to(root)
     except ValueError: raise SystemExit(f"path escapes payload: {rel}")
     if not p.is_file(): raise SystemExit(f"missing payload file: {rel}")
