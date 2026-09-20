@@ -134,7 +134,7 @@ grep -q 'check-codec2-service-metadata.py' scripts/install-codec2-overlay.sh
 grep -q 'check-codec2-service-metadata.py' scripts/codec2-install-readiness.sh
 grep -q 'check-codec2-manifest-closure.py' scripts/install-codec2-overlay.sh
 grep -q 'check-codec2-manifest-closure.py' scripts/prepare-codec2-overlay.sh
-grep -q 'VINTF metadata missing service' scripts/check-codec2-service-metadata.py
+grep -q 'VINTF metadata missing Codec2 instance' scripts/check-codec2-service-metadata.py
 grep -q 'check-codec2-manifest-closure.py' scripts/stage-codec2-payload.sh
 grep -q 'check-codec2-payload-size.py' scripts/stage-codec2-payload.sh
 grep -q 'check-codec2-manifest-closure.py' scripts/plan-codec2-overlay-install.sh
@@ -181,3 +181,9 @@ grep -q 'output must not be inside build/source tree' scripts/build-minimal-code
 grep -q 'media_codecs_pitv_rpi4.xml' scripts/assemble-codec2-overlay.py
 grep -q 'Preserve the target.*existing codec registry' scripts/install-codec2-overlay.sh
 ! grep -q '"android/waydroid-rpi4/media_codecs.xml":"vendor/etc/media_codecs.xml"' scripts/assemble-codec2-overlay.py
+grep -q 'media_codecs_pitv_rpi4.xml' scripts/codec2-payload-readiness.py
+grep -q 'media_codecs_pitv_rpi4.xml' scripts/register-pitv-codec2-config.py
+grep -q 'media_codecs_pitv_rpi4.xml' scripts/add-pitv-codec2-config-to-payload.sh
+grep -q 'metadata path is a symlink' scripts/verify-codec2-metadata.py
+grep -q 'payload entry is a symlink' scripts/check-codec2-payload-size.py
+grep -q 'manifest symlink rejected' scripts/check-codec2-manifest-closure.py
