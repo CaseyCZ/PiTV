@@ -32,7 +32,7 @@ add-apt-repository -y --no-update universe >/dev/null 2>&1 || true
 apt_run update
 apt_run install -y \
   python3 python3-pygame python3-evdev \
-  labwc cage wtype cec-utils v4l-utils \
+  labwc cage wtype wlr-randr cec-utils v4l-utils \
   dbus-user-session pipewire pipewire-pulse wireplumber pulseaudio-utils flatpak \
   fonts-dejavu-core \
   iproute2 sudo alsa-utils openssh-server util-linux \
@@ -141,10 +141,12 @@ install -m 0755 system/pitv-android-warm /usr/local/libexec/pitv-android-warm
 install -m 0755 system/pitv-inputd /usr/local/libexec/pitv-inputd
 install -m 0755 system/pitv-cec-control /usr/local/libexec/pitv-cec-control
 install -m 0755 system/pitv-global-action /usr/local/libexec/pitv-global-action
+install -m 0755 system/pitv-display-watch /usr/local/libexec/pitv-display-watch
 install -m 0644 system/pitv.target /etc/systemd/system/pitv.target
 install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
 install -m 0644 system/pitv-android-warm.service /etc/systemd/system/pitv-android-warm.service
 install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service
+install -m 0644 system/pitv-display.service /etc/systemd/system/pitv-display.service
 
 # The virtual PiTV TV Remote uses Linux uinput. Load it during every boot
 # before pitv-inputd and load it now as well for an in-place upgrade.
@@ -231,8 +233,15 @@ EOF
 
 systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
-systemctl enable pitv-inputd.service pitv-shell.service pitv-android-warm.service
+systemctl enable pitv-inputd.service pitv-shell.service pitv-android-warm.service pitv-display.service
 systemctl set-default pitv.target
+
+# On an in-place 1.5 update the target is already active, so a newly added
+# WantedBy unit is not pulled in automatically until the next boot. Start the
+# display repair layer now only when the TV shell already exists.
+if systemctl is-active --quiet pitv-shell.service; then
+  systemctl restart pitv-display.service >/dev/null 2>&1 || true
+fi
 
 # A 1.4.x in-UI updater is still running inside getty@tty1 at this point.
 # Queue the hand-over in an independent transient systemd unit so the installer
