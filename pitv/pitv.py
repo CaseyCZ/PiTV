@@ -4845,10 +4845,16 @@ class PiTV:
             started = time.monotonic()
             deadline = started + 95.0
             last_stage = ""
+            last_focus_guard = 0.0
             while time.monotonic() < deadline:
                 rc = proc.poll()
                 if rc is not None:
                     self._clear_android_pending(proc)
+                    # A hidden Cage surface may have taken keyboard focus even
+                    # though PiTV never intentionally revealed Android.
+                    self._return_to_launcher(
+                        "PiTV", refresh_cec=False, switch_workspace=True
+                    )
                     detail = tail_text_file("/tmp/pitv-waydroid-launch.log")
                     self.finish_operation(
                         detail or f"{name}: Android se nespustil ({rc})",
@@ -4858,6 +4864,13 @@ class PiTV:
                     return
 
                 elapsed = time.monotonic() - started
+                # Reassert the visible PiTV workspace while Android is pending.
+                # Do this at a low rate to avoid compositor churn.
+                now = time.monotonic()
+                if now - last_focus_guard >= 1.0:
+                    self._switch_workspace("PiTV")
+                    last_focus_guard = now
+
                 runtime_ready = self._android_runtime_ready()
                 stage = (
                     f"Startuji Android pro {name}…"
@@ -4900,6 +4913,9 @@ class PiTV:
                 time.sleep(0.15)
 
             self._clear_android_pending(proc)
+            self._return_to_launcher(
+                "PiTV", refresh_cec=False, switch_workspace=True
+            )
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             except Exception:
@@ -5033,6 +5049,11 @@ class PiTV:
             self.android_pending_proc = proc
             self.android_pending_package = package
             self.android_pending_app = dict(app)
+            # Android/Cage may request keyboard focus while its hidden surface
+            # is starting. Keep the TV launcher authoritative until the exact
+            # requested app confirms visibility; otherwise the PiTV menu can
+            # look frozen while remote keys are actually going to hidden Android.
+            self._switch_workspace("PiTV")
             self.show_toast(f"Připravuji {name}…")
             self._watch_android_launch(proc, dict(app), package, name)
         except Exception as e:
