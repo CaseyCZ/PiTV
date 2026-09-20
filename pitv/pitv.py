@@ -3867,7 +3867,10 @@ class PiTV:
                 if old is not None:
                     try:
                         old.stop()
-                        old.join(timeout=2.0)
+                        # _pick_device() can be inside a 4 s topology probe.
+                        # Wait longer than that before starting a new monitor so
+                        # two cec-ctl owners never overlap during app return.
+                        old.join(timeout=6.0)
                     except Exception:
                         pass
 
