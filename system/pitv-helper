@@ -704,8 +704,8 @@ elif action == "waydroid-hw-codec-status":
         ],
         timeout=10,
     )
-    hevc_hw = waydroid_shell(
-        ["getprop", "persist.ffmpeg_codec2.v4l2.h265"],
+    hw_marker = waydroid_shell(
+        ["cat", "/vendor/etc/pitv-hwdecode.env"],
         timeout=10,
     )
     video_probe = waydroid_shell(
@@ -734,7 +734,12 @@ elif action == "waydroid-hw-codec-status":
         if any("media.c2" in line and "ffmpeg" in line for line in process_lines)
         else "missing"
     )
-    hevc_hw_value = (hevc_hw.stdout or "").strip()
+    marker_text = hw_marker.stdout or ""
+    hevc_hw_value = (
+        "compiled"
+        if "HEVC_V4L2_REQUEST=compiled" in marker_text
+        else "missing"
+    )
     video_nodes = [
         line.strip()
         for line in (video_probe.stdout or "").splitlines()
@@ -766,7 +771,7 @@ elif action == "waydroid-hw-codec-status":
         and hevc_decoder
         and avc_service_value == "running"
         and hevc_service_value == "running"
-        and hevc_hw_value == "true"
+        and hevc_hw_value == "compiled"
         and video_nodes
         and media_nodes
     ):
