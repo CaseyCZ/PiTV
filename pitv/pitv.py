@@ -22,7 +22,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.22"
+VERSION = "1.4.23"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -843,6 +843,7 @@ class CECReader(threading.Thread):
         self.device = None
         self.last_key = None
         self.last_key_at = 0.0
+        self.press_started_at = 0.0
         self.key_released = True
         self._awaiting_ui_cmd = False
         self._stop_event = threading.Event()
@@ -884,15 +885,39 @@ class CECReader(threading.Thread):
         if mapped is None:
             return
         now = time.monotonic()
+        same_hold = mapped == self.last_key and not self.key_released
+
+        # Back has a global PiTV long-press gesture. Send the first Back to the
+        # foreground app normally, but suppress its repeat frames so a 3-second
+        # hold does not walk backwards through several app screens before PiTV
+        # returns to the launcher.
+        if same_hold and mapped == pygame.K_ESCAPE:
+            return
+
         # A short TV remote press must produce exactly one UI step. Some TVs
-        # repeat USER_CONTROL_PRESSED aggressively; accept a held-key repeat
-        # only after a deliberate delay.
-        if mapped == self.last_key and not self.key_released:
-            if (now - self.last_key_at) < 0.45:
-                return
+        # repeat USER_CONTROL_PRESSED aggressively; accept held-key navigation
+        # repeats only after a deliberate delay.
+        if same_hold and (now - self.last_key_at) < 0.45:
+            return
+
+        if not same_hold:
+            self.press_started_at = now
         self.last_key, self.last_key_at = mapped, now
         self.key_released = False
         self.event_queue.put(mapped)
+
+    def held_for(self, mapped):
+        if (self.key_released or self.last_key != mapped or
+                self.press_started_at <= 0):
+            return 0.0
+        return max(0.0, time.monotonic() - self.press_started_at)
+
+    def clear_key_state(self):
+        self.last_key = None
+        self.last_key_at = 0.0
+        self.press_started_at = 0.0
+        self.key_released = True
+        self._awaiting_ui_cmd = False
 
     def _emit(self, name):
         key = re.sub(r"\s*\(.*$", "", name).strip().lower()
@@ -922,6 +947,8 @@ class CECReader(threading.Thread):
             self._awaiting_ui_cmd = False
             self.key_released = True
             self.last_key = None
+            self.last_key_at = 0.0
+            self.press_started_at = 0.0
             return
 
         # Raw frame fallback is version-independent:
@@ -1062,8 +1089,11 @@ class PiTV:
         self.updates_busy = False
         self.external_proc = None
         self.external_kind = None
+        self.external_app = None
         self.external_started_at = 0.0
         self._relay_echo = {}
+        self._back_hold_triggered = False
+        self._keyboard_back_down_at = 0.0
 
         self.wifi_networks = []
         self.wifi_scanning = False
@@ -2879,7 +2909,7 @@ class PiTV:
                                 stdout=log,
                                 stderr=subprocess.STDOUT,
                             )
-                        self._register_external(proc, "linux")
+                        self._register_external(proc, "linux", app)
                         self.store_busy_id = ""
                         self.set_operation(f"Otevírám {item.get('name','Plex')} v Kodi…")
                         self.show_toast("Kodi nainstaluje Plex přehrávač z Kodi.tv repozitáře", 6)
@@ -2964,7 +2994,7 @@ class PiTV:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                         )
-                        self._register_external(proc, "apk")
+                        self._register_external(proc, "apk", app)
                         self.store_busy_id = ""
                         self.set_operation(f"Otevírám {item.get('name','aplikaci')} v Google Play…")
                         self.show_toast(f"Otevírám {item.get('name','aplikaci')} v Google Play", 5)
@@ -3498,17 +3528,59 @@ class PiTV:
             except Exception:
                 self._relay_echo.pop(key, None)
 
-    def _register_external(self, proc, kind):
+    def _register_external(self, proc, kind, app=None):
         self.external_proc = proc
         self.external_kind = kind
+        self.external_app = dict(app or {})
         self.external_started_at = time.monotonic()
+        self._back_hold_triggered = False
+
+    def _terminate_known_external(self, app, force=False):
+        """Stop detached media processes that can outlive their launch wrapper."""
+        command = str((app or {}).get("command", "") or "")
+        name = str((app or {}).get("name", "") or "").lower()
+
+        # Kodi/Plex can re-parent kodi.bin to PID 1. A process-group signal to
+        # the original shell is therefore not sufficient on the physical Pi.
+        if command.strip() == "kodi" or "pitv-kodi-addon" in command or "kodi" in name:
+            sig = "-KILL" if force else "-TERM"
+            for proc_name in ("kodi.bin", "kodi"):
+                try:
+                    subprocess.Popen(
+                        ["pkill", sig, "-u", "pitv", "-x", proc_name],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+
+        # Native Stremio is a system Flatpak and can also outlive a shell
+        # wrapper. flatpak kill targets only this application.
+        if "com.stremio.Stremio" in command:
+            try:
+                subprocess.Popen(
+                    ["flatpak", "kill", "com.stremio.Stremio"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                pass
+
+    def _clear_external_state(self):
+        self.external_proc = None
+        self.external_kind = None
+        self.external_app = None
+        self.external_started_at = 0.0
+        self._pitv_focus_samples = 0
+        self._relay_echo.clear()
+        self._back_hold_triggered = False
+        self._keyboard_back_down_at = 0.0
+        if self.cec:
+            self.cec.clear_key_state()
 
     def _recover_external_focus(self):
         proc = self.external_proc
         kind = self.external_kind
-        self.external_proc = None
-        self.external_kind = None
-        self.external_started_at = 0.0
+        app = self.external_app
+        self._clear_external_state()
 
         # PiTV received a wtype echo, so its SDL window is active again and
         # the external session marker is stale. Terminate the stale process
@@ -3522,6 +3594,8 @@ class PiTV:
                 except Exception:
                     pass
 
+        self._terminate_known_external(app, force=False)
+
         if kind == "apk":
             try:
                 subprocess.Popen(
@@ -3532,31 +3606,59 @@ class PiTV:
             except Exception:
                 pass
 
-        self._relay_echo.clear()
         self.show_toast("Ovládání PiTV obnoveno", 2.0)
 
-    def stop_external(self):
+    def stop_external(self, force=False):
         proc = self.external_proc
         kind = self.external_kind
-        self.external_proc = None
-        self.external_kind = None
-        self.external_started_at = 0.0
+        app = self.external_app
+        self._clear_external_state()
+
         if proc and proc.poll() is None:
             try:
-                os.killpg(os.getpgid(proc.pid), 15)
+                os.killpg(os.getpgid(proc.pid), 9 if force else 15)
             except Exception:
-                try: proc.terminate()
-                except Exception: pass
+                try:
+                    proc.kill() if force else proc.terminate()
+                except Exception:
+                    pass
+
+        self._terminate_known_external(app, force=force)
+
         if kind == "apk":
+            # A forced Back-hold can SIGKILL Cage/the wrapper, so always stop
+            # the Waydroid user session explicitly as the final cleanup.
             try:
-                subprocess.Popen(["waydroid", "session", "stop"], stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
+                subprocess.Popen(
+                    ["waydroid", "session", "stop"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
             except Exception:
                 pass
             self.apps = load_apps()
             self.refresh_store_async()
+
         self.page = "home"
-        self.show_toast("PiTV")
+        self.sidebar_focus = False
+        self.selected = 0
+        self.show_toast("Návrat do PiTV", 2.0)
+
+    def _check_global_back_hold(self):
+        if not self.external_kind:
+            self._back_hold_triggered = False
+            self._keyboard_back_down_at = 0.0
+            return
+
+        held = 0.0
+        if self.cec:
+            held = self.cec.held_for(pygame.K_ESCAPE)
+        if self._keyboard_back_down_at > 0:
+            held = max(held, time.monotonic() - self._keyboard_back_down_at)
+
+        if held >= 3.0 and not self._back_hold_triggered:
+            self._back_hold_triggered = True
+            self.stop_external(force=True)
 
     def _watch_launch(self, proc, name, kind, log_path=None):
         def worker():
@@ -3568,10 +3670,7 @@ class PiTV:
                 self.finish_operation(f"{name} spuštěno", True, 2.0)
                 return
             if self.external_proc is proc:
-                self.external_proc = None
-                self.external_kind = None
-                self.external_started_at = 0.0
-                self._pitv_focus_samples = 0
+                self._clear_external_state()
             if rc == 0:
                 self.finish_operation(f"{name} ukončeno", True, 2.0)
             else:
@@ -4164,11 +4263,18 @@ class PiTV:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
+                elif event.type == pygame.KEYUP:
+                    key = normalize_input_key(event.key)
+                    if key == pygame.K_ESCAPE:
+                        self._keyboard_back_down_at = 0.0
                 elif event.type == pygame.KEYDOWN:
                     # A USB keyboard is the guaranteed local fallback for TV
                     # remotes. Backspace behaves as Back/Escape, matching the
                     # on-screen keyboard legend and common media-center UX.
                     key = normalize_input_key(event.key)
+                    if (self.external_kind and key == pygame.K_ESCAPE and
+                            self._keyboard_back_down_at <= 0):
+                        self._keyboard_back_down_at = time.monotonic()
                     if self.external_kind == "linux" and self._consume_relay_echo(key):
                         # The synthetic key came back to PiTV, therefore the
                         # launcher owns keyboard focus again. Clear the stale
@@ -4178,12 +4284,11 @@ class PiTV:
                         continue
                     self.handle_key(key)
 
+            self._check_global_back_hold()
+
             if self.external_proc is not None and self.external_proc.poll() is not None:
                 finished_kind = self.external_kind
-                self.external_proc = None
-                self.external_kind = None
-                self.external_started_at = 0.0
-                self._pitv_focus_samples = 0
+                self._clear_external_state()
                 if finished_kind in ("apk", "linux"):
                     self.apps = load_apps()
                     self.refresh_store_async()
