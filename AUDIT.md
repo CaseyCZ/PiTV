@@ -18,7 +18,7 @@ Aktuální PiTV 1.3 prošlo statickou kontrolou, runtime render testem a komplet
 - Waydroid + Google Play lze nainstalovat přímo z PiTV UI,
 - přidaný ARM64 Waydroid fallback snapshot pro případ výpadku `repo.waydro.id`, včetně SHA-256 ověření a automatické týdenní aktualizace,
 - Google Play deep-link pro YouTube/Spotify/Plex používá omezený privilegovaný helper,
-- SmartTube/Stremio APK mají kontrolu očekávaného package ID,
+- SmartTube APK má kontrolu očekávaného package ID; Stremio používá nativní Linux Flatpak,
 - zpřísněný APT allowlist,
 - bezpečnější temp soubory Homebridge/Tailscale/Waydroid installerů,
 - odstranění starých systémových app definic při update,
@@ -33,7 +33,7 @@ Ověřeno:
 - Ubuntu 24.04 x64: install → render → run → Kodi → catalogs → self-update → rerun → uninstall,
 - Ubuntu 24.04 ARM64: stejný install/run/update/uninstall flow,
 - ARM64 Server Store: Homebridge, Tailscale, Docker, ATVLoadly,
-- ARM64 Android Store sources: SmartTube + Stremio download a `aapt` package kontrola,
+- ARM64 Android Store source: SmartTube download + `aapt` package kontrola; Stremio je Linux Flatpak,
 - obě témata: PiTV Apple Dark + Light,
 - všechny UI stránky,
 - sudoers a instalované helpery.
@@ -93,5 +93,5 @@ Projekt Rufus (`pbatard/rufus`) byl použit pouze jako architektonická referenc
 
 K 2026-09-19:
 
-- Stremio Android TV ARM64: katalog PiTV používá oficiální verzi 1.10.4, která je stále uvedená jako aktuální manual-install build na stremio.com.
+- Stremio: aktuální PiTV katalog používá nativní Linux Flatpak `com.stremio.Stremio`; staré Android Stremio není součástí současného Store katalogu.
 - SmartTube: katalog používá dynamický latest-release lookup; aktuální stable release 32.47 obsahuje `SmartTube_stable_32.47_arm64-v8a.apk`.
