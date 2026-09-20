@@ -333,9 +333,12 @@ else
   mark_ready "$TRACK_PACKAGE"
 fi
 
-# Keep only the per-app command alive. If the requested app actually dies,
-# return to PiTV; do not tear down the warm Android runtime.
-APP_MISSES=0
+# Keep the per-app command alive for the whole Android TV flow. SmartTube
+# and other TV apps can hand foreground control to Android Settings, permission
+# controllers or account pickers; those are not app exits. Return to PiTV only
+# when Android reaches its Home launcher, the runtime is lost, or PiTV closes
+# the wrapper through the global appliance action.
+SESSION_MISSES=0
 RUNTIME_MISSES=0
 while true; do
   if runtime_ready; then
@@ -344,18 +347,18 @@ while true; do
     RUNTIME_MISSES=$((RUNTIME_MISSES + 1))
     if [ "$RUNTIME_MISSES" -ge 3 ]; then
       log "persistent Android runtime lost"
-      break
+      exit 19
     fi
   fi
 
   if [ -n "$TRACK_PACKAGE" ]; then
     if printf '{"package":"%s"}' "$TRACK_PACKAGE" |
-        sudo -n /usr/local/libexec/pitv-helper waydroid-app-running           >/dev/null 2>&1; then
-      APP_MISSES=0
+        sudo -n /usr/local/libexec/pitv-helper waydroid-app-session-active           >/dev/null 2>&1; then
+      SESSION_MISSES=0
     else
-      APP_MISSES=$((APP_MISSES + 1))
-      if [ "$APP_MISSES" -ge 4 ]; then
-        log "Android app exited: $TRACK_PACKAGE"
+      SESSION_MISSES=$((SESSION_MISSES + 1))
+      if [ "$SESSION_MISSES" -ge 2 ]; then
+        log "Android TV session returned Home: $TRACK_PACKAGE"
         break
       fi
     fi
