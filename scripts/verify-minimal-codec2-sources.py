@@ -7,7 +7,7 @@ root=Path(sys.argv[1]).resolve()
 repo=Path(__file__).resolve().parents[1]
 lock=json.loads((repo/"android/waydroid-rpi4/minimal-codec2-sources.lock.json").read_text())
 required={
- "v4l2_codec2":["Android.bp"],
+ "v4l2_codec2":["Android.bp","service/Android.bp","service/android.hardware.media.c2@1.0-service-v4l2-64.rc","service/android.hardware.media.c2@1.0-service-v4l2.xml"],
  "ffmpeg":["Android.bp"],
  "ffmpeg_codec2":["Android.mk","android.hardware.media.c2@1.2-service-ffmpeg.rc","android.hardware.media.c2@1.2-service-ffmpeg.xml","seccomp_policy/android.hardware.media.c2@1.2-ffmpeg-arm64.policy"],
  "libudev_zero":["Android.bp"],
