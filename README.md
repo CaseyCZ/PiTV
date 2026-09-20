@@ -146,6 +146,26 @@ Instalace:
 
 PiTV nejdřív používá oficiální `repo.waydro.id`. Pokud je nedostupné nebo instalace z něj selže, automaticky použije **PiTV fallback snapshot** uložený v tomto repozitáři. Snapshot pro Ubuntu 24.04 / ARM64 obsahuje potřebné Waydroid runtime balíčky, SHA-256 kontrolní součty a jednou týdně se obnovuje z oficiálního zdroje.
 
+### Raspberry Pi 4 — HW video decode ve Waydroidu
+
+Generický Waydroid ARM64 obraz na RPi4 může vidět hostitelská `/dev/video*` zařízení, ale přesto nabízet Android aplikacím jen softwarové kodeky. PiTV proto obsahuje samostatný **RPi4 V4L2 Codec2 profil** pro LineageOS 20 / Android 13, který přidává `c2.v4l2.avc.decoder`.
+
+Build a rollback-safe testovací instalace jsou v:
+
+```text
+android/waydroid-rpi4/
+scripts/build-waydroid-rpi4-v4l2.sh
+scripts/install-waydroid-rpi4-v4l2-image.sh
+```
+
+Stav na konkrétním Raspberry Pi lze ověřit příkazem:
+
+```bash
+sudo /usr/local/libexec/pitv-helper waydroid-hw-codec-status
+```
+
+První profil záměrně akceleruje pouze **H.264/AVC**; další kodeky se mají přidat až po fyzickém ověření jejich V4L2 podpory.
+
 Vlastní APK:
 
 ```text

@@ -135,6 +135,26 @@ Install from:
 
 PiTV first uses the official `repo.waydro.id` source. If it is unavailable or package installation fails, PiTV automatically switches to a **fallback snapshot** stored in this repository. The Ubuntu 24.04 / ARM64 snapshot includes the required Waydroid runtime packages, SHA-256 checksums and is refreshed weekly from the official source.
 
+### Raspberry Pi 4 — Waydroid hardware video decoding
+
+A generic Waydroid ARM64 image can see the Pi host `/dev/video*` devices while still exposing only software codecs to Android applications. PiTV therefore includes a dedicated **RPi4 V4L2 Codec2 profile** for LineageOS 20 / Android 13 that adds `c2.v4l2.avc.decoder`.
+
+The reproducible build and rollback-safe test installer live in:
+
+```text
+android/waydroid-rpi4/
+scripts/build-waydroid-rpi4-v4l2.sh
+scripts/install-waydroid-rpi4-v4l2-image.sh
+```
+
+On a Raspberry Pi, verify the active codec path with:
+
+```bash
+sudo /usr/local/libexec/pitv-helper waydroid-hw-codec-status
+```
+
+The first profile intentionally accelerates **H.264/AVC only**. Additional codecs should be enabled only after their V4L2 support is physically verified.
+
 Custom APK files:
 
 ```text

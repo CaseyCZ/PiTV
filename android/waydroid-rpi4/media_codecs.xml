@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  PiTV Raspberry Pi 4 Waydroid media profile.
+
+  The generic Waydroid ARM64 image advertises only software Google/Android
+  codecs on the physical Pi 4.  Keep the normal software codecs as fallback,
+  but register the Raspberry Pi V4L2 Codec2 AVC decoder first.
+
+  Initial scope is deliberately H.264/AVC only.  Additional codecs must be
+  enabled only after physical verification against the Pi kernel V4L2 nodes.
+-->
+<MediaCodecs>
+    <Settings>
+        <Setting name="max-video-encoder-input-buffers" value="12" />
+    </Settings>
+
+    <Include href="media_codecs_google_audio.xml" />
+    <Include href="media_codecs_google_telephony.xml" />
+
+    <Decoders>
+        <MediaCodec name="c2.v4l2.avc.decoder" type="video/avc">
+            <Limit name="size" min="16x16" max="4096x4096" />
+            <Limit name="alignment" value="2x2" />
+            <Limit name="block-size" value="16x16" />
+            <Limit name="blocks-per-second" min="1" max="1879200" />
+            <Limit name="bitrate" range="1-62500000" />
+            <Limit name="concurrent-instances" max="4" />
+            <Limit name="performance-point-1920x1080" range="60-60" />
+            <Feature name="adaptive-playback" />
+        </MediaCodec>
+    </Decoders>
+
+    <!-- Keep the original Waydroid software codecs available as fallbacks. -->
+    <Include href="media_codecs_google_video.xml" />
+    <Include href="media_codecs_ffmpeg.xml" />
+</MediaCodecs>
