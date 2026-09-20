@@ -14,6 +14,8 @@ required={
  "properties":"vendor/etc/pitv-codec2.prop",
  "backend_marker":"vendor/etc/pitv-hwdecode.env",
  "seccomp":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
+ "avc_service":"vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2",
+ "hevc_service":"vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg",
 }
 state={k:(root/v).is_file() for k,v in required.items()}
 for k,v in state.items(): print(f"{k}={'yes' if v else 'no'}")
@@ -22,5 +24,5 @@ if missing: raise SystemExit("payload not ready: "+", ".join(missing))
 inv=json.loads((root/required["inventory"]).read_text())
 elfs=sum(1 for x in inv.get("files",[]) if x.get("kind")=="elf")
 print(f"elf_files={elfs}")
-if elfs<1: raise SystemExit("payload has configuration but no codec ELF binaries")
+if elfs<2: raise SystemExit("payload does not contain both codec service ELF binaries")
 print("PAYLOAD_READY_FOR_TARGET_PREFLIGHT=1")
