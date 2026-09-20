@@ -272,6 +272,8 @@ def self_test():
   Modes:
     1920x1080 px, 60.000000 Hz (preferred, current)
   Position: 0,0
+  Transform: normal
+  Scale: 1
 DP-1 "Other"
   Enabled: no
 """
@@ -279,7 +281,7 @@ DP-1 "Other"
     state = wlr_output_state(sample, "HDMI-A-1")
     assert state["enabled"] and state["current"]
     assert state["position_ok"] and state["scale_ok"]
-    assert not state["transform_ok"]  # sample intentionally omits transform
+    assert state["transform_ok"]
     assert wlr_output_block(sample, "DP-1").startswith('DP-1 "Other"')
     snapshot = {
         "card1-HDMI-A-1": {
