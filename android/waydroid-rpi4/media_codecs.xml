@@ -34,7 +34,6 @@
             <Limit name="size" min="16x16" max="4096x4096" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
-            <Limit name="performance-point-3840x2160" range="60-60" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
     </Decoders>
