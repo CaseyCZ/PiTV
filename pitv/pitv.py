@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.26"
+VERSION = "1.4.27"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -1626,6 +1626,24 @@ class PiTV:
         if subtitle:
             self.text(subtitle, rect.x+pad, rect.y+int(rect.h*.76), rect.h*.073, self.t["muted"])
 
+    def _fit_ui_text(self, text, font, max_width):
+        """Collapse terminal-style output and ellipsize it to a TV-safe width."""
+        line = " ".join(str(text or "").split())
+        if not line:
+            return ""
+        if font.size(line)[0] <= max_width:
+            return line
+        suffix = "…"
+        lo, hi = 0, len(line)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            candidate = line[:mid].rstrip() + suffix
+            if font.size(candidate)[0] <= max_width:
+                lo = mid
+            else:
+                hi = mid - 1
+        return line[:lo].rstrip() + suffix
+
     def set_operation(self, text, progress=None, error=False):
         self.operation_text = str(text)
         self.operation_progress = None if progress is None else max(0, min(100, int(progress)))
@@ -1651,9 +1669,12 @@ class PiTV:
             return
         f = self.font(self.h*.017, True)
         suffix = "" if self.operation_progress is None else f"  {self.operation_progress}%"
-        surf = f.render(self.operation_text + suffix, True,
+        label = self._fit_ui_text(
+            self.operation_text + suffix, f, int(self.w*.62)
+        )
+        surf = f.render(label, True,
                         self.t["bad"] if self.operation_error else self.t["text"])
-        w = max(int(self.w*.19), surf.get_width()+54)
+        w = min(int(self.w*.70), max(int(self.w*.19), surf.get_width()+54))
         h = int(self.h*.062)
         r = pygame.Rect(self.w-w-int(self.w*.025), int(self.h*.025), w, h)
         pygame.draw.rect(self.screen, self.t["panel2"], r, border_radius=h//2)
@@ -3601,9 +3622,11 @@ class PiTV:
 
         if self.toast and time.time() < self.toast_until:
             f = self.font(self.h*.021, True)
-            surf = f.render(self.toast, True, self.t["text"])
+            label = self._fit_ui_text(self.toast, f, int(self.w*.78))
+            surf = f.render(label, True, self.t["text"])
             pad_x, pad_y = 24, 14
-            rect = pygame.Rect(0, 0, surf.get_width()+pad_x*2, surf.get_height()+pad_y*2)
+            rect = pygame.Rect(0, 0, min(int(self.w*.86), surf.get_width()+pad_x*2),
+                               surf.get_height()+pad_y*2)
             rect.midbottom = (self.w//2, self.h-int(self.h*.035))
             pygame.draw.rect(self.screen, self.t["panel2"], rect, border_radius=14)
             pygame.draw.rect(self.screen, self.t["border"], rect, 1, border_radius=14)
