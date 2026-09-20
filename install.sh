@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-echo "== PiTV v1.4.31 installer =="
+echo "== PiTV v1.5.0 TV Shell installer =="
 
 . /etc/os-release || true
 case "${ID:-}" in
@@ -33,6 +33,7 @@ apt_run update
 apt_run install -y \
   python3 python3-pygame \
   labwc cage wtype cec-utils v4l-utils \
+  libcec-dev g++ pkg-config \
   dbus-user-session pipewire pipewire-pulse wireplumber pulseaudio-utils flatpak \
   fonts-dejavu-core \
   iproute2 sudo alsa-utils openssh-server util-linux \
@@ -125,6 +126,14 @@ install -d -m 0755 /usr/local/libexec
 install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
 
+# TV Shell input layer: one libCEC owner survives launcher/app restarts.
+# Build against the distro libCEC C/C++ API instead of parsing cec-ctl output.
+g++ -std=c++17 -O2 -Wall -Wextra \
+  system/pitv-inputd.cpp -o /usr/local/libexec/pitv-inputd \
+  $(pkg-config --cflags --libs libcec) -pthread
+chmod 0755 /usr/local/libexec/pitv-inputd
+install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service
+
 # Kodi's upstream Linux default disables the DRM PRIME decoder. Physical Pi 4
 # testing proved that PiTV needs DRM PRIME enabled for smooth playback. Apply
 # the Kodi-supported appliance defaults on every PiTV update when Kodi already
@@ -136,53 +145,9 @@ if command -v kodi >/dev/null 2>&1; then
   apt_run install -y kodi-eventclients-kodi-send
   echo '{}' | /usr/local/libexec/pitv-helper kodi-appliance-defaults
 fi
-cat >/usr/local/libexec/pitv-cec-monitor <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-DEV="${1:-}"
-MODE="${2:-monitor}"
-[[ "$DEV" =~ ^/dev/cec[0-9]+$ ]] || exit 2
-[ -c "$DEV" ] || exit 2
-case "$MODE" in
-  register)
-    exec /usr/bin/cec-ctl -d "$DEV" --no-rc-passthrough --playback -o PiTV
-    ;;
-  monitor)
-    # One persistent monitor per physical adapter. The lock survives exec
-    # because fd 9 stays open in cec-ctl and prevents duplicate root monitors
-    # after launcher crashes/restarts.
-    LOCK="/run/lock/pitv-cec-monitor-${DEV##*/}.lock"
-    exec 9>"$LOCK"
-    /usr/bin/flock -n 9 || exit 11
-    exec /usr/bin/cec-ctl -d "$DEV" --monitor --show-raw
-    ;;
-  on)
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --image-view-on
-    ;;
-  standby)
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --standby
-    ;;
-  active)
-    PA="$(/usr/bin/cec-ctl -d "$DEV" 2>/dev/null |
-      sed -n 's/^[[:space:]]*Physical Address[[:space:]]*:[[:space:]]*//p' |
-      head -n1 | tr -d '[:space:]')"
-    [[ "$PA" =~ ^[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]$ ]] || exit 4
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --active-source "phys-addr=$PA"
-    ;;
-  volup|voldown|mute)
-    case "$MODE" in
-      volup) UI_CMD="volume-up" ;;
-      voldown) UI_CMD="volume-down" ;;
-      mute) UI_CMD="mute" ;;
-    esac
-    /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-pressed "ui-cmd=$UI_CMD"
-    sleep 0.05
-    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-released
-    ;;
-  *) exit 2 ;;
-esac
-EOF
-chmod 0755 /usr/local/libexec/pitv-cec-monitor
+# PiTV 1.5 TV Shell no longer uses a root cec-ctl monitor. Remove the old
+# helper on upgrade; cec-utils remains installed only for manual diagnostics.
+rm -f /usr/local/libexec/pitv-cec-monitor
 install -m 0755 scripts/install-waydroid.sh /usr/local/libexec/pitv-install-waydroid
 
 install -d -o pitv -g pitv /home/pitv/.config/pitv
@@ -191,17 +156,20 @@ cp -a system/labwc/. /home/pitv/.config/labwc/
 chown -R pitv:pitv /home/pitv/.config/labwc
 install -m 0644 -o pitv -g pitv system/bash_profile /home/pitv/.bash_profile
 
-# PiTV privileged boundary: power, the validated root helper, and kernel CEC.
-# cec-ctl monitor mode needs CAP_NET_ADMIN; expose only the fixed cec-ctl binary
-# to the dedicated local pitv account, never a shell.
+# PiTV privileged boundary. CEC is no longer sudo-driven: pitv-inputd receives
+# only CAP_NET_ADMIN from systemd and owns libCEC for the appliance lifetime.
 cat >/etc/sudoers.d/pitv-power <<'EOF'
-pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *, /usr/local/libexec/pitv-cec-monitor *
+pitv ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/libexec/pitv-helper *
 EOF
 chmod 0440 /etc/sudoers.d/pitv-power
 
 # tty1 becomes the dedicated local TV session. SSH sessions are unaffected.
 mkdir -p /etc/systemd/system/getty@tty1.service.d
 cat >/etc/systemd/system/getty@tty1.service.d/pitv-autologin.conf <<'EOF'
+[Unit]
+Wants=pitv-inputd.service
+After=pitv-inputd.service
+
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin pitv --noclear %I $TERM
@@ -225,6 +193,8 @@ EOF
 
 systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
+systemctl enable pitv-inputd.service
+systemctl restart pitv-inputd.service
 systemctl enable getty@tty1.service
 
 # Older/manual PiTV repair sessions could leave duplicate vc4-kms-v3d overlays.
