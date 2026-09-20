@@ -209,3 +209,6 @@ grep -q 'inventory symlink rejected' scripts/inventory-codec2-payload.py
 grep -q 'unsafe rollback path' scripts/make-codec2-rollback-manifest.py
 grep -q 'target symlink rejected' scripts/preflight-codec2-overlay.py
 grep -q 'check-codec2-service-metadata.py' scripts/plan-codec2-overlay-install.sh
+grep -q 'unsafe staging state' scripts/stage-codec2-payload.sh
+grep -q 'check-codec2-service-metadata.py' scripts/stage-codec2-payload.sh
+grep -q 'stamp}-\$\$' scripts/stage-codec2-payload.sh
