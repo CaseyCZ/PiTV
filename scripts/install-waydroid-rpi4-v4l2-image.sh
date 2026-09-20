@@ -230,9 +230,10 @@ fi
 [ "$hevc_svc" = "running" ] \
   || fail_and_restore "FFmpeg HEVC Codec2 process is not running"
 
-hevc_hw="$(printf '%s\n' 'getprop persist.ffmpeg_codec2.v4l2.h265' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
-[ "$hevc_hw" = "true" ] \
-  || fail_and_restore "FFmpeg HEVC V4L2 Request acceleration is not enabled (value: ${hevc_hw:-missing})"
+hw_marker="$(printf '%s\n' 'cat /vendor/etc/pitv-hwdecode.env' | waydroid shell 2>/dev/null | tr -d '\r' || true)"
+printf '%s\n' "$hw_marker" | grep -qx 'HEVC_V4L2_REQUEST=compiled' \
+  || fail_and_restore "PiTV vendor does not contain the compiled HEVC V4L2 Request backend"
+hevc_hw="compiled"
 
 RESTORE_NEEDED=0
 sha256sum "$EXTRA/vendor.img" > "$STATE/waydroid-rpi4-hwdecode-vendor.sha256"
