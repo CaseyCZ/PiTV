@@ -7,12 +7,15 @@ PY=(
  scripts/collect-codec2-prebuilt.py
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
- scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py scripts/preflight-codec2-overlay.py scripts/test-codec2-no-full-build.py scripts/plan-codec2-backup.py scripts/check-codec2-payload-contract.py
+ scripts/verify-staged-codec2-payload.py
+ scripts/make-codec2-rollback-manifest.py
+ scripts/preflight-codec2-overlay.py
+ scripts/test-codec2-no-full-build.py
  scripts/plan-codec2-backup.py
+ scripts/check-codec2-payload-contract.py
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
- scripts/make-codec2-rollback-manifest.py
  scripts/register-pitv-codec2-config.py
  scripts/inventory-codec2-payload.py
  scripts/evaluate-codec2-target.py
@@ -65,6 +68,10 @@ printf x >"$tmp/payload/vendor/lib64/libfixture.so"
 printf 'vendor/lib64/libfixture.so\n' >"$tmp/payload/PITV-CODEC2-PAYLOAD.txt"
 python3 scripts/validate-codec2-payload.py "$tmp/payload" >/dev/null
 python3 scripts/verify-staged-codec2-payload.py "$tmp/payload" >/dev/null
+python3 scripts/inventory-codec2-payload.py "$tmp/payload" >/dev/null
+python3 scripts/make-codec2-rollback-manifest.py "$tmp/payload" >/dev/null
+python3 scripts/verify-codec2-metadata.py "$tmp/payload" >/dev/null
+python3 scripts/check-codec2-payload-size.py "$tmp/payload" >/dev/null
 bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null
 grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
 python3 scripts/test-codec2-no-full-build.py
