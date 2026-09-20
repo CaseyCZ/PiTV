@@ -233,7 +233,7 @@ elif action == "tv-runtime-reset":
             continue
         try:
             with open(f"/proc/{entry}/cmdline", "rb") as proc_cmd:
-                raw = proc_cmd.read().split(b"\\0")
+                raw = proc_cmd.read().split(b"\x00")
             argv = [part.decode("utf-8", "replace") for part in raw if part]
         except (OSError, PermissionError):
             continue
