@@ -75,3 +75,4 @@ grep -q 'c2.v4l2.avc.decoder' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'vendor.prop.*pitv-codec2.prop' scripts/assemble-codec2-overlay.py
 grep -q 'register-pitv-codec2-config.py' scripts/add-pitv-codec2-config-to-payload.sh
+bash scripts/codec2-no-full-build.sh help | grep -q 'add-config'
