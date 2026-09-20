@@ -9,19 +9,55 @@
     <keepBorder>no</keepBorder>
     <maximizedDecoration>none</maximizedDecoration>
   </theme>
-  <keyboard>
-    <keybind key="W-Home"><action name="Execute" command="wtype -k Home" /></keybind>
-  </keyboard>
 
   <!--
-    Cage is the documented Waydroid-only/fullscreen compositor. When Cage is
-    nested inside labwc, wlroots exposes its parent Wayland toplevel with the
-    generic app_id "wlroots". Maximizing that one outer surface gives PiTV a
-    borderless TV-sized Android canvas while Cage maximizes the Android client
-    inside it.
+    PiTV uses workspaces as TV-style multitasking slots. The launcher always
+    lives on PiTV. Built-in media runtimes get their own workspace so they can
+    remain alive/paused while the user returns to the launcher.
   -->
+  <desktops>
+    <popupTime>0</popupTime>
+    <initial>PiTV</initial>
+    <names>
+      <name>PiTV</name>
+      <name>Kodi</name>
+      <name>Stremio</name>
+      <name>Android</name>
+      <name>Apps</name>
+    </names>
+  </desktops>
+
+  <keyboard>
+    <keybind key="W-Home"><action name="Execute" command="wtype -k Home" /></keybind>
+
+    <!-- Private PiTV compositor controls. PiTV sends these with wtype. -->
+    <keybind key="W-F8"><action name="GoToDesktop" to="Apps" /></keybind>
+    <keybind key="W-F9"><action name="GoToDesktop" to="PiTV" /></keybind>
+    <keybind key="W-F10"><action name="GoToDesktop" to="Kodi" /></keybind>
+    <keybind key="W-F11"><action name="GoToDesktop" to="Stremio" /></keybind>
+    <keybind key="W-F12"><action name="GoToDesktop" to="Android" /></keybind>
+  </keyboard>
+
   <windowRules>
+    <!-- Kodi also hosts Plex/PM4K, so both intentionally share one slot. -->
+    <windowRule identifier="Kodi*">
+      <action name="SendToDesktop" to="Kodi" follow="yes" />
+      <action name="Maximize" />
+    </windowRule>
+
+    <!-- Flatpak/Electron builds have used both identifiers. -->
+    <windowRule identifier="com.stremio.Stremio">
+      <action name="SendToDesktop" to="Stremio" follow="yes" />
+      <action name="Maximize" />
+    </windowRule>
+    <windowRule identifier="Stremio*">
+      <action name="SendToDesktop" to="Stremio" follow="yes" />
+      <action name="Maximize" />
+    </windowRule>
+
+    <!-- Nested Cage/wlroots is the one Android TV surface. -->
     <windowRule identifier="wlroots">
+      <action name="SendToDesktop" to="Android" follow="yes" />
       <action name="Maximize" />
     </windowRule>
   </windowRules>
