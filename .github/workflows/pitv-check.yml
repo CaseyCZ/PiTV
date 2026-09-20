@@ -36,6 +36,18 @@ jobs:
           bash -n system/pitv-launcher-run
           bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
+          python3 - <<'PYWAYDROID'
+          from pathlib import Path
+          src = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
+          verify = 'if ! package_installed "$TARGET"; then'
+          launch = 'if ! start_package "$TARGET"; then'
+          assert verify in src
+          assert launch in src
+          assert src.index(verify) < src.index(launch)
+          assert 'package missing; installing APK before launch' in src
+          assert 'for _ in $(seq 1 25)' in src
+          print("Waydroid missing-package launch regression OK")
+          PYWAYDROID
           sudo python3 system/pitv-helper self-test </dev/null
           python3 system/pitv-self-update --self-test
           bash -n system/pitv-kodi-launch
