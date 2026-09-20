@@ -248,3 +248,4 @@ grep -q 'MODIFIED+=("$dst")' scripts/build-minimal-codec2-modules.sh
 grep -q 'v4l2_seccomp_base' scripts/codec2-payload-readiness.py
 grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/build-minimal-codec2-modules.sh
 grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/prepare-codec2-from-donor.sh
+grep -q 'V4L2 Codec2 seccomp contract missing' scripts/verify-minimal-codec2-sources.py
