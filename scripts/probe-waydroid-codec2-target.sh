@@ -9,8 +9,8 @@ q(){ printf '%s=%q\n' "$1" "$2"; }
   q ARCH "$(dpkg --print-architecture 2>/dev/null || uname -m)"
   q MODEL "$(tr -d '\0' </proc/device-tree/model 2>/dev/null || true)"
   q KERNEL "$(uname -r)"
-  q VIDEO_NODES "$(printf '%s ' /dev/video* 2>/dev/null || true)"
-  q MEDIA_NODES "$(printf '%s ' /dev/media* 2>/dev/null || true)"
+  q VIDEO_NODES "$(find /dev -maxdepth 1 -type c -name 'video*' -printf '%p ' 2>/dev/null | sort || true)"
+  q MEDIA_NODES "$(find /dev -maxdepth 1 -type c -name 'media*' -printf '%p ' 2>/dev/null | sort || true)"
   if command -v waydroid >/dev/null 2>&1; then
     q WAYDROID_VERSION "$(waydroid --version 2>/dev/null || true)"
     for prop in ro.build.version.release ro.build.version.sdk ro.product.cpu.abi ro.vndk.version; do
@@ -19,6 +19,8 @@ q(){ printf '%s=%q\n' "$1" "$2"; }
     done
     q ANDROID_VIDEO_NODES "$(printf '%s\n' 'ls -1 /dev/video* 2>/dev/null' | waydroid shell 2>/dev/null | tr '\n' ' ' || true)"
     q ANDROID_MEDIA_NODES "$(printf '%s\n' 'ls -1 /dev/media* 2>/dev/null' | waydroid shell 2>/dev/null | tr '\n' ' ' || true)"
+    q CODEC2_REGISTRY "$(printf '%s\n' 'dumpsys media.codec 2>/dev/null | grep -E "c2\\.(v4l2|ffmpeg)\\.(avc|hevc)\\.decoder"' | waydroid shell 2>/dev/null | tr '\n' ' ' || true)"
+    q CODEC2_PROCESSES "$(printf '%s\n' "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n' | grep -Ei 'media\\.c2|codec2|ffmpeg|v4l2'" | waydroid shell 2>/dev/null | tr '\n' ' ' || true)"
   fi
 } >"$OUT"
 cat "$OUT"
