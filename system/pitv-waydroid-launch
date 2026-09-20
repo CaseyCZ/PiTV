@@ -187,12 +187,19 @@ wait_package_visible() {
   return 1
 }
 
+start_explicit_tv_activity() {
+  local package="$1"
+  log "forcing explicit Android TV launcher Activity: $package"
+  printf '{"package":"%s"}' "$package" |
+    sudo -n /usr/local/libexec/pitv-helper waydroid-app-launch       >>"$LOG" 2>&1
+}
+
 start_package() {
   local package="$1"
   # Primary path: use Waydroid's own application controller. Upstream handles
-  # active_apps, container unfreeze, Leanback intent selection and fullscreen
-  # policy here. Keep the call bounded: a wedged Binder transaction must not
-  # hold the PiTV launcher until its outer watchdog fires.
+  # active_apps and container unfreeze. Physical Pi 4 testing with SmartTube
+  # showed that this command can still return success while Android Home stays
+  # foreground and only the target process is created in background.
   log "launching through official Waydroid app controller: $package"
   set +e
   timeout --signal=TERM --kill-after=5s 20s     waydroid app launch "$package" >>"$LOG" 2>&1
@@ -207,8 +214,7 @@ start_package() {
   else
     log "Waydroid app launch failed rc=$rc; trying explicit TV activity: $package"
   fi
-  printf '{"package":"%s"}' "$package" |
-    sudo -n /usr/local/libexec/pitv-helper waydroid-app-launch       >>"$LOG" 2>&1
+  start_explicit_tv_activity "$package"
 }
 
 launch_package() {
@@ -544,12 +550,18 @@ else
   fi
 
   if ! wait_package_visible "$TARGET"; then
-    # A slow first Activity creation can survive the package process itself.
-    # Retry only the lightweight launch intent; never reinstall a healthy app.
-    log "application not visible yet; retrying launch intent: $TARGET"
-    start_package "$TARGET" || true
+    # The official Waydroid controller may return success after merely creating
+    # the app process while Android Home remains foreground. Repeating the same
+    # controller call cannot fix that state. Resolve LEANBACK_LAUNCHER (falling
+    # back to LAUNCHER) and explicitly start the resolved Activity instead.
+    log "official launch returned but Android Home is still foreground: $TARGET"
+    if ! start_explicit_tv_activity "$TARGET"; then
+      log "explicit Android TV Activity launch failed: $TARGET"
+      diagnostics "$TARGET"
+      exit 5
+    fi
     if ! wait_package_visible "$TARGET"; then
-      log "application failed to create a visible TV surface: $TARGET"
+      log "application failed to create a visible TV surface after explicit Activity launch: $TARGET"
       diagnostics "$TARGET"
       waydroid log >>"$LOG" 2>&1 || true
       exit 5
