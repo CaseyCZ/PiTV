@@ -1088,6 +1088,14 @@ class CECReader(threading.Thread):
 
 class PiTV:
     def __init__(self):
+        # Compatibility with older/manual launch paths: if Python is started
+        # outside the PiTV supervisor, clean stale TV apps before creating the
+        # new fullscreen launcher. CI/dummy rendering must never touch host
+        # runtimes.
+        if (os.environ.get("PITV_SUPERVISED") != "1" and
+                os.environ.get("SDL_VIDEODRIVER", "").lower() != "dummy"):
+            run_privileged("tv-runtime-reset", {}, 90)
+
         # PiTV is a silent launcher. Do not initialize pygame.mixer/audio:
         # media applications own the PipeWire/HDMI audio path.
         pygame.display.init()
@@ -3508,6 +3516,12 @@ class PiTV:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def restart_ui_clean(self):
+        """Restart only PiTV UI after deterministically closing TV apps."""
+        run_privileged("tv-runtime-reset", {}, 90)
+        pygame.quit()
+        os.execv(sys.executable, [sys.executable, __file__])
+
     def update_pitv_async(self):
         if self.updates_busy:
             return
@@ -3522,8 +3536,7 @@ class PiTV:
             if ok:
                 self.show_toast("PiTV aktualizováno · restartuji rozhraní", 4)
                 time.sleep(1)
-                pygame.quit()
-                os.execv(sys.executable, [sys.executable, __file__])
+                self.restart_ui_clean()
             else:
                 self.show_toast(msg, 6)
 
@@ -4706,8 +4719,7 @@ class PiTV:
                     )
                 elif self.updates_selected == 9:
                     self.show_toast("Restartuji PiTV UI…")
-                    pygame.quit()
-                    os.execv(sys.executable, [sys.executable, __file__])
+                    self.restart_ui_clean()
 
         elif self.page == "system":
             if key == pygame.K_LEFT:
@@ -4740,8 +4752,7 @@ class PiTV:
                                       lambda: threading.Thread(target=upgrade, daemon=True).start())
                 elif self.system_selected == 9:
                     self.show_toast("Restartuji PiTV UI…")
-                    pygame.quit()
-                    os.execv(sys.executable, [sys.executable, __file__])
+                    self.restart_ui_clean()
 
         elif self.page == "power":
             if key == pygame.K_LEFT:
