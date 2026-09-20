@@ -414,6 +414,27 @@ elif action == "waydroid-app-running":
         out("running")
     out("Android aplikace zatím neběží", 4)
 
+elif action == "waydroid-app-visible":
+    package = str(payload.get("package", "")).strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+        out("Neplatný Android package ID", 2)
+
+    # A process can exist before its TV surface is ready. Only report visible
+    # after WindowManager/ActivityManager names the requested package.
+    probes = (
+        ["waydroid", "shell", "dumpsys", "window", "windows"],
+        ["waydroid", "shell", "dumpsys", "activity", "activities"],
+    )
+    for args in probes:
+        p = subprocess.run(
+            args,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=15, check=False,
+        )
+        if p.returncode == 0 and package in (p.stdout or ""):
+            out("visible")
+    out("Android aplikace zatím nemá viditelné okno", 4)
+
 elif action == "waydroid-container-stop":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
