@@ -1201,6 +1201,51 @@ class PiTV:
         # shipped by older PiTV alpha builds.
         self.migrate_legacy_android_async()
 
+    def migrate_legacy_android_async(self):
+        """Remove Android apps that older PiTV alpha catalogs installed.
+
+        These package IDs are known from PiTV's own repository history. The
+        migration is intentionally narrow: no unknown/user-installed Android
+        package is touched.
+        """
+        marker = MIGRATION_DIR / "legacy-android-media-v1.done"
+        if self._legacy_migration_started or marker.exists() or not waydroid_available():
+            return
+        self._legacy_migration_started = True
+
+        def worker():
+            try:
+                ok, msg = run_privileged("waydroid-clean-legacy", {}, 300)
+                if not ok:
+                    return
+
+                # Old Store receipts can otherwise make obsolete Android media
+                # entries look installed after the package itself is gone.
+                for package in LEGACY_ANDROID_PACKAGES:
+                    clear_android_receipts(package, "")
+
+                MIGRATION_DIR.mkdir(parents=True, exist_ok=True)
+                marker.write_text(
+                    "PiTV legacy Android media migration completed\n",
+                    encoding="utf-8",
+                )
+                self.apps = load_apps()
+
+                removed = ""
+                if msg.startswith("removed:"):
+                    removed = msg.split(":", 1)[1].strip()
+                if removed:
+                    names = []
+                    if "com.stremio.one" in removed:
+                        names.append("staré Android Stremio")
+                    if "com.plexapp.android" in removed:
+                        names.append("starý Android Plex")
+                    self.show_toast("Odstraněno: " + ", ".join(names), 5)
+            finally:
+                self._legacy_migration_started = False
+
+        threading.Thread(target=worker, daemon=True).start()
+
     @property
     def t(self):
         theme = self.cfg.get("theme", "apple_dark")
@@ -3757,6 +3802,55 @@ class PiTV:
         if self.cec:
             self.cec.clear_key_state()
 
+    def _refresh_cec_after_return(self):
+        """Re-open the kernel CEC monitor after leaving a foreground app.
+
+        Physical testing showed CEC could be healthy after boot and later stop
+        reacting after app/session transitions. Re-registering the one PiTV
+        CEC owner here gives every return to the launcher a clean input state.
+        """
+        if (not self.cfg.get("cec_enabled", True) or
+                not cec_available() or self._cec_refreshing):
+            return
+        self._cec_refreshing = True
+
+        def worker():
+            try:
+                old = self.cec
+                if old is not None:
+                    try:
+                        old.stop()
+                        old.join(timeout=2.0)
+                    except Exception:
+                        pass
+
+                fresh = CECReader(self.cec_queue)
+                self.cec = fresh
+                fresh.start()
+
+                # Wait for register + monitor so Active Source is sent through
+                # the adapter PiTV actually selected, not an arbitrary /dev/cec.
+                deadline = time.monotonic() + 3.0
+                while time.monotonic() < deadline and not fresh.is_ready():
+                    time.sleep(0.10)
+                if fresh.is_ready():
+                    cec_active_source()
+            finally:
+                self._cec_refreshing = False
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _return_to_launcher(self, message="PiTV", refresh_cec=True):
+        """One deterministic path back to the visible PiTV workspace."""
+        self.page = "home"
+        self.sidebar_focus = False
+        self.selected = 0
+        self._switch_workspace("PiTV")
+        if refresh_cec:
+            self._refresh_cec_after_return()
+        if message:
+            self.show_toast(message, 2.2)
+
     def suspend_external(self):
         """TV multitasking: pause/suspend the foreground app and show PiTV."""
         if not self.external_kind:
@@ -3778,11 +3872,7 @@ class PiTV:
 
         self.background_tasks[task["key"]] = task
         self._clear_external_state()
-        self.page = "home"
-        self.sidebar_focus = False
-        self.selected = 0
-        self._switch_workspace("PiTV")
-        self.show_toast("Aplikace pozastavena • PiTV", 2.2)
+        self._return_to_launcher("Aplikace pozastavena • PiTV")
 
     def _resume_task(self, task, requested_app=None):
         if not task or not self._known_app_alive(task):
@@ -3895,11 +3985,9 @@ class PiTV:
             self.background_tasks.pop(task_key, None)
 
         # Reveal PiTV first. Cleanup continues off the render/input thread.
-        self.page = "home"
-        self.sidebar_focus = False
-        self.selected = 0
-        self._switch_workspace("PiTV")
-        self.show_toast("Ukončuji aplikaci…", 2.0)
+        # CEC is reopened immediately so the old TV remote never depends on
+        # the foreground application's shutdown timing.
+        self._return_to_launcher("Ukončuji aplikaci…")
 
         def worker():
             sig = signal.SIGKILL if force else signal.SIGTERM
@@ -3988,6 +4076,9 @@ class PiTV:
                 return
             if self.external_proc is proc:
                 self._clear_external_state()
+                self._return_to_launcher(
+                    f"{name} ukončeno • PiTV" if rc == 0 else "PiTV"
+                )
             if rc == 0:
                 self.finish_operation(f"{name} ukončeno", True, 2.0)
             else:
@@ -4613,6 +4704,7 @@ class PiTV:
             if self.external_proc is not None and self.external_proc.poll() is not None:
                 finished_kind = self.external_kind
                 self._clear_external_state()
+                self._return_to_launcher("Aplikace ukončena • PiTV")
                 if finished_kind in ("apk", "linux"):
                     self.apps = load_apps()
                     self.refresh_store_async()
