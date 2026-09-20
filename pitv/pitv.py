@@ -4768,6 +4768,14 @@ class PiTV:
                     # after the requested package is alive, reveal it.
                     self._switch_workspace("Android")
                     self.finish_operation(f"{name} spuštěno", True, 2.0)
+                    # Android uses the same universal foreground lifecycle as
+                    # native apps: when the wrapper reports app exit/Home, PiTV
+                    # is revealed immediately without waiting for user input.
+                    self._watch_launch(
+                        proc, name, "apk",
+                        "/tmp/pitv-waydroid-launch.log",
+                        already_started=True,
+                    )
                     return
                 time.sleep(0.15)
 
@@ -4788,20 +4796,34 @@ class PiTV:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _watch_launch(self, proc, name, kind, log_path=None):
+    def _watch_launch(self, proc, name, kind, log_path=None, already_started=False):
+        """Own one foreground app for its entire lifetime.
+
+        Every PiTV app follows the same contract: when its lifecycle process
+        exits, PiTV immediately becomes the visible workspace again.  Do not
+        stop watching after the startup grace period; that previously allowed
+        a normally closed app to leave the TV on an empty workspace.
+        """
         def worker():
-            # A healthy GUI normally stays alive. Catch immediate launcher
-            # failures instead of silently returning to PiTV.
-            try:
-                rc = proc.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                self.finish_operation(f"{name} spuštěno", True, 2.0)
-                return
+            if not already_started:
+                # Catch immediate launch failures, but keep the watcher alive
+                # after a healthy startup instead of returning after 8 seconds.
+                try:
+                    rc = proc.wait(timeout=8)
+                except subprocess.TimeoutExpired:
+                    self.finish_operation(f"{name} spuštěno", True, 2.0)
+                    rc = proc.wait()
+            else:
+                rc = proc.wait()
+
+            # If this exact process still owns foreground, app exit always
+            # converges on the same visible/input-ready PiTV launcher.
             if self.external_proc is proc:
                 self._clear_external_state()
                 self._return_to_launcher(
                     f"{name} ukončeno • PiTV" if rc == 0 else "PiTV"
                 )
+
             if rc == 0:
                 self.finish_operation(f"{name} ukončeno", True, 2.0)
             else:
