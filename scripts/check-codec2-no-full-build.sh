@@ -69,6 +69,9 @@ printf x >"$tmp/payload/vendor/lib64/libfixture.so"
 printf 'vendor/lib64/libfixture.so\n' >"$tmp/payload/PITV-CODEC2-PAYLOAD.txt"
 python3 scripts/validate-codec2-payload.py "$tmp/payload" >/dev/null
 python3 scripts/verify-staged-codec2-payload.py "$tmp/payload" >/dev/null
+python3 scripts/enforce-codec2-payload-scope.py "$tmp/payload" >/dev/null
+python3 scripts/check-codec2-manifest-closure.py "$tmp/payload" >/dev/null
+python3 scripts/check-codec2-payload-size.py "$tmp/payload" >/dev/null
 python3 scripts/inventory-codec2-payload.py "$tmp/payload" >/dev/null
 python3 scripts/make-codec2-rollback-manifest.py "$tmp/payload" >/dev/null
 python3 scripts/verify-codec2-metadata.py "$tmp/payload" >/dev/null
