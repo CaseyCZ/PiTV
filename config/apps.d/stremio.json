@@ -2,7 +2,7 @@
   "name": "Stremio",
   "subtitle": "Média · Linux ARM64",
   "icon": "STR",
-  "command": "systemd-run --user --wait --collect --quiet --setenv=HOME=\"$HOME\" --setenv=WAYLAND_DISPLAY=\"$WAYLAND_DISPLAY\" --setenv=XDG_RUNTIME_DIR=\"$XDG_RUNTIME_DIR\" --setenv=DBUS_SESSION_BUS_ADDRESS=\"${DBUS_SESSION_BUS_ADDRESS:-}\" --setenv=PULSE_SERVER=\"${PULSE_SERVER:-}\" flatpak run com.stremio.Stremio",
+  "command": "systemd-run --user --unit=pitv-stremio.service --wait --collect --quiet --setenv=HOME=\"$HOME\" --setenv=WAYLAND_DISPLAY=\"$WAYLAND_DISPLAY\" --setenv=XDG_RUNTIME_DIR=\"$XDG_RUNTIME_DIR\" --setenv=DBUS_SESSION_BUS_ADDRESS=\"${DBUS_SESSION_BUS_ADDRESS:-}\" --setenv=PULSE_SERVER=\"${PULSE_SERVER:-}\" flatpak run com.stremio.Stremio",
   "requires": "/var/lib/flatpak/app/com.stremio.Stremio/current/active",
   "kind": "linux"
 }
