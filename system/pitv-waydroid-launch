@@ -130,15 +130,28 @@ launch_package() {
   return 1
 }
 
+READY_FILE="$RUNTIME/pitv-waydroid-app-ready"
+
+mark_ready() {
+  local target="$1"
+  local tmp="${READY_FILE}.$$"
+  printf '%s\n' "$target" >"$tmp"
+  mv -f "$tmp" "$READY_FILE"
+}
+
 if [ "$MODE" = "outer" ]; then
   if ! command -v cage >/dev/null 2>&1; then
     log "Cage kiosk compositor is not installed"
     exit 16
   fi
 
+  # One Android slot, one readiness marker. Never expose stale state from a
+  # previous crashed session to the launcher.
+  rm -f "$READY_FILE"
+
   # A Waydroid session is bound to the Wayland socket that existed when the
-  # session started. Stop any stale labwc-bound session before entering Cage;
-  # otherwise show-full-ui would reuse it instead of binding Android to Cage.
+  # session started. Stop any stale session before entering the nested Cage
+  # output so Android can only bind to Cage, never directly to PiTV/labwc.
   waydroid session stop >>"$LOG" 2>&1 || true
   for _ in $(seq 1 50); do
     if ! waydroid status 2>/dev/null | grep -Eq '^Session:[[:space:]]*RUNNING'; then
@@ -147,33 +160,41 @@ if [ "$MODE" = "outer" ]; then
     sleep 0.1
   done
 
-  log "starting nested Cage fullscreen session from parent $WAYLAND_DISPLAY"
-
-  # This follows Waydroid's documented kiosk/fullscreen model. Cage detects the
-  # existing labwc Wayland session and opens a nested virtual output. labwc
-  # maximizes that wlroots window via system/labwc/rc.xml.
+  log "starting hidden Android kiosk slot from parent $WAYLAND_DISPLAY"
   exec cage -d -- "$0" --cage-client "$TARGET" "$APK"
 fi
 
-# From this point we are the single Cage client. Cage has replaced
-# WAYLAND_DISPLAY with its own nested socket, so Waydroid's session manager
-# binds Android to Cage rather than directly to PiTV/labwc.
+# Cage has replaced WAYLAND_DISPLAY with its nested socket. The Android session
+# starts here without show-full-ui, therefore Android's launcher/quick settings
+# never becomes the intermediate TV screen for ordinary APK launches.
 export XDG_CURRENT_DESKTOP="cage"
 log "Cage client socket: $WAYLAND_DISPLAY"
 
+SESSION_PID=""
 UI_PID=""
 cleanup() {
+  rm -f "$READY_FILE"
   waydroid session stop >/dev/null 2>&1 || true
   if [ -n "$UI_PID" ]; then
     wait "$UI_PID" 2>/dev/null || true
   fi
+  if [ -n "$SESSION_PID" ]; then
+    wait "$SESSION_PID" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT TERM INT HUP
 
-# Use Waydroid's own documented fullscreen entry point. When no session exists,
-# upstream starts a foreground (background_start=false) user session here.
-waydroid show-full-ui >>"$LOG" 2>&1 &
-UI_PID=$!
+# Start only the container/media bridge first. This is invisible to the TV.
+if ! sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >>"$LOG" 2>&1; then
+  log "Waydroid container or PiTV Media bridge failed"
+  waydroid log >>"$LOG" 2>&1 || true
+  exit 10
+fi
+
+# Start the Android user session on Cage without opening the Android desktop.
+# The target package is launched only after Android reports boot_completed.
+waydroid session start >>"$LOG" 2>&1 &
+SESSION_PID=$!
 
 if ! wait_ready; then
   log "Android framework did not become ready inside Cage"
@@ -182,9 +203,8 @@ if ! wait_ready; then
   exit 3
 fi
 
-# PiTV is a TV appliance, not a desktop multi-window environment. Persisted
-# Waydroid data survives PiTV updates, so force the documented full-UI mode
-# every time rather than inheriting an old multi_windows=true setting.
+# PiTV is a single-surface TV appliance, not an Android desktop. Persisted
+# Waydroid settings survive PiTV updates, so normalize this every launch.
 if ! waydroid prop set persist.waydroid.multi_windows false >>"$LOG" 2>&1; then
   log "failed to force persist.waydroid.multi_windows=false"
   exit 17
@@ -192,18 +212,13 @@ fi
 MULTI="$(waydroid prop get persist.waydroid.multi_windows 2>>"$LOG" || true)"
 log "persist.waydroid.multi_windows=${MULTI:-unknown}"
 
-# The shared PiTV media bind is privileged. At this point the Android container
-# is already running, so the helper only verifies it and attaches the media
-# bridge; it does not choose the Wayland socket.
-if ! sudo -n /usr/local/libexec/pitv-helper waydroid-container-start </dev/null >>"$LOG" 2>&1; then
-  log "Waydroid is ready but PiTV Media bridge failed"
-  exit 10
-fi
-
 TRACK_PACKAGE=""
 if [ "$TARGET" = "--full-ui" ]; then
-  # Keep the documented full Android UI alive until PiTV stops this process
-  # group or the Waydroid session exits.
+  # This path is intentionally available only from Android/APK diagnostics.
+  # Ordinary TV apps never use it.
+  waydroid show-full-ui >>"$LOG" 2>&1 &
+  UI_PID=$!
+  mark_ready "--full-ui"
   wait "$UI_PID"
   exit $?
 elif [ "$TARGET" = "--play-store" ]; then
@@ -215,6 +230,7 @@ elif [ "$TARGET" = "--play-store" ]; then
     launch_package "com.android.vending" || exit 8
   fi
   TRACK_PACKAGE="com.android.vending"
+  mark_ready "$TRACK_PACKAGE"
 else
   valid_package "$TARGET" || {
     log "invalid package ID: $TARGET"
@@ -231,7 +247,7 @@ else
   fi
 
   if ! launch_package "$TARGET"; then
-    log "first app launch did not create a running window/process; retrying"
+    log "first app launch did not create a running process/window; retrying"
     sleep 1
     if ! launch_package "$TARGET"; then
       log "application failed to start: $TARGET"
@@ -240,13 +256,25 @@ else
     fi
   fi
   TRACK_PACKAGE="$TARGET"
+  mark_ready "$TRACK_PACKAGE"
 fi
 
-# Keep Cage + Android alive as one persistent multitasking slot. PiTV may
-# switch back to the launcher while this process stays on the Android workspace.
-# Android itself owns app-to-app task switching, so do not tear down Waydroid
-# just because the originally launched package moves to the background.
-while printf '{}' |
-    sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; do
+# A single transient Waydroid shell/status timeout must not throw the user back
+# to PiTV. Require consecutive failures before declaring the Android runtime
+# dead. This specifically avoids the previous "works for a while, then drops
+# to launcher" behavior caused by one failed readiness probe.
+READY_MISSES=0
+while true; do
+  if printf '{}' |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; then
+    READY_MISSES=0
+  else
+    READY_MISSES=$((READY_MISSES + 1))
+    log "Waydroid readiness miss $READY_MISSES/3"
+    if [ "$READY_MISSES" -ge 3 ]; then
+      log "Waydroid runtime lost after consecutive readiness failures"
+      break
+    fi
+  fi
   sleep 1
 done
