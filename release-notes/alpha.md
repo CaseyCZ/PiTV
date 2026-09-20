@@ -1,5 +1,16 @@
 # PiTV Alpha
 
+### PiTV 1.4.28 · čistý restart launcheru a odstranění stale TV aplikací
+- nově potvrzený fyzický problém: restart samotného launcheru mohl odkrýt starou fullscreen Waydroid/Stremio plochu, protože Android session přežila proces PiTV
+- PiTV má nový launcher supervisor; pokud GUI spadne nebo se restartuje, nejdřív deterministicky uklidí PiTV-owned TV runtimes a teprve potom launcher znovu spustí
+- cleanup cílí jen na foreground TV aplikace PiTV: nested Cage/Waydroid, Kodi/Plex a nativní Stremio; Homebridge, Tailscale, Docker, SSH a další serverové služby zůstávají běžet
+- restart celé TV session před startem labwc také provede stejný cleanup, takže po recovery/restartu nemůže na obrazovce zůstat stará Android plocha
+- historický příkaz `sudo systemctl restart pitv-launcher` je migrován na bezpečný restart TV session přes tty1/getty; nerestartuje celý Linux
+- úplná legacy migrace Android médií běží nově jako v2, aby se znovu provedla i na zařízení, které už mělo starší marker; odstraní známé staré PiTV balíčky, launchery, APK kopie a receipts
+- Waydroid instalátor používá stejný bezpečný APT lock timeout jako hlavní PiTV updater
+- zachovány jsou všechny předchozí opravy: glass UI, Kodi-style seznamy Nastavení, odinstalace aplikací, Cage fullscreen Android, root-safe CEC/DPAD relay, 3s Back, CEC refresh po návratu a Kodi DRM PRIME/lifecycle
+
+
 ### PiTV 1.4.27 · spolehlivá aktualizace při APT locku
 - self-update už neselže kódem 100 jen proto, že Ubuntu právě spustilo `unattended-upgrades`
 - nový instalátor používá `DPkg::Lock::Timeout=600` a bezpečně čeká až 10 minut na dokončení existující APT/DPKG transakce; lock soubory nemaže a cizí procesy nezabíjí
