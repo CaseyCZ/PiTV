@@ -73,8 +73,11 @@ python3 scripts/inventory-codec2-payload.py "$tmp/payload" >/dev/null
 python3 scripts/make-codec2-rollback-manifest.py "$tmp/payload" >/dev/null
 python3 scripts/verify-codec2-metadata.py "$tmp/payload" >/dev/null
 python3 scripts/check-codec2-payload-size.py "$tmp/payload" >/dev/null
-bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null
-grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
+if bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null 2>&1; then
+  echo "fixture without codec ELF/service metadata unexpectedly became install-ready" >&2
+  exit 1
+fi
+grep -q 'vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-PAYLOAD.txt" "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
 python3 scripts/test-codec2-no-full-build.py
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
