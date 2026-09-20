@@ -30,6 +30,7 @@ STATE=/var/lib/pitv/codec2-experiment
 EXTRA=/etc/waydroid-extra/images
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP="$STATE/backups/$STAMP"
+[ ! -e "$BACKUP" ] || BACKUP="$STATE/backups/${STAMP}-$"
 TMP="$(mktemp -d /tmp/pitv-codec2-overlay.XXXXXX)"
 MNT="$TMP/vendor"
 SYS_MNT="$TMP/system-ro"
@@ -46,7 +47,8 @@ find_image(){
 }
 SYSTEM="$(find_image system.img || true)"; VENDOR="$(find_image vendor.img || true)"
 [ -n "$SYSTEM" ] && [ -n "$VENDOR" ] || { echo "Waydroid images not found" >&2; exit 5; }
-mkdir -p "$BACKUP" "$MNT" "$SYS_MNT" "$CUR_VENDOR_MNT" "$EXTRA"
+mkdir -p "$STATE/backups" "$MNT" "$SYS_MNT" "$CUR_VENDOR_MNT" "$EXTRA"
+mkdir "$BACKUP"
 cp --reflink=auto --sparse=always "$SYSTEM" "$BACKUP/system.img"
 cp --reflink=auto --sparse=always "$VENDOR" "$BACKUP/vendor.img"
 sha256sum "$BACKUP/system.img" "$BACKUP/vendor.img" >"$BACKUP/SHA256SUMS"
