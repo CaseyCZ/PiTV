@@ -154,3 +154,6 @@ grep -q 'last_evidence=' scripts/codec2-no-full-build.sh
 grep -q 'check-codec2-xml-contract.py' scripts/prepare-codec2-overlay.sh
 grep -q 'check-codec2-xml-contract.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'remaining external prerequisite is a real compatible codec payload' docs/experiments/rpi4-codec2-no-full-build.md
+grep -q 'android.hardware.media.c2@1.2-ffmpeg.policy' scripts/build-minimal-codec2-modules.sh
+grep -q 'ffmpeg_codec2.*Android.mk' scripts/verify-minimal-codec2-sources.py
+grep -q 'service/android.hardware.media.c2@1.0-service-v4l2-64.rc' scripts/verify-minimal-codec2-sources.py
