@@ -105,9 +105,13 @@ jobs:
           grep -q '^Restart=always$' system/pitv-shell.service
           grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
           grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
+          grep -q '^PartOf=pitv-shell.service$' system/pitv-android-warm.service
           ! grep -q '^Requires=pitv-shell.service$' system/pitv-android-warm.service
           grep -q '^Restart=on-failure$' system/pitv-android-warm.service
           grep -q 'hidden Android TV runtime lost; systemd will restart warm service' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-waydroid-launch
+          grep -q 'waydroid-warm-start' system/pitv-helper
+          ! grep -q '"$0" --warm >>/tmp/pitv-waydroid-warm.log' system/pitv-waydroid-launch
           grep -q 'systemctl", "restart", "pitv-android-warm.service"' system/pitv-helper
           grep -q 'loginctl enable-linger pitv' install.sh
           grep -q 'systemctl set-default pitv.target' install.sh
