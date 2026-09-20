@@ -44,6 +44,22 @@ install_src ffmpeg external/ffmpeg
 install_src ffmpeg_codec2 external/ffmpeg_codec2
 install_src libudev_zero external/libudev-zero
 
+python3 - "$TREE/external/v4l2_codec2/components/V4L2ComponentStore.cpp" <<'PYV4L2'
+import sys
+from pathlib import Path
+p=Path(sys.argv[1]); s=p.read_text()
+start=s.find("std::vector<std::shared_ptr<const C2Component::Traits>> V4L2ComponentStore::listComponents()")
+if start<0: raise SystemExit("unexpected V4L2 Codec2 component store")
+body=s.find("{",start); ret=s.find("    return ret;",body)
+if body<0 or ret<0: raise SystemExit("unexpected V4L2 Codec2 listComponents body")
+prefix=s[:body+1]
+suffix=s[ret:]
+new='''\n    std::vector<std::shared_ptr<const C2Component::Traits>> ret;
+    ret.push_back(GetTraits(V4L2ComponentName::kH264Decoder));
+'''
+p.write_text(prefix+new+suffix)
+PYV4L2
+
 python3 - "$TREE/external/ffmpeg_codec2/service.cpp" <<'PY'
 import sys
 from pathlib import Path
