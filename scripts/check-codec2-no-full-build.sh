@@ -80,3 +80,4 @@ grep -q 'register-pitv-codec2-config.py' scripts/add-pitv-codec2-config-to-paylo
 bash scripts/codec2-no-full-build.sh help | grep -q 'add-config'
 grep -q 'CODEC2_REGISTRY' scripts/probe-waydroid-codec2-target.sh
 grep -q 'TARGET_PREREQUISITES_OK' scripts/evaluate-codec2-target.py
+bash scripts/codec2-no-full-build.sh help | grep -q 'target-check'
