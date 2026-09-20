@@ -22,9 +22,17 @@ allow={"libc.so","libdl.so","libm.so","liblog.so","libbase.so","libutils.so","li
 "libbufferpool@2.0.so","libgralloctypes.so","libprocessgroup.so","libvndksupport.so","libz.so"}
 risky=re.compile(r"(gralloc|mapper|allocator|egl|gles|vulkan|camera|audio|wifi|bluetooth|rpi|bcm|vc4)",re.I)
 
+def aarch64_elf(p):
+    try:
+        s=subprocess.check_output([readelf,"-h",str(p)],stderr=subprocess.DEVNULL,text=True)
+        return "ELF64" in s and "AArch64" in s
+    except (subprocess.CalledProcessError,OSError):
+        return False
+
 index={}
 for p in src.rglob("*"):
-    if p.is_file(): index.setdefault(p.name,[]).append(p)
+    if p.is_file() and aarch64_elf(p):
+        index.setdefault(p.name,[]).append(p)
 
 def needed(p):
     try: s=subprocess.check_output([readelf,"-d",str(p)],stderr=subprocess.DEVNULL,text=True)
@@ -37,6 +45,7 @@ for x in sys.argv[3:]:
     try: p.relative_to(src)
     except ValueError: raise SystemExit(f"root outside SOURCE: {p}")
     if not p.is_file(): raise SystemExit(f"missing root: {p}")
+    if not aarch64_elf(p): raise SystemExit(f"root is not AArch64 ELF: {p}")
     roots.append(p)
 
 queue=list(roots); chosen=set()
