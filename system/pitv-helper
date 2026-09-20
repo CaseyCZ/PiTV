@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request
+import xml.etree.ElementTree as ET
 
 ALLOWED_STORE_APT = {"kodi", "kodi-eventclients-kodi-send"}
 ALLOWED_PLAY_PACKAGES = {"com.google.android.youtube.tv", "com.spotify.tv.android"}
@@ -32,6 +33,91 @@ def run(args, timeout=600, stdin=None, env=None):
 
 MEDIA_HOST = "/srv/pitv/Media"
 WAYDROID_MEDIA = "/var/lib/waydroid/data/media/0/PiTV-Media"
+KODI_APPLIANCE_SOURCE = "/etc/pitv/kodi-appliance.xml"
+KODI_APPLIANCE_TARGET = "/usr/share/kodi/system/settings/appliance.xml"
+
+
+def ensure_kodi_appliance_defaults():
+    """Merge PiTV's Pi 4 DRM PRIME defaults into Kodi's appliance settings."""
+    source = KODI_APPLIANCE_SOURCE
+    target = KODI_APPLIANCE_TARGET
+    if not os.path.isfile(source):
+        raise RuntimeError("PiTV Kodi appliance konfigurace chybí")
+    target_dir = os.path.dirname(target)
+    if not os.path.isdir(target_dir):
+        raise RuntimeError("Kodi system settings adresář neexistuje")
+
+    desired = {
+        "videoplayer.useprimedecoder": "true",
+        "videoplayer.useprimedecoderforhw": "true",
+    }
+
+    if os.path.exists(target):
+        try:
+            tree = ET.parse(target)
+            root = tree.getroot()
+        except Exception as e:
+            raise RuntimeError(f"Stávající Kodi appliance.xml nelze načíst: {e}")
+        if root.tag != "settings":
+            raise RuntimeError("Stávající Kodi appliance.xml nemá kořen <settings>")
+    else:
+        # Start from the PiTV file so the structure stays identical to the
+        # documented Kodi appliance override format used by LibreELEC/CoreELEC.
+        tree = ET.parse(source)
+        root = tree.getroot()
+
+    by_id = {
+        node.get("id"): node
+        for node in root.iter("setting")
+        if node.get("id")
+    }
+
+    # Reuse/create player -> videoplayer -> group 3. Kodi merges appliance
+    # definitions into the existing Linux setting definitions by ID.
+    section = next(
+        (x for x in root.findall("section") if x.get("id") == "player"), None
+    )
+    if section is None:
+        section = ET.SubElement(root, "section", {"id": "player"})
+    category = next(
+        (x for x in section.findall("category") if x.get("id") == "videoplayer"),
+        None,
+    )
+    if category is None:
+        category = ET.SubElement(section, "category", {"id": "videoplayer"})
+    group = next(
+        (x for x in category.findall("group") if x.get("id") == "3"), None
+    )
+    if group is None:
+        group = ET.SubElement(category, "group", {"id": "3"})
+
+    changed = False
+    for setting_id, value in desired.items():
+        setting = by_id.get(setting_id)
+        if setting is None:
+            setting = ET.SubElement(group, "setting", {"id": setting_id})
+            changed = True
+        default = setting.find("default")
+        if default is None:
+            default = ET.SubElement(setting, "default")
+            changed = True
+        if (default.text or "").strip().lower() != value:
+            default.text = value
+            changed = True
+
+    if not os.path.exists(target) or changed:
+        fd, tmp = tempfile.mkstemp(
+            prefix="appliance.xml-", suffix=".tmp", dir=target_dir
+        )
+        os.close(fd)
+        try:
+            tree.write(tmp, encoding="utf-8", xml_declaration=True)
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, target)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+    return target
 
 
 def ensure_waydroid_media_bridge():
@@ -194,6 +280,13 @@ elif action == "waydroid-container-stop":
     run(["waydroid", "container", "stop"], timeout=60)
     out("Waydroid container zastaven")
 
+elif action == "kodi-appliance-defaults":
+    try:
+        target = ensure_kodi_appliance_defaults()
+    except Exception as e:
+        out(f"Kodi DRM PRIME konfigurace selhala: {e}", 3)
+    out(f"Kodi DRM PRIME defaults připravené: {target}")
+
 elif action == "apt-install":
     package = str(payload.get("package", "")).strip()
     if package not in ALLOWED_STORE_APT:
@@ -201,7 +294,16 @@ elif action == "apt-install":
     env = os.environ.copy()
     env["DEBIAN_FRONTEND"] = "noninteractive"
     run(["apt-get", "update"], timeout=300, env=env)
-    run(["apt-get", "-y", "install", package], timeout=1200, env=env)
+    packages = [package]
+    if package == "kodi":
+        # kodi-send is tiny and gives PiTV/Plex a graceful Kodi control path.
+        packages.append("kodi-eventclients-kodi-send")
+    run(["apt-get", "-y", "install", *packages], timeout=1200, env=env)
+    if package == "kodi":
+        try:
+            ensure_kodi_appliance_defaults()
+        except Exception as e:
+            out(f"Kodi nainstalováno, ale DRM PRIME defaults selhaly: {e}", 3)
     out(f"{package} nainstalováno")
 
 elif action == "apt-remove":
@@ -210,7 +312,10 @@ elif action == "apt-remove":
         out("Balíček není povolený pro odebrání z PiTV Store", 2)
     env = os.environ.copy()
     env["DEBIAN_FRONTEND"] = "noninteractive"
-    run(["apt-get", "-y", "remove", package], timeout=1200, env=env)
+    packages = [package]
+    if package == "kodi":
+        packages.append("kodi-eventclients-kodi-send")
+    run(["apt-get", "-y", "remove", *packages], timeout=1200, env=env)
     out(f"{package} odinstalováno")
 
 elif action == "flatpak-install":
