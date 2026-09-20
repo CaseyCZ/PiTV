@@ -34,7 +34,7 @@ touch "$LOG"
 chmod 0664 "$LOG" 2>/dev/null || true
 
 log() {
-  printf '%s\n' "$(date '+[%H:%M:%S]') PiTV[$]: $*" >>"$LOG"
+  printf '%s\n' "$(date '+[%H:%M:%S]') PiTV[${BASHPID:-0}]: $*" >>"$LOG"
 }
 
 valid_package() {
@@ -103,7 +103,9 @@ fi
 
 wait_ready() {
   local ready=0
-  for _ in $(seq 1 180); do
+  # Physical Pi 4 cold boot can need ~85 s before Android framework is ready.
+  # Keep margin above that instead of restarting Waydroid near the finish line.
+  for _ in $(seq 1 240); do
     if printf '{}' |
         sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1; then
       ready=1
@@ -223,16 +225,18 @@ if [ "$MODE" = "outer" ]; then
   # its own launcher visible and shows the global operation banner.
   rm -f "$READY_FILE"
   if ! runtime_ready; then
+    log "waiting up to 150s for hidden Android runtime"
     request_warmer
-    for _ in $(seq 1 240); do
+    for _ in $(seq 1 600); do
       runtime_ready && break
       sleep 0.25
     done
   fi
   if ! runtime_ready; then
-    log "hidden Android runtime did not become ready"
+    log "hidden Android runtime did not become ready after 150s"
     exit 3
   fi
+  log "hidden Android runtime is ready for command: $TARGET"
 
   MODE="command"
 fi
