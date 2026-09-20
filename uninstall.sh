@@ -18,6 +18,7 @@ rm -f /etc/systemd/system/pitv-shell.service
 rm -f /etc/systemd/system/pitv-android-warm.service
 rm -f /etc/systemd/system/pitv-inputd.service
 rm -f /etc/systemd/system/pitv.target
+rm -f /etc/modules-load.d/pitv-uinput.conf
 rm -f /etc/systemd/system/getty@tty1.service.d/pitv-autologin.conf
 rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
 rm -f /etc/sudoers.d/pitv-power
