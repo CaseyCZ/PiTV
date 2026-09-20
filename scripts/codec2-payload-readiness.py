@@ -15,7 +15,7 @@ required={
  "backend_marker":"vendor/etc/pitv-hwdecode.env",
  "v4l2_seccomp_ext":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
  "ffmpeg_seccomp":"vendor/etc/seccomp_policy/android.hardware.media.c2@1.2-ffmpeg.policy",
- "avc_service":"vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2",
+ "avc_service":"vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64",
  "hevc_service":"vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg",
 }
 state={k:(root/v).is_file() for k,v in required.items()}
