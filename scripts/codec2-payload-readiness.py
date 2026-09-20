@@ -23,6 +23,15 @@ state={k:(root/v).is_file() for k,v in required.items()}
 for k,v in state.items(): print(f"{k}={'yes' if v else 'no'}")
 missing=[k for k,v in state.items() if not v]
 if missing: raise SystemExit("payload not ready: "+", ".join(missing))
+props=(root/required["properties"]).read_text(errors="ignore").splitlines()
+required_props={
+ "debug.stagefright.c2-poolmask=0x350000",
+ "persist.v4l2_codec2.rank.decoder=128",
+ "ro.vendor.v4l2_codec2.decode_concurrent_instances=4",
+ "persist.ffmpeg_codec2.v4l2.h265=1",
+}
+missing_props=sorted(required_props-set(props))
+if missing_props: raise SystemExit("payload properties incomplete: "+", ".join(missing_props))
 inv=json.loads((root/required["inventory"]).read_text())
 elfs=sum(1 for x in inv.get("files",[]) if x.get("kind")=="elf")
 print(f"elf_files={elfs}")
