@@ -178,3 +178,6 @@ grep -q 'backup must be inside' scripts/rollback-codec2-overlay.sh
 grep -q 'restored vendor image mismatch' scripts/rollback-codec2-overlay.sh
 grep -q 'android.hardware.media.c2@1.0-service-v4l2-64' scripts/build-minimal-codec2-modules.sh
 grep -q 'output must not be inside build/source tree' scripts/build-minimal-codec2-modules.sh
+grep -q 'media_codecs_pitv_rpi4.xml' scripts/assemble-codec2-overlay.py
+grep -q 'Preserve the target.*existing codec registry' scripts/install-codec2-overlay.sh
+! grep -q '"android/waydroid-rpi4/media_codecs.xml":"vendor/etc/media_codecs.xml"' scripts/assemble-codec2-overlay.py
