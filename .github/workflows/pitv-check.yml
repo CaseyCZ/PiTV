@@ -226,19 +226,20 @@ jobs:
           assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
           assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
           launch = wrapper.split('# Never trust only the exit status', 1)[1]
-          launch = launch.split('TRACK_PACKAGE="$TARGET"', 1)[0]
+          launch = launch.split('# Keep the per-app command alive', 1)[0]
           assert 'package_installed "$TARGET"' in launch
           assert 'waydroid app install "$APK"' in launch
           assert 'start_package "$TARGET"' in launch
-          assert 'wait_package_visible "$TARGET"' in launch
+          assert 'mark_ready "$TRACK_PACKAGE"' in launch
+          assert 'explicit Android TV Activity accepted; ready marker published' in launch
+          assert 'if ! wait_package_visible "$TARGET"; then' not in launch
           start_fn = wrapper.split('start_package() {', 1)[1].split('launch_package() {', 1)[0]
           assert 'start_explicit_tv_activity "$package"' in start_fn
           assert 'waydroid app launch "$package"' not in start_fn
-          retry = launch.split('if ! wait_package_visible "$TARGET"; then', 1)[1]
-          retry = retry.split('TRACK_PACKAGE="$TARGET"', 1)[0]
-          assert 'start_explicit_tv_activity "$TARGET"' in retry
-          assert 'waydroid app launch "$TARGET"' not in retry
-          assert 'Android TV Activity not visible yet; retrying explicit launch' in retry
+          visible_fn = wrapper.split('wait_package_visible() {', 1)[1].split('start_explicit_tv_activity() {', 1)[0]
+          assert 'local deadline=$((SECONDS + 15))' in visible_fn
+          assert 'while [ "$SECONDS" -lt "$deadline" ]; do' in visible_fn
+          assert 'for _ in $(seq 1 75)' not in visible_fn
           print("PiTV 1.5 on-demand Android lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
@@ -250,8 +251,11 @@ jobs:
           ! grep -q 'waydroid-app-running.*>/dev/null' system/pitv-waydroid-launch
           grep -q '"dumpsys", "activity", "top"' system/pitv-helper
           ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
-          grep -q 'for _ in $(seq 1 75)' system/pitv-waydroid-launch
+          grep -Fq 'local deadline=$((SECONDS + 15))' system/pitv-waydroid-launch
+          grep -Fq 'while [ "$SECONDS" -lt "$deadline" ]; do' system/pitv-waydroid-launch
+          ! grep -q 'for _ in $(seq 1 75)' system/pitv-waydroid-launch
           grep -q 'sleep 0.20' system/pitv-waydroid-launch
+          grep -q 'explicit Android TV Activity accepted; ready marker published' system/pitv-waydroid-launch
           grep -q 'waydroid-app-stop' system/pitv-helper
           grep -q 'waydroid-app-stop' pitv/pitv.py
           ! grep -q '\["waydroid", "session", "stop"\]' pitv/pitv.py
