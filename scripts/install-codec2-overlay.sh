@@ -93,6 +93,20 @@ while IFS= read -r rel; do
   [ -f "$src" ] || fail "payload file disappeared: $rel"
   mkdir -p "$(dirname "$dst")"; cp -a "$src" "$dst"
 done <"$STAGE/PITV-CODEC2-PAYLOAD.txt"
+# Android 13 V4L2 Codec2 properties required by the selected service.
+# Replace existing keys rather than accumulating duplicates across experiments.
+BUILD_PROP="$MNT/build.prop"
+[ -f "$BUILD_PROP" ] || BUILD_PROP="$MNT/default.prop"
+[ -f "$BUILD_PROP" ] || fail "vendor build.prop/default.prop missing"
+for kv in \
+  'debug.stagefright.c2-poolmask=0x350000' \
+  'persist.v4l2_codec2.rank.decoder=128' \
+  'ro.vendor.v4l2_codec2.decode_concurrent_instances=4'
+do
+  key="${kv%%=*}"
+  sed -i "/^${key//./\\.}=/d" "$BUILD_PROP"
+  printf '%s\n' "$kv" >>"$BUILD_PROP"
+done
 sync
 umount "$MNT"; mounted=0
 cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
