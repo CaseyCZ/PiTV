@@ -284,6 +284,30 @@ except Exception:
     payload = {}
 
 if action == "self-test":
+    # Regression for Waydroid 1.6.x argparse: option-looking Android arguments
+    # must live in stdin, never in the host `waydroid shell` argv.
+    _real_subprocess_run = subprocess.run
+    _shell_probe = {}
+    def _fake_shell_run(args, **kwargs):
+        _shell_probe["args"] = list(args)
+        _shell_probe["input"] = kwargs.get("input", "")
+        return subprocess.CompletedProcess(args, 0, "ok\n")
+    subprocess.run = _fake_shell_run
+    try:
+        _probe = waydroid_shell([
+            "cmd", "package", "resolve-activity",
+            "--brief", "--user", "0",
+            "-a", "android.intent.action.MAIN",
+            "-c", "android.intent.category.LEANBACK_LAUNCHER",
+            "org.smarttube.stable",
+        ])
+    finally:
+        subprocess.run = _real_subprocess_run
+    assert _probe.returncode == 0
+    assert _shell_probe["args"] == ["waydroid", "shell"]
+    assert "--brief --user 0" in _shell_probe["input"]
+    assert "android.intent.category.LEANBACK_LAUNCHER" in _shell_probe["input"]
+
     assert parse_android_top_package(
         "  ACTIVITY com.teamsmart.videomanager.tv/.MainActivity 1234 pid=99"
     ) == "com.teamsmart.videomanager.tv"
