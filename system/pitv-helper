@@ -18,6 +18,41 @@ PROTECTED_ANDROID_PACKAGES = {
     "com.android.vending", "com.google.android.gms", "com.google.android.gsf",
 }
 
+ANDROID_HOME_PACKAGES = {
+    "com.android.launcher3",
+    "com.android.tv.launcher",
+    "com.google.android.tvlauncher",
+    "com.google.android.apps.tv.launcherx",
+    "com.google.android.apps.nexuslauncher",
+    "com.google.android.leanbacklauncher",
+    "org.lineageos.trebuchet",
+}
+
+
+def parse_android_top_package(text):
+    text = text or ""
+    patterns = (
+        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+        r"topResumedActivity=.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def android_tv_session_active(top_package, target_running=False, top_ok=True):
+    """Return whether the viewer is still inside one Android TV app flow."""
+    if top_ok and top_package:
+        return top_package not in ANDROID_HOME_PACKAGES
+    if target_running:
+        return True
+    # A transient ActivityManager error is not evidence that the user left.
+    return not top_ok
+
+
 def out(msg, code=0):
     print(msg)
     raise SystemExit(code)
@@ -166,7 +201,28 @@ try:
 except Exception:
     payload = {}
 
-if action == "wifi-radio":
+if action == "self-test":
+    assert parse_android_top_package(
+        "  ACTIVITY com.teamsmart.videomanager.tv/.MainActivity 1234 pid=99"
+    ) == "com.teamsmart.videomanager.tv"
+    assert parse_android_top_package(
+        "mResumedActivity: ActivityRecord{abc u0 com.android.settings/.Settings t42}"
+    ) == "com.android.settings"
+    assert android_tv_session_active(
+        "com.android.settings", target_running=False, top_ok=True
+    )
+    assert not android_tv_session_active(
+        "com.android.launcher3", target_running=True, top_ok=True
+    )
+    assert android_tv_session_active(
+        "", target_running=True, top_ok=True
+    )
+    assert android_tv_session_active(
+        "", target_running=False, top_ok=False
+    )
+    out("PiTV helper Android session self-test OK")
+
+elif action == "wifi-radio":
     enabled = bool(payload.get("enabled"))
     run(["nmcli", "radio", "wifi", "on" if enabled else "off"], timeout=20)
     out("Wi‑Fi zapnuto" if enabled else "Wi‑Fi vypnuto")
@@ -504,34 +560,12 @@ elif action == "waydroid-app-session-active":
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, timeout=6, check=False,
     )
-    top_text = top.stdout or ""
-    top_package = ""
-    patterns = (
-        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
-        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
-        r"topResumedActivity=.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
-    )
-    for pattern in patterns:
-        match = re.search(pattern, top_text)
-        if match:
-            top_package = match.group(1)
-            break
+    top_package = parse_android_top_package(top.stdout or "")
 
-    android_homes = {
-        "com.android.launcher3",
-        "com.android.tv.launcher",
-        "com.google.android.tvlauncher",
-        "com.google.android.apps.tv.launcherx",
-        "com.google.android.apps.nexuslauncher",
-        "com.google.android.leanbacklauncher",
-        "org.lineageos.trebuchet",
-    }
     if top.returncode == 0 and top_package:
-        if top_package in android_homes:
-            out(f"Android Home je aktivní: {top_package}", 4)
-        # The target app itself and Android Settings / permissions / account
-        # pickers are all valid foreground continuations of one TV app session.
-        out(f"active:{top_package}")
+        if android_tv_session_active(top_package, top_ok=True):
+            out(f"active:{top_package}")
+        out(f"Android Home je aktivní: {top_package}", 4)
 
     # ActivityManager can be briefly unavailable while Android is switching
     # activities. In that case fall back to the target process and prefer not
@@ -541,10 +575,11 @@ elif action == "waydroid-app-session-active":
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, timeout=5, check=False,
     )
-    if p.returncode == 0 and (p.stdout or "").strip():
-        out("active:process-fallback")
-    if top.returncode != 0:
-        out("active:activity-manager-busy")
+    target_running = p.returncode == 0 and bool((p.stdout or "").strip())
+    if android_tv_session_active(
+            top_package, target_running=target_running,
+            top_ok=(top.returncode == 0)):
+        out("active:fallback")
 
     out("Android TV session už není aktivní", 4)
 
