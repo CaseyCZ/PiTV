@@ -806,6 +806,15 @@ elif action == "waydroid-app-launch":
             5,
         )
 
+    active = waydroid_shell(["getprop", "waydroid.active_apps"], timeout=10)
+    active_value = (active.stdout or "").strip()
+    if active.returncode != 0 or active_value != package:
+        out(
+            "Waydroid active-app export se nepotvrdil: "
+            + (active_value or f"rc={active.returncode}"),
+            5,
+        )
+
     component = ""
     category = ""
     diagnostics = []
@@ -852,7 +861,35 @@ elif action == "waydroid-app-launch":
     if launched.returncode != 0 or re.search(
             r"(?im)^\s*(?:error|exception):", launch_text):
         out(launch_text or "Android Activity se nepodařilo spustit", 5)
-    out(f"launched:{component}")
+    out(f"launched:{component} active_apps={active_value}")
+
+elif action == "waydroid-active-app-idle":
+    # Keep the persistent Android session warm without leaving Waydroid's
+    # full-UI carrier mapped inside Cage. In single-window mode, "none" means
+    # no exported Android window while the framework/session stays alive.
+    idle = waydroid_shell(
+        [
+            "sh", "-c",
+            "setprop waydroid.active_apps none "
+            "&& settings put global policy_control 'null*'",
+        ],
+        timeout=15,
+    )
+    if idle.returncode != 0:
+        out(
+            (idle.stdout or "").strip()
+            or "Waydroid idle surface nelze nastavit",
+            5,
+        )
+    verify = waydroid_shell(["getprop", "waydroid.active_apps"], timeout=10)
+    value = (verify.stdout or "").strip()
+    if verify.returncode != 0 or value != "none":
+        out(
+            "Waydroid idle surface se nepotvrdil: "
+            + (value or f"rc={verify.returncode}"),
+            5,
+        )
+    out("active_apps=none")
 
 elif action == "waydroid-app-running":
     package = str(payload.get("package", "")).strip()

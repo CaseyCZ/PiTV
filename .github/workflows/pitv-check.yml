@@ -148,10 +148,15 @@ jobs:
           grep -q -- '--no-rc-passthrough' system/pitv-inputd
           grep -q 'KEY_F13' system/pitv-inputd
           grep -q 'KEY_F14' system/pitv-inputd
+          grep -q '^KEY_BACK = 158$' system/pitv-inputd
+          grep -q 'self.sink.tap(KEY_BACK)' system/pitv-inputd
           grep -q 'key="F13"' system/labwc/rc.xml
           grep -q 'key="F14"' system/labwc/rc.xml
           grep -q 'pitv-global-action home' system/labwc/rc.xml
           grep -q 'pitv-global-action close' system/labwc/rc.xml
+          grep -q 'id -u pitv' system/pitv-global-action
+          grep -q 'exec runuser -u pitv' system/pitv-global-action
+          grep -q 'wtype -M logo -k F9 -m logo' system/pitv-global-action
           grep -q 'tv-input-enable' system/pitv-helper
           grep -q 'system_input_managed' pitv/pitv.py
           grep -q '_consume_global_tv_action' pitv/pitv.py
@@ -235,6 +240,8 @@ jobs:
           assert 'waydroid show-full-ui' not in client
           assert 'persistent Android runtime ready pid=' in client
           assert 'persistent Android session manager was lost' in client
+          assert 'waydroid-active-app-idle' in client
+          assert 'persistent Android runtime entered windowless idle state' in client
           assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
           assert 'waydroid app list' in wrapper
           launch = wrapper.split('# Never trust only the exit status', 1)[1]
@@ -259,6 +266,7 @@ jobs:
           assert 'Android TV foreground flow verified' in lifecycle
           assert 'Android TV foreground never appeared after startup grace' in lifecycle
           assert 'diagnostics "$TRACK_PACKAGE"' in lifecycle
+          assert 'persistent Android runtime returned to windowless idle state' in lifecycle
           print("PiTV 1.5 persistent Android lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
@@ -300,6 +308,14 @@ jobs:
           assert 'prepared = waydroid_shell(' in launch
           assert 'setprop waydroid.active_apps' in launch
           assert "settings put global policy_control 'immersive.status=*'" in launch
+          assert 'active = waydroid_shell(["getprop", "waydroid.active_apps"]' in launch
+          assert 'active_value != package' in launch
+          assert 'active_apps={active_value}' in launch
+          idle = src.split('elif action == "waydroid-active-app-idle":', 1)[1]
+          idle = idle.split('elif action == "waydroid-app-running":', 1)[0]
+          assert 'setprop waydroid.active_apps none' in idle
+          assert "settings put global policy_control 'null*'" in idle
+          assert 'value != "none"' in idle
           assert launch.index('prepared = waydroid_shell(') < launch.index('resolved = waydroid_shell(')
           assert 'resolved = waydroid_shell(' in launch
           assert 'launched = waydroid_shell(' in launch

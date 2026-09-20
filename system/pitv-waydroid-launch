@@ -425,6 +425,19 @@ if [ "$MODE" = "client" ]; then
   fi
   log "Android user 0 RUNNING_UNLOCKED verified"
 
+  if [ "$TARGET" = "--warm" ]; then
+    # A persistent session must idle with no Android window exported. Leaving
+    # active_apps=Waydroid maps the full-UI carrier into Cage; later app
+    # surfaces can then be hidden behind that black/system-UI window.
+    if ! printf '{}' |
+        sudo -n /usr/local/libexec/pitv-helper waydroid-active-app-idle           >>"$LOG" 2>&1; then
+      log "persistent Android runtime could not enter windowless idle state"
+      diagnostics ""
+      exit 18
+    fi
+    log "persistent Android runtime entered windowless idle state"
+  fi
+
   # persist.waydroid.multi_windows defaults to false upstream. The official
   # docs require a session restart after changing it, so setting it here after
   # HWC startup would be too late for this session and only adds Binder work.
@@ -633,4 +646,12 @@ while true; do
   sleep 1
 done
 
+if [ -n "$TRACK_PACKAGE" ] && runtime_ready; then
+  if printf '{}' |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-active-app-idle         >>"$LOG" 2>&1; then
+    log "persistent Android runtime returned to windowless idle state"
+  else
+    log "warning: persistent Android runtime could not return to idle state"
+  fi
+fi
 rm -f "$READY_FILE"
