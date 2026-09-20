@@ -308,6 +308,8 @@ jobs:
           assert "already_started=False" in watch_src
           assert "rc = proc.wait()" in watch_src
           assert "self._return_to_launcher" in watch_src
+          run_src = inspect.getsource(PiTV.run)
+          assert "if self.external_kind and system_input_managed()" not in run_src
           android_src = inspect.getsource(PiTV._watch_android_launch)
           assert "already_started=True" in android_src
           assert "self._watch_launch" in android_src
