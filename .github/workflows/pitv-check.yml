@@ -29,6 +29,7 @@ jobs:
           bash -n system/pitv-session
           bash -n system/pitv-session
           bash -n system/pitv-session-run
+          bash -n system/pitv-launcher-run
           bash -n system/pitv-waydroid-launch
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
@@ -51,11 +52,19 @@ jobs:
           grep -q 'com.stremio.one' system/pitv-helper
           grep -q 'com.plexapp.android' system/pitv-helper
           grep -q 'waydroid-keyevent' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-helper
+          grep -q 'tv-runtime-reset' system/pitv-session
+          grep -q 'tv-runtime-reset' system/pitv-launcher-run
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
           grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
           grep -q 'persist.waydroid.multi_windows false' system/pitv-waydroid-launch
           grep -q 'exec cage -d' system/pitv-waydroid-launch
           grep -q 'labwc cage wtype' install.sh
+          grep -q 'pitv-launcher-run' install.sh
+          grep -q 'pitv-launcher.service' install.sh
+          grep -q 'ExecStart=/usr/bin/systemctl restart getty@tty1.service' install.sh
+          grep -q 'legacy-android-media-v2.done' pitv/pitv.py
+          grep -q 'DPkg::Lock::Timeout' scripts/install-waydroid.sh
           grep -q 'identifier="wlroots"' system/labwc/rc.xml
           grep -q '<name>PiTV</name>' system/labwc/rc.xml
           grep -q '<name>Kodi</name>' system/labwc/rc.xml
