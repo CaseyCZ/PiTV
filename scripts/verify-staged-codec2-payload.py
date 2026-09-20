@@ -8,7 +8,11 @@ m=root/"PITV-CODEC2-SHA256.json"
 if not m.is_file(): raise SystemExit("missing checksum manifest")
 data=json.loads(m.read_text())
 for rel,want in data.items():
-    p=(root/rel).resolve()
+    q=Path(rel)
+    if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe staged path: {rel}")
+    raw=root/q
+    if raw.is_symlink(): raise SystemExit(f"staged path is a symlink: {rel}")
+    p=raw.resolve()
     try: p.relative_to(root)
     except ValueError: raise SystemExit(f"path escapes stage: {rel}")
     if not p.is_file(): raise SystemExit(f"missing staged file: {rel}")
