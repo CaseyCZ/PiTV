@@ -63,6 +63,9 @@ restore(){
   stop_android
   cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
   cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
+  if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
+    /usr/local/libexec/pitv-waydroid-device-patch --remove >/dev/null 2>&1 || true
+  fi
   waydroid init -f >/dev/null 2>&1 || true
   systemctl start waydroid-container.service >/dev/null 2>&1 || true
   systemctl start pitv-android-warm.service >/dev/null 2>&1 || true
@@ -152,6 +155,7 @@ printf '%s\n' "$procs" | grep -Eiq 'media\.c2.*v4l2|v4l2.*media\.c2' || fail "AV
 printf '%s\n' "$procs" | grep -Eiq 'media\.c2.*ffmpeg|ffmpeg.*media\.c2' || fail "HEVC service missing"
 
 RESTORE=0
+mkdir -p "$STATE"
 sha256sum "$EXTRA/vendor.img" >"$STATE/active-vendor.sha256"
 printf '%s\n' "$BACKUP" >"$STATE/last-backup"
 printf '%s\n' "$STAGE" >"$STATE/active-stage"
