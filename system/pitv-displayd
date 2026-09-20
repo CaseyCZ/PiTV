@@ -259,7 +259,10 @@ def main():
 
     previous = connector_snapshot()
     previous_fp = snapshot_fingerprint(previous) if previous else ""
-    disconnected_seen = False
+    # Booting while the TV is off is itself a disconnected state. The first
+    # later HDMI connection must therefore run the same repair path as a normal
+    # TV off/on cycle.
+    disconnected_seen = not bool(previous)
     pending_fp = ""
     pending_since = 0.0
     pending_snapshot = {}
