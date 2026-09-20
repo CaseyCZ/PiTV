@@ -17,6 +17,7 @@ PY=(
  scripts/inventory-codec2-payload.py
  scripts/evaluate-codec2-target.py
  scripts/enforce-codec2-payload-scope.py
+ scripts/codec2-payload-readiness.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -86,3 +87,5 @@ grep -q 'plan-codec2-backup.py' scripts/install-codec2-overlay.sh
 grep -q 'preflight-codec2-overlay.py' scripts/install-codec2-overlay.sh
 grep -q 'enforce-codec2-payload-scope.py' scripts/install-codec2-overlay.sh
 grep -q 'forbidden donor HAL surface' scripts/enforce-codec2-payload-scope.py
+grep -q 'PAYLOAD_READY_FOR_TARGET_PREFLIGHT' scripts/codec2-payload-readiness.py
+grep -q 'codec2-payload-readiness.py' scripts/prepare-codec2-overlay.sh
