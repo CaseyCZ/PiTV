@@ -4,11 +4,10 @@
 # uses the rpivid stateless decoder through Raspberry Vanilla's FFmpeg Codec2
 # service and FFmpeg V4L2 Request API implementation.
 
+# v4l2_codec2 is a Soong project. The Android 13 Raspberry-Vanilla FFmpeg
+# trees use Android.mk and therefore must not be listed as Soong namespaces.
 PRODUCT_SOONG_NAMESPACES += \
-    external/v4l2_codec2 \
-    external/ffmpeg \
-    external/ffmpeg_codec2 \
-    external/libudev-zero
+    external/v4l2_codec2
 
 PRODUCT_PACKAGES += \
     android.hardware.media.c2@1.0-service-v4l2 \
