@@ -2269,7 +2269,7 @@ class PiTV:
             rr = pygame.Rect(x+j*(tile_w+gap), second_y, tile_w, tile_h)
             self.draw_home_tile(item, rr, i == self.selected)
 
-        hint = "Podrž Zpět 3 s = návrat do PiTV"
+        hint = "Podrž Zpět 3 s = ukončit aplikaci • PiTV"
         hint_surf = self.font(self.h*.0135, False).render(
             hint, True, self.t["muted"]
         )
@@ -3813,9 +3813,10 @@ class PiTV:
                 pass
 
     def _recover_external_focus(self):
-        # If labwc unexpectedly returned focus to PiTV, treat it like the
-        # multitasking Back gesture instead of destroying the app.
-        self.suspend_external()
+        # If labwc unexpectedly returned focus to PiTV while the launcher still
+        # thinks an app owns the foreground, the marker is stale. Cleanly close
+        # that runtime instead of leaving a hidden/frozen process behind.
+        self.stop_external()
 
     def stop_external(self, force=False):
         """Close the foreground task and return immediately to the PiTV launcher.
