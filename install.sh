@@ -33,7 +33,7 @@ apt_run update
 apt_run install -y \
   python3 python3-pygame \
   labwc cage wtype cec-utils v4l-utils \
-  libcec-dev g++ pkg-config \
+  libcec-dev libp8-platform-dev g++ pkg-config \
   dbus-user-session pipewire pipewire-pulse wireplumber pulseaudio-utils flatpak \
   fonts-dejavu-core \
   iproute2 sudo alsa-utils openssh-server util-linux \
