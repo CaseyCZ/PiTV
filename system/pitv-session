@@ -54,8 +54,7 @@ fi
 # The marker is written by the primary client after labwc has exported its
 # actual WAYLAND_DISPLAY. Removing it here guarantees Android never consumes a
 # socket name from a previous shell generation.
-rm -f "$RUNTIME/pitv-wayland-display" "$RUNTIME/pitv-global-action" \
-      "$RUNTIME/pitv-display-repair"
+rm -f "$RUNTIME/pitv-wayland-display" "$RUNTIME/pitv-global-action"
 
 # labwc has a native TV-session lifecycle: -S starts one primary client only
 # after the compositor/Wayland socket is ready and terminates the compositor
