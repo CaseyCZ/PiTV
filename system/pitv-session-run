@@ -17,13 +17,12 @@ RUNTIME="/run/user/$PITV_UID"
 [ -d "$RUNTIME" ] || { echo "PiTV runtime $RUNTIME neexistuje." >&2; exit 4; }
 [ -S "$RUNTIME/bus" ] || { echo "PiTV user D-Bus není aktivní." >&2; exit 5; }
 
-WAYLAND=""
-for socket in "$RUNTIME"/wayland-*; do
-  if [ -S "$socket" ]; then
-    WAYLAND="$(basename "$socket")"
-    break
-  fi
-done
+MARKER="$RUNTIME/pitv-wayland-display"
+WAYLAND="$(head -n1 "$MARKER" 2>/dev/null || true)"
+if [[ ! "$WAYLAND" =~ ^wayland-[0-9]+$ ]] || [ ! -S "$RUNTIME/$WAYLAND" ]; then
+  echo "Hlavní PiTV Wayland display není aktivní." >&2
+  exit 6
+fi
 
 ENV_ARGS=(
   "HOME=/home/pitv"
@@ -36,6 +35,6 @@ ENV_ARGS=(
   "XDG_SESSION_TYPE=wayland"
   "XDG_CURRENT_DESKTOP=labwc"
 )
-[ -n "$WAYLAND" ] && ENV_ARGS+=("WAYLAND_DISPLAY=$WAYLAND")
+ENV_ARGS+=("WAYLAND_DISPLAY=$WAYLAND")
 
 exec runuser -u pitv -- env -i "${ENV_ARGS[@]}" "$@"
