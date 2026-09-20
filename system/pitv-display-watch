@@ -85,11 +85,12 @@ repair_output() {
   printf '%s\n' "$block" | grep -q 'Position: 0,0' || needs=1
   printf '%s\n' "$block" | grep -q 'Transform: normal' || needs=1
   printf '%s\n' "$block" | grep -Eq 'Scale: 1([.]0+)?$' || needs=1
-  printf '%s\n' "$block" | grep -Eq '\(preferred, current\)' || needs=1
 
   if [ "$needs" -ne 0 ]; then
     log "repairing $output on $display"
-    if ! wlr-randr         --output "$output"         --on --preferred --pos 0,0 --transform normal --scale 1         >>"$LOG" 2>&1; then
+    # Preserve an already-valid current resolution. If the output is disabled,
+    # wlr-randr --on selects its preferred mode while enabling it.
+    if ! wlr-randr         --output "$output"         --on --pos 0,0 --transform normal --scale 1         >>"$LOG" 2>&1; then
       log "wlr-randr repair failed for $output"
       return 1
     fi
