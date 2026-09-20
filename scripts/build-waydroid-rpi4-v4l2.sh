@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a LineageOS 20 / Android 13 Waydroid ARM64 vendor image with the
-# Raspberry Pi V4L2 Codec2 decoder enabled.
+# Build a LineageOS 20 / Android 13 Waydroid ARM64 vendor image with Raspberry
+# Pi 4 hardware video decoding:
+#   H.264/AVC -> stateful V4L2 Codec2 (bcm2835-codec)
+#   HEVC/H.265 -> FFmpeg Codec2 + stateless V4L2 Request API (rpivid)
 #
 # Usage:
 #   scripts/build-waydroid-rpi4-v4l2.sh /path/to/android-work
@@ -16,8 +18,13 @@ JOBS="${PITV_ANDROID_JOBS:-$(nproc --all)}"
 DIST="$PITV_ROOT/dist/waydroid-rpi4-v4l2"
 WAYDROID_BRANCH="lineage-20"
 LINEAGE_BRANCH="lineage-20.0"
+
 V4L2_REPO="https://github.com/lineage-rpi/android_external_v4l2_codec2.git"
 V4L2_BRANCH="lineage-20.0"
+FFMPEG_REPO="https://github.com/raspberry-vanilla/android_external_ffmpeg.git"
+FFMPEG_CODEC2_REPO="https://github.com/raspberry-vanilla/android_external_ffmpeg_codec2.git"
+LIBUDEV_ZERO_REPO="https://github.com/raspberry-vanilla/android_external_libudev-zero.git"
+RPI_ANDROID_BRANCH="android-13.0"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -29,6 +36,21 @@ need() {
 for cmd in repo git curl python3 make sha256sum xz; do
   need "$cmd"
 done
+
+checkout_external() {
+  local path="$1" url="$2" branch="$3"
+
+  if [ -e "$path/.git" ]; then
+    git -C "$path" reset --hard HEAD >/dev/null 2>&1 || true
+    git -C "$path" clean -fdx >/dev/null 2>&1 || true
+    git -C "$path" fetch --depth 1 "$url" "$branch"
+    git -C "$path" checkout --detach FETCH_HEAD
+    git -C "$path" clean -fdx
+  else
+    rm -rf "$path"
+    git clone --depth 1 --branch "$branch" "$url" "$path"
+  fi
+}
 
 mkdir -p "$ANDROID_ROOT"
 cd "$ANDROID_ROOT"
@@ -45,10 +67,6 @@ if [ ! -d .repo ]; then
 fi
 
 echo "Resetting reusable Android workspace..."
-# Waydroid's patch helper and the PiTV product injection intentionally modify
-# repo-managed projects. A self-hosted builder reuses this large checkout, so
-# restore every project before sync; otherwise a second build would inherit the
-# previous run's device.mk/BoardConfig edits.
 repo forall -c 'git reset --hard HEAD >/dev/null 2>&1 || true; git clean -fd >/dev/null 2>&1 || true'
 
 echo "Syncing Android/Waydroid sources..."
@@ -58,17 +76,11 @@ repo sync -c -d --force-sync -j"$JOBS"
 source build/envsetup.sh
 apply-waydroid-patches
 
-# Keep the repo-managed worktree, but temporarily detach this one project at
-# the Raspberry-Pi-maintained Android 13 implementation. This avoids replacing
-# a repo worktree with an unrelated nested .git directory and remains safe for
-# the next repo sync --force-sync.
-test -e external/v4l2_codec2/.git || {
-  echo "Waydroid source tree is missing external/v4l2_codec2" >&2
-  exit 3
-}
-git -C external/v4l2_codec2 fetch --depth 1 "$V4L2_REPO" "$V4L2_BRANCH"
-git -C external/v4l2_codec2 checkout --detach FETCH_HEAD
-git -C external/v4l2_codec2 clean -fd
+echo "Selecting Raspberry Pi Android 13 media implementations..."
+checkout_external external/v4l2_codec2 "$V4L2_REPO" "$V4L2_BRANCH"
+checkout_external external/ffmpeg "$FFMPEG_REPO" "$RPI_ANDROID_BRANCH"
+checkout_external external/ffmpeg_codec2 "$FFMPEG_CODEC2_REPO" "$RPI_ANDROID_BRANCH"
+checkout_external external/libudev-zero "$LIBUDEV_ZERO_REPO" "$RPI_ANDROID_BRANCH"
 
 rm -rf vendor/pitv/rpi4
 mkdir -p vendor/pitv/rpi4
@@ -94,7 +106,7 @@ if old not in src and new not in src:
 if old in src:
     src = src.replace(old, new, 1)
 
-marker = "# PiTV Raspberry Pi 4 V4L2 Codec2"
+marker = "# PiTV Raspberry Pi 4 hardware video decode"
 inherit = (
     "\n"
     + marker
@@ -107,7 +119,7 @@ device.write_text(src, encoding="utf-8")
 src = board.read_text(encoding="utf-8")
 sepolicy = "BOARD_VENDOR_SEPOLICY_DIRS += vendor/pitv/rpi4/sepolicy"
 if sepolicy not in src:
-    src += "\n# PiTV Raspberry Pi 4 V4L2 Codec2 SELinux labels\n" + sepolicy + "\n"
+    src += "\n# PiTV Raspberry Pi 4 media HAL SELinux labels\n" + sepolicy + "\n"
 board.write_text(src, encoding="utf-8")
 PY
 
@@ -118,24 +130,33 @@ make vendorimage -j"$JOBS"
 OUT="$ANDROID_ROOT/out/target/product/waydroid_arm64"
 test -s "$OUT/vendor.img"
 test -x "$OUT/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64"
+test -x "$OUT/vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg"
 test -s "$OUT/vendor/etc/seccomp_policy/codec2.vendor.ext.policy"
 grep -q 'c2.v4l2.avc.decoder' "$OUT/vendor/etc/media_codecs.xml"
+grep -q 'c2.ffmpeg.hevc.decoder' "$OUT/vendor/etc/media_codecs.xml"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
 cp "$OUT/vendor.img" "$DIST/vendor.img"
 
 V4L2_REV="$(git -C external/v4l2_codec2 rev-parse HEAD)"
+FFMPEG_REV="$(git -C external/ffmpeg rev-parse HEAD)"
+FFMPEG_CODEC2_REV="$(git -C external/ffmpeg_codec2 rev-parse HEAD)"
+LIBUDEV_ZERO_REV="$(git -C external/libudev-zero rev-parse HEAD)"
 WAYDROID_DEVICE_REV="$(git -C device/waydroid/waydroid rev-parse HEAD)"
 {
-  echo "PITV_WAYDROID_IMAGE_FORMAT=1"
+  echo "PITV_WAYDROID_IMAGE_FORMAT=2"
   echo "ANDROID_RELEASE=13"
   echo "LINEAGE_BRANCH=$LINEAGE_BRANCH"
   echo "WAYDROID_BRANCH=$WAYDROID_BRANCH"
   echo "WAYDROID_DEVICE_REV=$WAYDROID_DEVICE_REV"
   echo "V4L2_CODEC2_REV=$V4L2_REV"
+  echo "FFMPEG_REV=$FFMPEG_REV"
+  echo "FFMPEG_CODEC2_REV=$FFMPEG_CODEC2_REV"
+  echo "LIBUDEV_ZERO_REV=$LIBUDEV_ZERO_REV"
   echo "TARGET=lineage_waydroid_arm64-userdebug"
-  echo "HW_DECODER=c2.v4l2.avc.decoder"
+  echo "HW_DECODER_AVC=c2.v4l2.avc.decoder"
+  echo "HW_DECODER_HEVC=c2.ffmpeg.hevc.decoder"
 } > "$DIST/build-info.env"
 
 (
@@ -146,7 +167,7 @@ WAYDROID_DEVICE_REV="$(git -C device/waydroid/waydroid rev-parse HEAD)"
 )
 
 echo
-echo "PiTV RPi4 V4L2 Waydroid vendor image built:"
+echo "PiTV RPi4 AVC+HEVC Waydroid vendor image built:"
 echo "  $DIST/vendor.img"
 echo "  $DIST/vendor.img.xz"
 echo
