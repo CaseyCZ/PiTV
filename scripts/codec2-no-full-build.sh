@@ -16,6 +16,7 @@ case "$cmd" in
   add-config) exec bash "$HERE/add-pitv-codec2-config-to-payload.sh" "$@";;
   prepare) exec bash "$HERE/prepare-codec2-overlay.sh" "$@";;
   readiness) exec python3 "$HERE/codec2-payload-readiness.py" "$@";;
+  install-readiness) exec bash "$HERE/codec2-install-readiness.sh" "$@";;
   stage) exec bash "$HERE/stage-codec2-payload.sh" "$@";;
   plan) exec bash "$HERE/plan-codec2-overlay-install.sh" "$@";;
   install) exec bash "$HERE/install-codec2-overlay.sh" "$@";;
@@ -42,6 +43,7 @@ PiTV Codec2 no-full-build experiment
   add-config PAYLOAD
   prepare DONOR_TREE PAYLOAD_OUT ROOT_ELF...
   readiness PAYLOAD
+  install-readiness PAYLOAD
   stage PAYLOAD [STATE]
   plan STAGE
   install STAGE                 (root, RPi4 only)
