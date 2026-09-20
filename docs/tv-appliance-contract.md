@@ -56,6 +56,9 @@ contract is the baseline for all future UI, Store and runtime changes.
   ordinary app-exit operation.
 - A transient readiness timeout must not immediately throw the user back to
   PiTV.
+- One-time migrations may run only against an already-ready warm runtime.
+  They must never start/stop the Waydroid container or compete with an app
+  launch.
 
 ## 4. Remote and focus
 
