@@ -1110,6 +1110,8 @@ class PiTV:
         self._last_desktop_size = self._desktop_size()
         self._last_display_probe_at = time.monotonic()
         self._last_fullscreen_repair_at = 0.0
+        self._main_thread_id = threading.get_ident()
+        self._fullscreen_repair_requested = False
         self.cfg = load_config()
         # PiTV is HDMI-only. Make the connected HDMI PipeWire/Pulse sink the
         # default before any TV app (Kodi, Stremio, Waydroid) is launched.
@@ -2152,6 +2154,15 @@ class PiTV:
         return max(0.0, (time.monotonic() - self.last_activity) / 60.0)
 
     def update_idle_state(self):
+        # A visible long-running operation is active UI, not idle time.
+        # Keep the global banner visible and never let CEC standby hide an
+        # installation/update/app-start behind the screensaver.
+        if self.operation_text:
+            self.last_activity = time.monotonic()
+            self.screensaver_stage = "off"
+            self.cec_standby_sent = False
+            return
+
         # Never run PiTV screensaver/CEC standby while Kodi or Android is
         # actively in the foreground. Playback can be idle from PiTV's point
         # of view for hours and must not turn the television off.
@@ -4452,11 +4463,12 @@ class PiTV:
     def _repair_fullscreen(self, force=False):
         """Re-bind SDL fullscreen after HDMI/EDID disconnect/reconnect.
 
-        Old TVs can temporarily disappear from KMS when powered off. labwc then
-        gets a fallback output size and SDL may return as a decorated floating
-        window when the HDMI output comes back. Recreating the fullscreen
-        surface is safe only while PiTV owns the visible workspace.
+        SDL display mutation is main-thread only. Worker threads may request a
+        repair, but the render loop performs the actual set_mode operation.
         """
+        if threading.get_ident() != self._main_thread_id:
+            self._fullscreen_repair_requested = True
+            return False
         if os.environ.get("SDL_VIDEODRIVER", "").lower() == "dummy":
             return False
         if self.external_kind:
@@ -4486,11 +4498,14 @@ class PiTV:
         if self.external_kind:
             return
         now = time.monotonic()
-        if now - self._last_display_probe_at < 2.0:
+        requested = self._fullscreen_repair_requested
+        if not requested and now - self._last_display_probe_at < 2.0:
             return
         self._last_display_probe_at = now
+        self._fullscreen_repair_requested = False
         desktop = self._desktop_size()
-        if desktop != self._last_desktop_size or tuple(self.screen.get_size()) != desktop:
+        if (requested or desktop != self._last_desktop_size or
+                tuple(self.screen.get_size()) != desktop):
             self._repair_fullscreen(force=True)
 
     def _task_key(self, app, kind=None):
