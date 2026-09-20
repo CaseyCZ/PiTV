@@ -33,6 +33,7 @@ jobs:
           bash -n system/pitv-launcher-run
           bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
+          sudo python3 system/pitv-helper self-test </dev/null
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
           bash -n system/pitv-cec-control
