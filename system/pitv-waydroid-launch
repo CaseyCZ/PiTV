@@ -142,7 +142,7 @@ wait_package_visible() {
   # Warm Android should become visible quickly. Keep one launch attempt bounded
   # so a missing/crashing app fails in seconds instead of leaving PiTV at 70%
   # for a minute. Cold Android boot is handled before this function.
-  for _ in $(seq 1 25); do
+  for _ in $(seq 1 75); do
     if printf '{"package":"%s"}' "$package" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible >/dev/null 2>&1; then
       return 0
@@ -154,16 +154,18 @@ wait_package_visible() {
 
 start_package() {
   local package="$1"
-  log "launching Android TV activity: $package"
-  if printf '{"package":"%s"}' "$package" |
-      sudo -n /usr/local/libexec/pitv-helper waydroid-app-launch         >>"$LOG" 2>&1; then
+  # Primary path: use Waydroid's own application controller. Upstream handles
+  # active_apps, container unfreeze and fullscreen policy here.
+  log "launching through official Waydroid app controller: $package"
+  if waydroid app launch "$package" >>"$LOG" 2>&1; then
     return 0
   fi
 
-  # Fallback for unusual Android packages without a resolvable launcher
-  # activity. Keep Waydroid's generic Binder launch as a last resort.
-  log "explicit Android TV launch failed; falling back to waydroid app launch: $package"
-  waydroid app launch "$package" >>"$LOG" 2>&1
+  # Fallback only: resolve the Android-TV launcher activity and start it
+  # explicitly if Waydroid's controller fails to dispatch the package.
+  log "Waydroid app launch failed; trying explicit TV activity: $package"
+  printf '{"package":"%s"}' "$package" |
+    sudo -n /usr/local/libexec/pitv-helper waydroid-app-launch       >>"$LOG" 2>&1
 }
 
 launch_package() {
@@ -192,13 +194,11 @@ runtime_ready() {
   local pid
   pid="$(head -n1 "$RUNTIME_READY" 2>/dev/null || true)"
   [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  kill -0 "$pid" 2>/dev/null
-}
-
-request_warmer() {
-  runtime_ready && return 0
-  printf '{}' |
-    sudo -n /usr/local/libexec/pitv-helper waydroid-warm-start       >>"$LOG" 2>&1 || true
+  kill -0 "$pid" 2>/dev/null || return 1
+  if [ -n "${SESSION_PID:-}" ]; then
+    kill -0 "$SESSION_PID" 2>/dev/null || return 1
+  fi
+  return 0
 }
 
 if [ "$MODE" = "outer" ]; then
@@ -208,46 +208,29 @@ if [ "$MODE" = "outer" ]; then
   fi
 
   if [ "$TARGET" = "--warm" ]; then
-    # Exactly one persistent hidden Android runtime per PiTV session.
-    exec 9>"$WARM_LOCK"
-    /usr/bin/flock -n 9 || exit 0
+    # Compatibility for older enabled pitv-android-warm.service units.
+    # Physical Pi 4 testing showed that an idle permanent Waydroid user
+    # session can exit later and race the next app launch. Android therefore
+    # starts only when a TV app is requested.
     rm -f "$READY_FILE" "$RUNTIME_READY"
-
-    # Recovery/session teardown is owned by systemd + tv-runtime-reset.
-    # Do not stop Waydroid again here: it adds cold-start latency and can race
-    # the already-owned Android lifecycle.
-    log "prewarming hidden Android TV runtime from $WAYLAND_DISPLAY"
-    exec cage -d -- "$0" --cage-client --warm ""
+    log "persistent Android warm-up disabled; runtime starts on demand"
+    exit 0
   fi
 
-  # Ordinary APK launch is a light client of the already-running Android TV
-  # runtime. If the session is still warming after boot, wait while PiTV keeps
-  # its own launcher visible and shows the global operation banner.
-  rm -f "$READY_FILE"
-  if ! runtime_ready; then
-    log "waiting up to 150s for hidden Android runtime"
-    request_warmer
-    for _ in $(seq 1 600); do
-      runtime_ready && break
-      sleep 0.25
-    done
-  fi
-  if ! runtime_ready; then
-    log "hidden Android runtime did not become ready after 150s"
-    exit 3
-  fi
-  log "hidden Android runtime is ready for command: $TARGET"
-
-  MODE="command"
+  # One Android launch owns one nested Cage compositor and one Waydroid user
+  # session. labwc maps Cage to Android with follow=no, so PiTV stays visible
+  # until the requested package is actually confirmed on screen.
+  rm -f "$READY_FILE" "$RUNTIME_READY"
+  log "starting on-demand Android runtime for: $TARGET"
+  exec cage -d -- "$0" --cage-client "$TARGET" "$APK"
 fi
 
 if [ "$MODE" = "client" ]; then
-  # Keep exactly one Waydroid user session bound to Cage's private Wayland
-  # display. This follows Waydroid's documented manual lifecycle:
-  # container -> session start -> app launch. Do not use show-full-ui as the
-  # session owner: PiTV needs a hidden Android session, not Android Home.
+  # Official manual Waydroid lifecycle inside the nested TV compositor:
+  # root container start -> unprivileged session start -> app install/launch.
+  # The session exists only for this Android TV flow.
   export XDG_CURRENT_DESKTOP="cage"
-  log "persistent Cage session socket: $WAYLAND_DISPLAY"
+  log "on-demand Cage session socket: $WAYLAND_DISPLAY target=$TARGET"
 
   SESSION_PID=""
   cleanup_runtime() {
@@ -256,6 +239,9 @@ if [ "$MODE" = "client" ]; then
     if [ -n "$SESSION_PID" ]; then
       wait "$SESSION_PID" 2>/dev/null || true
     fi
+    printf '{}' |
+      sudo -n /usr/local/libexec/pitv-helper waydroid-container-stop         >/dev/null 2>&1 || true
+    log "on-demand Android runtime stopped"
   }
   trap cleanup_runtime EXIT TERM INT HUP
 
@@ -265,22 +251,19 @@ if [ "$MODE" = "client" ]; then
     exit 10
   fi
 
-  # The foreground session manager captures this Cage WAYLAND_DISPLAY and stays
-  # alive for the complete warm-runtime lifetime. Android app surfaces launched
-  # later are therefore created inside the same hidden Cage compositor.
   waydroid session start >>"$LOG" 2>&1 &
   SESSION_PID=$!
-  log "Waydroid session manager started pid=$SESSION_PID"
+  log "Waydroid on-demand session manager started pid=$SESSION_PID"
 
   if ! wait_ready; then
-    log "Android framework did not become ready inside persistent Cage session"
+    log "Android framework did not become ready for on-demand launch"
     waydroid status >>"$LOG" 2>&1 || true
     waydroid log >>"$LOG" 2>&1 || true
     exit 3
   fi
 
   if ! kill -0 "$SESSION_PID" 2>/dev/null; then
-    log "Waydroid session manager exited after framework startup"
+    log "Waydroid on-demand session manager exited during startup"
     exit 18
   fi
 
@@ -290,42 +273,18 @@ if [ "$MODE" = "client" ]; then
   fi
 
   printf '%s\n' "${BASHPID:-0}" >"$RUNTIME_READY"
-  log "hidden Android TV runtime ready pid=${BASHPID:-0} session_pid=$SESSION_PID"
+  log "on-demand Android runtime ready pid=${BASHPID:-0} session_pid=$SESSION_PID target=$TARGET"
 
-  READY_MISSES=0
-  while true; do
-    if ! kill -0 "$SESSION_PID" 2>/dev/null; then
-      log "Waydroid session manager exited; systemd will restart warm service"
-      exit 18
-    fi
-
-    if printf '{}' |
-        sudo -n /usr/local/libexec/pitv-helper waydroid-ready           >/dev/null 2>&1; then
-      if [ "$READY_MISSES" -gt 0 ]; then
-        log "Android readiness recovered after $READY_MISSES transient misses"
-      fi
-      READY_MISSES=0
-    else
-      READY_MISSES=$((READY_MISSES + 1))
-      # Binder/PackageManager can briefly disappear while Android services
-      # settle. Require a sustained outage before replacing the session.
-      log "Android readiness transient miss $READY_MISSES/10"
-      if [ "$READY_MISSES" -ge 10 ]; then
-        log "hidden Android TV runtime unavailable persistently; systemd will restart warm service"
-        exit 18
-      fi
-    fi
-    sleep 2
-  done
+  MODE="command"
 fi
 
-# From here we are a lightweight app command attached to the persistent hidden
-# Android runtime. Nothing below owns or stops the Waydroid session/container.
+# From here the Cage client owns the complete on-demand Android lifecycle.
+# cleanup_runtime stops the user session and container when the TV flow exits.
 TRACK_PACKAGE=""
 
 if [ "$TARGET" = "--full-ui" ]; then
-  # Explicit diagnostics only. The warm runtime now owns a session, not Android
-  # Home, so request the full Android UI only when the user explicitly opens it.
+  # Explicit diagnostics only. This on-demand Cage/session already exists;
+  # request Android Home only when the user explicitly opens full Android UI.
   if ! waydroid show-full-ui >>"$LOG" 2>&1; then
     log "full Android UI request failed"
     exit 8
