@@ -78,8 +78,10 @@ fail(){ echo "Codec2 overlay failed: $*" >&2; restore; RESTORE=0; exit 20; }
 mount -o loop,ro "$SYSTEM" "$SYS_MNT"
 mount -o loop,ro "$VENDOR" "$CUR_VENDOR_MNT"
 preflight_mounted=1
-python3 "$SCRIPT_DIR/audit-codec2-payload-deps.py" "$STAGE" "$SYS_MNT" "$CUR_VENDOR_MNT" \
-  || fail "ELF dependency closure is incompatible with current Waydroid"
+python3 "$SCRIPT_DIR/audit-codec2-payload-deps.py" "$STAGE" "$SYS_MNT" "$CUR_VENDOR_MNT" || {
+  echo "ELF dependency closure is incompatible with current Waydroid" >&2
+  exit 10
+}
 umount "$CUR_VENDOR_MNT"; umount "$SYS_MNT"; preflight_mounted=0
 
 stop_android
