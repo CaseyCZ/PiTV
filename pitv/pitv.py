@@ -18,8 +18,9 @@ from apk_backend import (discover_apks, ensure_apk_installed, inspect_apk,
                          waydroid_available, waydroid_packages, waydroid_status,
                          tailscale_info)
 from store_backend import (clear_android_receipts, download_direct_apk,
-                           download_github_apk, load_store_catalog,
-                           mark_android_installed, store_state)
+                           download_github_apk, download_stremio_tv_apk,
+                           load_store_catalog, mark_android_installed,
+                           store_state)
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
@@ -28,7 +29,7 @@ VERSION = "1.5.0"
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
 MIGRATION_DIR = USER_CONFIG.parent / "migrations"
-LEGACY_ANDROID_PACKAGES = ("com.stremio.one", "com.plexapp.android")
+LEGACY_ANDROID_PACKAGES = ("com.plexapp.android",)
 SYSTEM_APPS = Path("/etc/pitv/apps.d")
 USER_APPS = Path.home() / ".config/pitv/apps.d"
 SYSTEM_SERVER_CATALOG = Path("/etc/pitv/store/server_catalog.json")
@@ -3277,7 +3278,7 @@ class PiTV:
                         finish(f"Kodi/Plex: {e}", False)
                     return
 
-                if install_type in ("github_release_apk", "direct_apk"):
+                if install_type in ("github_release_apk", "direct_apk", "stremio_tv_apk"):
                     if not waydroid_available():
                         self.set_operation("Připravuji Android + Google Play…")
                         ok, msg = run_privileged("waydroid-install", {}, 1800)
@@ -3287,6 +3288,8 @@ class PiTV:
 
                     if install_type == "github_release_apk":
                         path, version = download_github_apk(item, progress=progress)
+                    elif install_type == "stremio_tv_apk":
+                        path, version = download_stremio_tv_apk(item, progress=progress)
                     else:
                         path, version = download_direct_apk(item, progress=progress)
 
@@ -3300,6 +3303,19 @@ class PiTV:
                             pass
                         finish(
                             f"APK odmítnuto: package {package or 'neznámý'} neodpovídá {expected_package}",
+                            False,
+                        )
+                        return
+
+                    expected_abi = installer.get("expected_abi", "")
+                    abis = list(meta.get("abis") or [])
+                    if expected_abi and expected_abi not in abis:
+                        try:
+                            Path(path).unlink()
+                        except Exception:
+                            pass
+                        finish(
+                            f"APK odmítnuto: ABI {', '.join(abis) or 'neznámé'} neobsahuje {expected_abi}",
                             False,
                         )
                         return
