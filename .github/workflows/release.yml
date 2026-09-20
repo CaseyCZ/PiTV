@@ -37,7 +37,10 @@ jobs:
           bash -n uninstall.sh
           bash -n system/pitv-session
           bash -n system/pitv-session-run
-          grep -q '^CapabilityBoundingSet=          bash -n system/pitv-launcher-run
+          grep -Fxq 'CapabilityBoundingSet=' system/pitv-shell.service
+          grep -Fxq 'AmbientCapabilities=' system/pitv-shell.service
+          grep -Fxq 'NoNewPrivileges=yes' system/pitv-shell.service
+          bash -n system/pitv-launcher-run
           bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
           sudo python3 system/pitv-helper self-test </dev/null
