@@ -12,6 +12,7 @@ from pathlib import Path
 
 if len(sys.argv)<4: raise SystemExit("usage: collect-codec2-prebuilt.py SOURCE OUT ROOT_ELF...")
 src=Path(sys.argv[1]).resolve(); out=Path(sys.argv[2]).resolve()
+if out==Path("/") or out==src or src in out.parents: raise SystemExit("unsafe OUT path")
 if not src.is_dir(): raise SystemExit("SOURCE must be an extracted vendor tree")
 readelf=shutil.which("readelf")
 if not readelf: raise SystemExit("readelf is required")
@@ -32,7 +33,7 @@ def aarch64_elf(p):
 
 index={}
 for p in src.rglob("*"):
-    if p.is_file() and aarch64_elf(p):
+    if not p.is_symlink() and p.is_file() and aarch64_elf(p):
         index.setdefault(p.name,[]).append(p)
 
 def needed(p):
@@ -63,7 +64,9 @@ while queue:
             raise SystemExit(f"dependency must resolve uniquely in donor tree: {name} ({len(matches)} matches)")
         queue.append(matches[0])
 
-if out.exists(): shutil.rmtree(out)
+if out.exists():
+    if out.is_symlink(): raise SystemExit("refusing symlink OUT")
+    shutil.rmtree(out)
 rels=[]
 for p in sorted(chosen):
     rel=p.relative_to(src)
