@@ -422,18 +422,17 @@ jobs:
           assert app.page == "home"
           assert demo_key not in app.background_tasks
 
-          # Stremio is a supported official Android TV app again. It must map
-          # by package ID to the dedicated official ARM64 Store source.
+          # Stremio is a native Linux Store app. It must map to the system
+          # Flatpak and use its dedicated Linux workspace, never Waydroid.
           stremio_app = {
               "name": "Stremio",
-              "kind": "apk",
-              "package": "com.stremio.one",
-              "apk_path": "/home/pitv/PiTV/APKs/stremio-tv.apk",
+              "kind": "linux",
+              "command": "flatpak run com.stremio.Stremio",
           }
           stremio_item = app._store_item_for_app(stremio_app)
           assert stremio_item
-          assert stremio_item["installer"]["type"] == "stremio_tv_apk"
-          assert stremio_item["installer"]["expected_abi"] == "arm64-v8a"
+          assert stremio_item["installer"]["type"] == "flatpak"
+          assert stremio_item["installer"]["app_id"] == "com.stremio.Stremio"
           assert app.app_can_uninstall(stremio_app)
 
           # Built-in media runtimes have stable multitasking slots.
@@ -445,7 +444,7 @@ jobs:
                          "package":"com.teamsmart.videomanager.tv"}
           assert app._task_key(kodi_app, "linux") == "kodi"
           assert app._task_key(plex_app, "linux") == "kodi"
-          assert app._task_key(stremio_app, "apk") == "android:com.stremio.one"
+          assert app._task_key(stremio_app, "linux") == "stremio"
           assert app._task_key(android_app, "apk") == (
               "android:com.teamsmart.videomanager.tv"
           )
@@ -457,7 +456,7 @@ jobs:
               android_app, "apk"
           )
           assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
-          assert app._workspace_for_app(stremio_app, "apk") == "Android"
+          assert app._workspace_for_app(stremio_app, "linux") == "Stremio"
           assert app._workspace_for_app(android_app, "apk") == "Android"
 
           # Settings are OK-only: Right must not trigger a hidden
