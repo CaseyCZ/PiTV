@@ -19,16 +19,13 @@ if [ ! -S "$RUNTIME/bus" ] || [ ! -S "$RUNTIME/pulse/native" ]; then
   echo "PiTV TV session (D-Bus/PipeWire) není připravená." >&2
   exit 11
 fi
-if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$RUNTIME/${WAYLAND_DISPLAY}" ]; then
+MARKER="$RUNTIME/pitv-wayland-display"
+WAYLAND_DISPLAY="$(head -n1 "$MARKER" 2>/dev/null || true)"
+if [[ ! "$WAYLAND_DISPLAY" =~ ^wayland-[0-9]+$ ]] ||
+   [ ! -S "$RUNTIME/$WAYLAND_DISPLAY" ]; then
   WAYLAND_DISPLAY=""
-  for socket in "$RUNTIME"/wayland-*; do
-    if [ -S "$socket" ]; then
-      WAYLAND_DISPLAY="$(basename "$socket")"
-      export WAYLAND_DISPLAY
-      break
-    fi
-  done
 fi
+export WAYLAND_DISPLAY
 [ -n "${WAYLAND_DISPLAY:-}" ] || { echo "PiTV Wayland není připravený." >&2; exit 12; }
 
 MODE="${1:-run}"
