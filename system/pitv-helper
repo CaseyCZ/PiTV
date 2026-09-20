@@ -321,6 +321,39 @@ elif action == "tv-runtime-reset":
 
     out("PiTV TV runtime vyčištěn")
 
+elif action == "tv-input-enable":
+    enabled = bool(payload.get("enabled", True))
+    marker = "/var/lib/pitv/cec-disabled"
+    os.makedirs(os.path.dirname(marker), exist_ok=True)
+
+    if enabled:
+        try:
+            os.unlink(marker)
+        except FileNotFoundError:
+            pass
+        p = subprocess.run(
+            ["systemctl", "start", "pitv-inputd.service"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if p.returncode != 0:
+            out((p.stdout or "").strip() or "TV input službu nelze spustit", 3)
+        out("HDMI-CEC TV input zapnut")
+    else:
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("disabled\n")
+        subprocess.run(
+            ["systemctl", "stop", "pitv-inputd.service"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+        out("HDMI-CEC TV input vypnut")
+
 elif action == "waydroid-install":
     if shutil.which("waydroid") is None:
         installer = "/usr/local/libexec/pitv-install-waydroid"
