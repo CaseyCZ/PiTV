@@ -12,6 +12,7 @@ python3 "$SCRIPT_DIR/enforce-codec2-payload-scope.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/inventory-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/codec2-payload-readiness.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/make-codec2-rollback-manifest.py" "$STAGE" >/dev/null
+python3 "$SCRIPT_DIR/verify-codec2-metadata.py" "$STAGE" >/dev/null
 command -v waydroid >/dev/null
 command -v mount >/dev/null
 command -v umount >/dev/null
