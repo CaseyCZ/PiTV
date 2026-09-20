@@ -1722,6 +1722,10 @@ class PiTV:
         return line[:lo].rstrip() + suffix
 
     def set_operation(self, text, progress=None, error=False):
+        # Long-running work is part of the visible TV experience. Keep the
+        # launcher awake so the global status banner can never disappear
+        # behind the PiTV screensaver/CEC standby.
+        self.mark_activity()
         self.operation_text = str(text)
         self.operation_progress = None if progress is None else max(0, min(100, int(progress)))
         self.operation_error = bool(error)
