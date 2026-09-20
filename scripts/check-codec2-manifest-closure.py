@@ -4,7 +4,16 @@ import sys
 from pathlib import Path
 if len(sys.argv)!=2: raise SystemExit("usage: check-codec2-manifest-closure.py PAYLOAD")
 root=Path(sys.argv[1]).resolve(); mf=root/"PITV-CODEC2-PAYLOAD.txt"
-listed={x.strip() for x in mf.read_text().splitlines() if x.strip()}
+lines=[x.strip() for x in mf.read_text().splitlines() if x.strip()]
+if len(lines)!=len(set(lines)): raise SystemExit("duplicate payload manifest entries")
+listed=set(lines)
+for rel in listed:
+    q=Path(rel)
+    if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe manifest path: {rel}")
+    raw=root/q
+    if raw.is_symlink(): raise SystemExit(f"manifest symlink rejected: {rel}")
+    try: raw.resolve().relative_to(root)
+    except ValueError: raise SystemExit(f"manifest path escapes payload: {rel}")
 metadata={"PITV-CODEC2-PAYLOAD.txt","PITV-CODEC2-SHA256.json","PITV-CODEC2-INVENTORY.json","PITV-CODEC2-ROLLBACK.json","PITV-CODEC2-PREFLIGHT.json","PITV-CODEC2-BACKUP-PLAN.txt","PITV-CODEC2-INSTALL-PLAN.txt"}
 actual={str(p.relative_to(root)) for p in root.rglob("*") if p.is_file() and str(p.relative_to(root)) not in metadata}
 extra=actual-listed; missing=listed-actual
