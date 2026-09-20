@@ -108,6 +108,18 @@ jobs:
           cec._handle_monitor_line("> 01:44:0d\n")
           assert q.get_nowait() == pygame.K_ESCAPE
 
+          # Back long-hold is global PiTV escape. The first Back is delivered,
+          # repeats are suppressed, and release clears the hold timer.
+          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+          cec._handle_monitor_line("> 01:44:0d\n")
+          assert q.get_nowait() == pygame.K_ESCAPE
+          cec._handle_monitor_line("> 01:44:0d\n")
+          assert q.empty()
+          cec.press_started_at = time.monotonic() - 3.1
+          assert cec.held_for(pygame.K_ESCAPE) >= 3.0
+          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+          assert cec.held_for(pygame.K_ESCAPE) == 0.0
+
           # Sencor/other TVs may expose the Home key as any CEC menu command.
           for raw_home in ("0a", "0c", "11"):
               cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
