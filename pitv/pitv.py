@@ -23,7 +23,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.29"
+VERSION = "1.4.30"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -1112,6 +1112,10 @@ class PiTV:
         self.page = "home"
         self.selected = 0
         self.settings_selected = 0
+        # True only while a page was opened from Settings. Shared pages such
+        # as Updates/Android/Server Store keep their full-screen top-level UI
+        # when opened directly from the sidebar.
+        self.settings_context = False
         self.sidebar_focus = False
         self.sidebar_selected = 0
         self.store_return_page = "apps"
@@ -1590,6 +1594,7 @@ class PiTV:
     def activate_sidebar(self):
         idx = self.sidebar_selected
         self.sidebar_focus = False
+        self.settings_context = False
 
         if idx < len(self.SIDEBAR_PAGES):
             target = self.SIDEBAR_PAGES[idx]
@@ -2585,7 +2590,113 @@ class PiTV:
         self.text("↑/↓ vybere • OK otevře • Back návrat",
                   nav.x, int(self.h*.922), self.h*.014, self.t["muted"])
 
-    def draw_rows(self, title, subtitle, rows, selected=0, footer=""):
+    def draw_rows(self, title, subtitle, rows, selected=0, footer="",
+                  settings_index=None, info_lines=None):
+        """Draw a TV-friendly list.
+
+        When a page was opened from Settings, every Settings section uses the
+        same three-column navigation model as Appearance: categories on the
+        left, the actual choices/actions in the middle and contextual help on
+        the right. Shared top-level pages keep their normal full-width layout.
+        """
+        if self.settings_context and settings_index is not None:
+            self.draw_sidebar("settings")
+            self.header("Nastavení", "Vše důležité pro PiTV na jednom místě")
+            nav = self._draw_settings_categories(settings_index)
+
+            gap = int(self.w*.012)
+            center_x = nav.right+gap
+            center_w = int(self.w*.300)
+            info_x = center_x+center_w+gap
+            info_w = self.w-info_x-int(self.w*.014)
+            top = int(self.h*.195)
+            panel_h = int(self.h*.690)
+
+            center = pygame.Rect(center_x, top, center_w, panel_h)
+            info = pygame.Rect(info_x, top, info_w, panel_h)
+            self.glass_panel(center, False, 175, 21)
+            self.glass_panel(info, False, 165, 21)
+
+            icon = self.SETTINGS_ICONS[settings_index] if settings_index < len(self.SETTINGS_ICONS) else "•"
+            self.text(f"{icon}  {title}", center.x+24, center.y+22,
+                      self.h*.027, self.t["text"], True)
+            self.text(subtitle, center.x+26, center.y+int(self.h*.064),
+                      self.h*.0145, self.t["muted"])
+
+            rows = list(rows or [])
+            if rows:
+                selected = max(0, min(selected, len(rows)-1))
+            else:
+                selected = 0
+                rows = [("Žádné položky", "—")]
+
+            visible = min(8, len(rows))
+            start_row = max(0, min(selected-visible//2, max(0, len(rows)-visible)))
+            shown = rows[start_row:start_row+visible]
+            local_selected = selected-start_row
+            y0 = center.y+int(self.h*.105)
+            row_h = int(self.h*.066)
+            for i,row in enumerate(shown):
+                label, value = str(row[0]), str(row[1])
+                rr = pygame.Rect(center.x+16, y0+i*row_h,
+                                 center.w-32, int(row_h*.82))
+                active = i == local_selected
+                self.glass_panel(rr, active, 176, 12)
+                self.text(label, rr.x+15, rr.y+int(rr.h*.22),
+                          rr.h*.245, self.t["text"], active)
+
+                vf = self.font(rr.h*.205, False)
+                maxw = int(rr.w*.42)
+                shown_value = self._fit_ui_text(value, vf, maxw)
+                vs = vf.render(shown_value, True,
+                               self.t["accent"] if active else self.t["muted"])
+                chev = self.font(rr.h*.29, True).render(
+                    "›", True, self.t["accent"] if active else self.t["muted"]
+                )
+                self.screen.blit(
+                    chev,
+                    (rr.right-chev.get_width()-9,
+                     rr.y+(rr.h-chev.get_height())//2),
+                )
+                self.screen.blit(
+                    vs,
+                    (rr.right-chev.get_width()-vs.get_width()-22,
+                     rr.y+(rr.h-vs.get_height())//2),
+                )
+
+            selected_row = rows[selected]
+            preview = pygame.Rect(info.x+22, info.y+28,
+                                  info.w-44, int(self.h*.188))
+            self.glass_panel(preview, False, 148, 18)
+            self.text(str(selected_row[0]), preview.x+22, preview.y+22,
+                      self.h*.024, self.t["text"], True)
+            value_font = self.font(self.h*.019, True)
+            value_text = self._fit_ui_text(
+                str(selected_row[1]), value_font, preview.w-44
+            )
+            value_surf = value_font.render(value_text, True, self.t["accent"])
+            self.screen.blit(value_surf, (preview.x+22, preview.y+int(self.h*.072)))
+
+            help_y = preview.bottom+int(self.h*.033)
+            help_title = "Co tato část dělá"
+            self.text(help_title, info.x+24, help_y,
+                      self.h*.021, self.t["text"], True)
+            help_y += int(self.h*.043)
+            lines = list(info_lines or [
+                "↑/↓ vybere položku.",
+                "OK otevře volbu nebo provede akci.",
+                "Back se vrátí do seznamu Nastavení.",
+            ])
+            for line in lines[:7]:
+                self.text(str(line), info.x+24, help_y,
+                          self.h*.0155, self.t["muted"])
+                help_y += int(self.h*.028)
+
+            if footer:
+                self.text(footer, center.x, int(self.h*.922),
+                          self.h*.014, self.t["muted"])
+            return
+
         self.draw_sidebar("settings")
         self.header(title, subtitle)
         x = self.main_left()+int(self.w*.022)
@@ -2744,9 +2855,17 @@ class PiTV:
             ("TV do standby přes CEC", fmt(standby_after)),
             ("Náhled", "OK spustí"),
         ]
-        self.draw_rows("Spořič obrazovky", "PiTV i server dál běží 24/7",
-                       rows, self.sub_selected,
-                       "OK otevře seznam možností • Náhled spustí spořič • Back návrat")
+        self.draw_rows(
+            "Spořič obrazovky", "PiTV i server dál běží 24/7",
+            rows, self.sub_selected,
+            "OK otevře seznam možností • Náhled spustí spořič • Back návrat",
+            settings_index=1,
+            info_lines=[
+                "Nastavte, co se stane při nečinnosti.",
+                "PiTV ani server se kvůli spořiči nevypínají.",
+                "Každá hodnota se vybírá z viditelného seznamu.",
+            ],
+        )
 
     def draw_network(self):
         items = self.network_items()
@@ -2762,14 +2881,31 @@ class PiTV:
         if not rows:
             rows = [("Síť", "NetworkManager není aktivní")]
             selected = 0
-        self.draw_rows("Síť", subtitle, rows, selected,
-                       "OK = akce/připojit • heslo se zadává ovladačem • Ethernet PiTV nepřepisuje")
+        self.draw_rows(
+            "Síť", subtitle, rows, selected,
+            "OK = akce/připojit • heslo se zadává ovladačem • Ethernet PiTV nepřepisuje",
+            settings_index=2,
+            info_lines=[
+                "Wi‑Fi můžete zapnout, vypnout a znovu vyhledat.",
+                "Vyberte síť a potvrďte OK.",
+                "Ethernet a serverové služby PiTV nepřepisuje.",
+            ],
+        )
 
     def draw_audio(self):
         items = self.audio_items()
         rows = [(x["title"], x["detail"]) for x in items]
-        self.draw_rows("Zvuk", "PiTV používá pouze zvuk přes HDMI", rows, self.audio_selected,
-                       "Hlasitost TV/receiveru jde přes HDMI‑CEC")
+        self.draw_rows(
+            "Zvuk", "PiTV používá pouze zvuk přes HDMI",
+            rows, self.audio_selected,
+            "Hlasitost TV/receiveru jde přes HDMI‑CEC",
+            settings_index=3,
+            info_lines=[
+                "HDMI výstup otevře seznam dostupných voleb.",
+                "Hlasitost a Mute se posílají televizi přes CEC.",
+                "Test zvuku ověří vybraný HDMI výstup.",
+            ],
+        )
 
     CEC_ACTIONS = [
         ("Zapnout / probudit TV", "Power On + Active Source", cec_tv_on),
@@ -2781,29 +2917,23 @@ class PiTV:
     ]
 
     def draw_cec(self):
-        self.draw_sidebar("settings")
         ports = get_hdmi_ports()
-        port_text = " · ".join(f"{p['name']} {p['status']}" for p in ports) or "HDMI stav neznámý"
-        self.header("HDMI / CEC", port_text)
-
-        x = self.main_left()+int(self.w*.022)
-        y = int(self.h*.165)
-        self.pill("CEC READY" if cec_available() else "CEC CHYBÍ", x, y,
-                  self.t["good"] if cec_available() else self.t["bad"])
-
-        y0 = int(self.h*.245)
-        row_h = int(self.h*.082)
-        width = self.w-x-int(self.w*.04)
-        for i, (name, desc, _) in enumerate(self.CEC_ACTIONS):
-            rr = pygame.Rect(x, y0+i*row_h, width, int(row_h*.78))
-            selected = i == self.cec_selected
-            self.glass_panel(rr, selected, 232, 16)
-            self.text(name, rr.x+22, rr.y+int(rr.h*.18), rr.h*.28, self.t["text"], True)
-            self.text(desc, rr.x+22, rr.y+int(rr.h*.55), rr.h*.18,
-                      self.t["accent"] if selected else self.t["muted"])
-
-        self.text("↑/↓ vybere • OK spustí • Back návrat",
-                  x, int(self.h*.90), self.h*.016, self.t["muted"])
+        port_text = " · ".join(
+            f"{p['name']} {p['status']}" for p in ports
+        ) or "HDMI stav neznámý"
+        rows = [(name, desc) for name, desc, _ in self.CEC_ACTIONS]
+        self.draw_rows(
+            "HDMI / CEC",
+            ("CEC dostupné · " if cec_available() else "CEC nedostupné · ") + port_text,
+            rows, self.cec_selected,
+            "↑/↓ vybere • OK spustí • Back návrat",
+            settings_index=4,
+            info_lines=[
+                "Tady se ovládá televize přes HDMI‑CEC.",
+                "Ovladač PiTV používá stejný CEC adaptér.",
+                "Power, Active Source i hlasitost jsou samostatné akce.",
+            ],
+        )
 
     def _store_item_for_app(self, app):
         """Return the Store entry that owns an app, without confusing legacy APKs."""
@@ -2965,6 +3095,12 @@ class PiTV:
         self.draw_rows(
             "Aplikace", "Store + aplikace dostupné PiTV", subset, selected,
             "↑/↓ vybere • OK zobrazit/skrýt • → odinstalovat • Back návrat",
+            settings_index=5,
+            info_lines=[
+                "OK zobrazí nebo skryje aplikaci na ploše.",
+                "Šipka doprava nabídne bezpečné odinstalování.",
+                "PiTV Store otevře katalog dalších aplikací.",
+            ],
         )
 
     STORE_STATE_LABELS = {
@@ -3291,8 +3427,33 @@ class PiTV:
         return label
 
     def draw_server_store(self):
-        self.draw_sidebar("server_store")
         items = self.server_store_catalog
+        if self.settings_context:
+            self.server_store_selected = max(
+                0, min(self.server_store_selected, max(0, len(items)-1))
+            )
+            rows = [
+                (
+                    item.get("name", "Služba"),
+                    self.server_store_status_label(item),
+                )
+                for item in items
+            ]
+            self.draw_rows(
+                "Server Store", "Služby běžící na pozadí",
+                rows or [("Server Store", "Katalog je prázdný")],
+                self.server_store_selected if rows else 0,
+                "OK = instalovat / spravovat • Back návrat",
+                settings_index=6,
+                info_lines=[
+                    "Serverové služby běží i když PiTV UI restartujete.",
+                    "OK nainstaluje službu nebo zobrazí její stav.",
+                    "Homebridge, Tailscale a Docker nejsou TV aplikace.",
+                ],
+            )
+            return
+
+        self.draw_sidebar("server_store")
         if not items:
             self.server_store_selected = 0
             self.header("Server Store", "Služby na pozadí")
@@ -3422,6 +3583,12 @@ class PiTV:
             "Android / APK", "APK inspector · aapt/apktool · Waydroid",
             rows[start:start+visible], self.android_selected-start,
             "OK = spustit/akce • → = odinstalovat vybrané APK • Back návrat",
+            settings_index=7,
+            info_lines=[
+                "Waydroid zajišťuje Android TV aplikace.",
+                "APK lze obnovit, spustit a bezpečně odinstalovat.",
+                "Google Play se instaluje společně s Waydroidem.",
+            ],
         )
 
     def update_items(self):
@@ -3629,17 +3796,33 @@ class PiTV:
         self.system_selected = max(0, min(self.system_selected, max(0, len(rows)-1)))
         visible = 8
         start = max(0, min(self.system_selected-visible//2, max(0, len(rows)-visible)))
-        self.draw_rows("Systém", "Ubuntu Server / Raspberry Pi",
-                       rows[start:start+visible], self.system_selected-start,
-                       "Aktualizace systému běží na pozadí; server se sám nerestartuje")
+        self.draw_rows(
+            "Systém", "Ubuntu Server / Raspberry Pi",
+            rows[start:start+visible], self.system_selected-start,
+            "Aktualizace systému běží na pozadí; server se sám nerestartuje",
+            settings_index=9,
+            info_lines=[
+                "Zobrazuje stav Raspberry Pi a Ubuntu.",
+                "Teplota, RAM, disk a kernel jsou pouze informace.",
+                "Aktualizace systému lze spustit přímo z této nabídky.",
+            ],
+        )
 
     def draw_power(self):
         rows = [
             ("Restartovat Raspberry Pi", "Vyžaduje potvrzení"),
             ("Vypnout Raspberry Pi", "Vyžaduje potvrzení"),
         ]
-        self.draw_rows("Napájení", "PiTV i serverové služby", rows, self.sub_selected,
-                       "OK → potvrzení")
+        self.draw_rows(
+            "Napájení", "PiTV i serverové služby",
+            rows, self.sub_selected, "OK → potvrzení",
+            settings_index=10,
+            info_lines=[
+                "Restartuje nebo vypne celé Raspberry Pi.",
+                "Před provedením se vždy zobrazí potvrzení.",
+                "Restart PiTV UI najdete v Aktualizacích/Systému.",
+            ],
+        )
 
     def draw_about(self):
         ports = get_hdmi_ports()
@@ -3656,8 +3839,16 @@ class PiTV:
             ("Tailscale", f"{ts_state} {ts_ip}".strip()),
             ("Android", "Waydroid" if waydroid_available() else "není připraven"),
         ]
-        self.draw_rows("O PiTV", "TV vrstva nad Ubuntu Serverem", rows, 99,
-                       "Homebridge, Tailscale a ostatní služby běží mimo PiTV")
+        self.draw_rows(
+            "O PiTV", "TV vrstva nad Ubuntu Serverem", rows, 99,
+            "Homebridge, Tailscale a ostatní služby běží mimo PiTV",
+            settings_index=11,
+            info_lines=[
+                "Verze a technický stav instalace PiTV.",
+                "Serverové služby běží nezávisle na TV launcheru.",
+                "Tyto údaje jsou pouze pro kontrolu a diagnostiku.",
+            ],
+        )
 
     def draw(self):
         self.draw_background()
@@ -4270,6 +4461,7 @@ class PiTV:
     def enter_settings_item(self):
         pages = ["appearance", "screensaver", "network", "audio", "cec",
                  "apps", "server_store", "android", "updates", "system", "power", "about"]
+        self.settings_context = True
         self.page = pages[self.settings_selected]
         self.sub_selected = 0
         if self.page == "network":
@@ -4339,6 +4531,7 @@ class PiTV:
                 self.page = "android"
                 self.android_selected = 0
             elif kind == "settings":
+                self.settings_context = False
                 self.page = "settings"
                 self.settings_selected = 0
 
@@ -4419,6 +4612,7 @@ class PiTV:
                 self.selected = max(0, len(self.home_items())-1)
                 return
             # Every Settings child returns one level to Settings.
+            self.settings_context = False
             self.page = "settings"
             return
 
