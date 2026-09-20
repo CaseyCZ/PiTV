@@ -12,12 +12,18 @@ manifest=root/"PITV-CODEC2-PAYLOAD.txt"
 checks=root/"PITV-CODEC2-SHA256.json"
 if not manifest.is_file() or not checks.is_file(): raise SystemExit("stage is not validated")
 sha=json.loads(checks.read_text())
-entries=[]
+entries=[]; seen=set()
 for rel in manifest.read_text().splitlines():
     rel=rel.strip()
     if not rel: continue
     q=Path(rel)
     if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe rollback path: {rel}")
+    if rel in seen: raise SystemExit(f"duplicate rollback path: {rel}")
+    seen.add(rel)
+    raw=root/q
+    if raw.is_symlink(): raise SystemExit(f"rollback payload symlink rejected: {rel}")
+    try: raw.resolve().relative_to(root)
+    except ValueError: raise SystemExit(f"rollback payload escapes root: {rel}")
     if rel not in sha: raise SystemExit(f"checksum missing for {rel}")
     target="/"+rel if rel.startswith("vendor/") else "/vendor/"+rel
     entries.append({"payload":rel,"target":target,"sha256":sha[rel],"backup_required":True})
