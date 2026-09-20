@@ -150,11 +150,10 @@ runtime_ready() {
     sudo -n /usr/local/libexec/pitv-helper waydroid-ready >/dev/null 2>&1
 }
 
-start_warmer() {
-  if runtime_ready; then
-    return 0
-  fi
-  "$0" --warm >>/tmp/pitv-waydroid-warm.log 2>&1 &
+request_warmer() {
+  runtime_ready && return 0
+  printf '{}' |
+    sudo -n /usr/local/libexec/pitv-helper waydroid-warm-start       >>"$LOG" 2>&1 || true
 }
 
 if [ "$MODE" = "outer" ]; then
@@ -189,7 +188,7 @@ if [ "$MODE" = "outer" ]; then
   # its own launcher visible and shows the global operation banner.
   rm -f "$READY_FILE"
   if ! runtime_ready; then
-    start_warmer
+    request_warmer
     for _ in $(seq 1 240); do
       runtime_ready && break
       sleep 0.25
