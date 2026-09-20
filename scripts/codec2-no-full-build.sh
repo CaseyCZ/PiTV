@@ -23,6 +23,7 @@ case "$cmd" in
   rollback) exec bash "$HERE/rollback-codec2-overlay.sh" "$@";;
   verify) exec bash "$HERE/verify-codec2-runtime.sh" "$@";;
   accept) exec bash "$HERE/accept-codec2-overlay-runtime.sh" "$@";;
+  evidence) exec bash "$HERE/capture-codec2-evidence.sh" "$@";;
   check) exec bash "$HERE/check-codec2-no-full-build.sh" "$@";;
   status)
     state=/var/lib/pitv/codec2-experiment
@@ -31,6 +32,7 @@ case "$cmd" in
     [ -f "$state/last-backup" ] && echo "last_backup=$(cat "$state/last-backup")" || echo "last_backup="
     [ -f "$state/last-rollback" ] && echo "last_rollback=$(cat "$state/last-rollback")" || echo "last_rollback="
     [ -f "$state/current-stage" ] && echo "current_stage=$(cat "$state/current-stage")" || echo "current_stage="
+    [ -f "$state/last-evidence" ] && echo "last_evidence=$(cat "$state/last-evidence")" || echo "last_evidence="
     [ -f "$state/active-vendor.sha256" ] && cat "$state/active-vendor.sha256" || true
     ;;
   help|*)
@@ -52,6 +54,7 @@ PiTV Codec2 no-full-build experiment
   rollback [BACKUP]             (root)
   verify
   accept                         (strict read-only AVC/HEVC acceptance)
+  evidence [OUT]                 (capture reproducible runtime proof)
   status
   check
 EOF
