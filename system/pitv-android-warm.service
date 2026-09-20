@@ -14,7 +14,7 @@ Environment=HOME=/home/pitv
 Environment=USER=pitv
 Environment=LOGNAME=pitv
 ExecStart=/usr/local/libexec/pitv-android-warm
-Restart=always
+Restart=on-failure
 RestartSec=2
 TimeoutStopSec=20
 
