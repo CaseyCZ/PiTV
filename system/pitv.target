@@ -2,7 +2,7 @@
 Description=PiTV Television Interface
 Requires=multi-user.target pitv-shell.service
 After=multi-user.target
-Wants=network-online.target pitv-inputd.service pitv-displayd.service pitv-android-warm.service pitv-display.service
+Wants=network-online.target pitv-inputd.service pitv-displayd.service pitv-android-warm.service
 Conflicts=rescue.target emergency.target
 AllowIsolate=yes
 
