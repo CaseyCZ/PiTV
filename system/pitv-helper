@@ -153,6 +153,7 @@ elif action == "waydroid-keyevent":
         "22",  # KEYCODE_DPAD_RIGHT
         "23",  # KEYCODE_DPAD_CENTER
         "85",  # KEYCODE_MEDIA_PLAY_PAUSE
+        "127", # KEYCODE_MEDIA_PAUSE (pause-only for launcher multitasking)
     }
     if code not in allowed:
         out("Nepovolená Android klávesa", 2)
