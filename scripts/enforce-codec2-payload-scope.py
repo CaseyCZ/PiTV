@@ -14,6 +14,10 @@ for rel in m.read_text().splitlines():
     if not rel: continue
     q=Path(rel)
     if q.is_absolute() or ".." in q.parts: raise SystemExit(f"unsafe payload path: {rel}")
+    raw=root/q
+    if raw.is_symlink(): raise SystemExit(f"payload path is a symlink: {rel}")
+    try: raw.resolve().relative_to(root)
+    except ValueError: raise SystemExit(f"payload path escapes root: {rel}")
     if not rel.startswith(allowed):
         raise SystemExit(f"payload path outside minimal vendor scope: {rel}")
     low=rel.lower()
