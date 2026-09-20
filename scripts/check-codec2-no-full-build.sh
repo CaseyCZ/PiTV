@@ -25,6 +25,7 @@ PY=(
  scripts/check-codec2-payload-size.py
  scripts/check-codec2-service-metadata.py
  scripts/check-codec2-manifest-closure.py
+ scripts/verify-minimal-codec2-sources.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -139,3 +140,4 @@ grep -q 'check-codec2-manifest-closure.py' scripts/codec2-install-readiness.sh
 grep -q 'pitv-waydroid-device-patch --remove' scripts/install-codec2-overlay.sh
 grep -q 'mkdir -p "\$STATE"' scripts/install-codec2-overlay.sh
 grep -q '/usr/local/libexec/pitv-waydroid-device-patch --remove' scripts/rollback-codec2-overlay.sh
+grep -q 'verify-minimal-codec2-sources.py' scripts/build-minimal-codec2-modules.sh
