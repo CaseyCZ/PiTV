@@ -62,12 +62,28 @@ contract is the baseline for all future UI, Store and runtime changes.
 
 ## 4. Remote and focus
 
-- There is always one obvious focused item.
-- Up/Down/Left/Right move focus; OK activates the focused item; Back goes back.
+- Remote input lives below the visual shell. The normal PiTV 1.5 path is:
+  `HDMI-CEC kernel → pitv-inputd → uinput "PiTV TV Remote" → labwc → focused client`.
+- PiTV, Kodi, native Stremio and nested Cage/Android therefore receive the
+  same Linux D-pad/OK/Back device. The launcher must not relay ordinary
+  navigation with `wtype` or Android `input keyevent`.
+- `pitv-inputd.service` starts before `pitv-shell.service`, owns the one CEC
+  monitor for the appliance, reconnects independently of launcher/app crashes
+  and publishes its active adapter in `/run/pitv/cec-device`.
+- Raw + decoded representations of one CEC press collapse to one navigation
+  step. Held arrows repeat only after a deliberate delay; a real release makes
+  the next physical press immediate.
+- Home/menu CEC commands become the private F13 appliance action. labwc consumes
+  F13 globally, reveals PiTV and asks it to suspend the foreground task.
+- Holding Back for 3 seconds becomes private F14. labwc consumes it globally,
+  reveals PiTV and asks it to close the foreground task. Short Back continues
+  directly to the focused application.
+- There is always one obvious focused item. Up/Down/Left/Right move focus; OK
+  activates it; Back goes back.
 - Settings never hides actions behind Right/Left shortcuts.
-- Android D-pad events are serialized through one ordered input queue.
 - The physical baseline on the current TV is Up/Down/Left/Right + OK + Back.
-- Holding Back for 3 seconds is the deterministic appliance escape back to PiTV.
+- The legacy in-process CEC reader and per-app relay remain compatibility-only
+  code for a pre-1.5 installation; an installed 1.5 system must not use them.
 
 ## 5. One immersive fullscreen surface
 
