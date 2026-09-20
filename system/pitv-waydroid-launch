@@ -315,8 +315,11 @@ else
   if ! package_installed "$TARGET"; then
     if [ -n "$APK" ] && [ -f "$APK" ]; then
       log "package missing; installing APK before launch: target=$TARGET apk=$APK"
-      if ! waydroid app install "$APK" >>"$LOG" 2>&1; then
-        rc=$?
+      set +e
+      waydroid app install "$APK" >>"$LOG" 2>&1
+      rc=$?
+      set -e
+      if [ "$rc" -ne 0 ]; then
         log "waydroid app install failed rc=$rc target=$TARGET apk=$APK"
         exit 4
       fi
