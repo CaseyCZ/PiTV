@@ -164,7 +164,7 @@ Stav na konkrétním Raspberry Pi lze ověřit příkazem:
 sudo /usr/local/libexec/pitv-helper waydroid-hw-codec-status
 ```
 
-Hardwarově se akcelerují **H.264/AVC a HEVC/H.265**. VP9 a AV1 zůstávají na Raspberry Pi 4 softwarové fallbacky a PiTV je neoznačuje jako HW kodeky.
+Profil je připravený pro HW akceleraci **H.264/AVC a HEVC/H.265**; fyzická akceptace vlastního `vendor.img` na PiTV ještě musí potvrdit oba běžící HW cesty. VP9 a AV1 zůstávají na Raspberry Pi 4 softwarové fallbacky a PiTV je neoznačuje jako HW kodeky.
 
 Vlastní APK:
 
