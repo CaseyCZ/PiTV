@@ -697,6 +697,10 @@ elif action == "waydroid-hw-codec-status":
 
     release = waydroid_shell(["getprop", "ro.build.version.release"], timeout=10)
     xml = waydroid_shell(["cat", "/vendor/etc/media_codecs.xml"], timeout=10)
+    ffmpeg_xml = waydroid_shell(
+        ["cat", "/vendor/etc/media_codecs_ffmpeg_c2.xml"],
+        timeout=10,
+    )
     process_probe = waydroid_shell(
         [
             "sh", "-c",
@@ -719,6 +723,7 @@ elif action == "waydroid-hw-codec-status":
 
     release_value = (release.stdout or "").strip()
     xml_text = xml.stdout or ""
+    ffmpeg_xml_text = ffmpeg_xml.stdout or ""
     process_lines = [
         line.strip().lower()
         for line in (process_probe.stdout or "").splitlines()
@@ -751,7 +756,7 @@ elif action == "waydroid-hw-codec-status":
         if line.strip().startswith("/dev/media")
     ]
     avc_decoder = "c2.v4l2.avc.decoder" in xml_text
-    hevc_decoder = "c2.ffmpeg.hevc.decoder" in xml_text
+    hevc_decoder = "c2.ffmpeg.hevc.decoder" in ffmpeg_xml_text
 
     print(f"android_release={release_value or 'unknown'}")
     print(f"v4l2_video_nodes={len(video_nodes)}")
