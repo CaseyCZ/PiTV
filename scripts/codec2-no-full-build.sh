@@ -8,6 +8,7 @@ case "$cmd" in
   prepare-donor) exec bash "$HERE/prepare-codec2-from-donor.sh" "$@";;
   fetch-sources) exec python3 "$HERE/fetch-minimal-codec2-sources.py" "$@";;
   build-modules) exec bash "$HERE/build-minimal-codec2-modules.sh" "$@";;
+  add-config) exec bash "$HERE/add-pitv-codec2-config-to-payload.sh" "$@";;
   prepare) exec bash "$HERE/prepare-codec2-overlay.sh" "$@";;
   stage) exec bash "$HERE/stage-codec2-payload.sh" "$@";;
   plan) exec bash "$HERE/plan-codec2-overlay-install.sh" "$@";;
@@ -31,6 +32,7 @@ PiTV Codec2 no-full-build experiment
   prepare-donor VENDOR_TREE PAYLOAD_OUT
   fetch-sources WORKDIR
   build-modules ANDROID13_TREE SOURCES_DIR PAYLOAD_OUT
+  add-config PAYLOAD
   prepare DONOR_TREE PAYLOAD_OUT ROOT_ELF...
   stage PAYLOAD [STATE]
   plan STAGE
