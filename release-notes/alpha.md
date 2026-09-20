@@ -25,7 +25,7 @@
 - `uinput` se načítá při bootu a 1.5 installer zachovává uživatelovu volbu HDMI‑CEC Zapnuto/Vypnuto; starý launcherový `CECReader` byl z 1.5 úplně odstraněn, takže existuje jen jeden CEC input owner
 - CEC výstup je oddělený do statického `pitv-cec-control`: umí pouze Power/Standby/Active Source/Volume/Mute; historický `pitv-cec-monitor` s režimy register/monitor se při upgradu maže
 - **warm SmartTube/APK start je zkrácený**: připravený persistentní Cage klient zapisuje do `pitv-waydroid-runtime-ready` vlastní živý PID, takže běžné spuštění už nedělá synchronní `waydroid status + getprop` při každém readiness testu
-- **HDMI obraz má vlastní recovery vrstvu**: `pitv-display.service` sleduje HDMI hotplug a wlroots stav; po reconnectu srovná hlavní TV výstup přes `wlr-randr` na preferred mode, pozici `0,0`, normal transform a scale 1
+- **HDMI obraz má vlastní recovery vrstvu**: `pitv-display.service` sleduje HDMI hotplug a wlroots stav; po reconnectu zachová platný aktuální video mód a srovná hlavní TV výstup přes `wlr-randr` na pozici `0,0`, normal transform a scale 1; preferred mód je fallback pouze při znovuzapnutí vypnutého výstupu
 - display service po opravě publikuje `pitv-display-repair`; launcher na tento event znovu sváže SDL fullscreen i tehdy, když TV po probuzení hlásí stejné rozlišení, ale původní surface byla posunutá
 - labwc používá `reuseOutputMode=yes` a PiTV/Kodi/Stremio/Cage window rules při mapování nejdřív provedou `MoveTo 0,0` a teprve potom maximalizaci; běžný HDMI reconnect tak nemá vyžadovat reboot Raspberry Pi
 - běžná APK cesta už před spuštěním nedělá `waydroid app list`; nejdřív pošle přímo `waydroid app launch <package>`, APK instalace se použije až pokud skutečný launch selže
