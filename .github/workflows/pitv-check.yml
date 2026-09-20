@@ -302,6 +302,16 @@ jobs:
           assert "os.execv" not in restart_src
           assert "tv-runtime-reset" not in restart_src
 
+          # Universal foreground lifecycle: the watcher must remain attached
+          # after startup and Android must use the same exit-to-PiTV path.
+          watch_src = inspect.getsource(PiTV._watch_launch)
+          assert "already_started=False" in watch_src
+          assert "rc = proc.wait()" in watch_src
+          assert "self._return_to_launcher" in watch_src
+          android_src = inspect.getsource(PiTV._watch_android_launch)
+          assert "already_started=True" in android_src
+          assert "self._watch_launch" in android_src
+
 
           # CEC wire parsing and long-hold semantics live exclusively in
           # system/pitv-inputd and are covered by its self-test above. The UI
