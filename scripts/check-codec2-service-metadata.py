@@ -8,8 +8,17 @@ services={
  "v4l2":("/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64","@1.0::IComponentStore/v4l2"),
  "ffmpeg":("/vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg","@1.2::IComponentStore/ffmpeg"),
 }
-rc_text="\n".join(p.read_text(errors="ignore") for p in root.rglob("*.rc"))
-xmls=list(root.rglob("*.xml"))
+def safe_files(pattern):
+    out=[]
+    for raw in root.rglob(pattern):
+        if raw.is_symlink(): raise SystemExit(f"metadata symlink rejected: {raw.relative_to(root)}")
+        p=raw.resolve()
+        try: p.relative_to(root)
+        except ValueError: raise SystemExit(f"metadata escapes payload: {raw}")
+        if p.is_file(): out.append(p)
+    return out
+rc_text="\n".join(p.read_text(errors="ignore") for p in safe_files("*.rc"))
+xmls=safe_files("*.xml")
 for label,(path,fqname) in services.items():
     binary=root/path.removeprefix("/")
     if not binary.is_file(): raise SystemExit(f"service binary missing: {path}")
