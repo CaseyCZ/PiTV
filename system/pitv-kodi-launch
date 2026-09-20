@@ -144,7 +144,7 @@ kodi_application_stopped() {
   [ "$current" -gt "$KODI_LOG_CURSOR" ] || return 1
   start=$((KODI_LOG_CURSOR + 1))
   if sed -n "${start},${current}p" "$KODI_USER_LOG" 2>/dev/null |
-      grep -Fq "Application stopped"; then
+      grep -F "Application stopped" >/dev/null; then
     KODI_LOG_CURSOR="$current"
     return 0
   fi
@@ -200,5 +200,12 @@ while kill -0 "$KODI_PID" 2>/dev/null; do
 done
 
 if [ -n "$KODI_WRAPPER_PID" ]; then
+  for _ in $(seq 1 8); do
+    kill -0 "$KODI_WRAPPER_PID" 2>/dev/null || break
+    sleep 0.25
+  done
+  if kill -0 "$KODI_WRAPPER_PID" 2>/dev/null; then
+    kill -TERM "$KODI_WRAPPER_PID" 2>/dev/null || true
+  fi
   wait "$KODI_WRAPPER_PID" 2>/dev/null || true
 fi
