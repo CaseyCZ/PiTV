@@ -119,10 +119,10 @@ package_installed() {
 
 wait_package_visible() {
   local package="$1"
-  # Warm Android should feel like a TV OS, not another boot sequence. Poll only
-  # the top Activity and keep each launch window bounded. A genuinely cold
-  # Android boot is handled earlier by runtime_ready()/request_warmer().
-  for _ in $(seq 1 50); do
+  # Warm Android should become visible quickly. Keep one launch attempt bounded
+  # so a missing/crashing app fails in seconds instead of leaving PiTV at 70%
+  # for a minute. Cold Android boot is handled before this function.
+  for _ in $(seq 1 25); do
     if printf '{"package":"%s"}' "$package" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible >/dev/null 2>&1; then
       return 0
@@ -304,18 +304,28 @@ else
     exit 2
   }
 
-  # Fast TV path: do not enumerate the whole Android app catalog before every
-  # launch. Try the installed package immediately. Only if Android reports that
-  # launch itself failed do we install the supplied APK and retry.
-  if ! start_package "$TARGET"; then
+  # Never trust only the exit status of "waydroid app launch". Waydroid can
+  # return success even when the requested package is not installed at all.
+  # Physical Pi 4 testing exposed exactly this with SmartTube: PiTV then waited
+  # for a surface that could never exist. Verify the package first and install
+  # the supplied APK before sending the launch intent.
+  if ! package_installed "$TARGET"; then
     if [ -n "$APK" ] && [ -f "$APK" ]; then
-      log "package launch failed; installing APK fallback: $TARGET"
+      log "package missing; installing APK before launch: $TARGET"
       waydroid app install "$APK" >>"$LOG" 2>&1 || exit 4
-      start_package "$TARGET" || exit 5
+      if ! package_installed "$TARGET"; then
+        log "APK install completed but package is still missing: $TARGET"
+        exit 4
+      fi
     else
-      log "application is not launchable: $TARGET"
+      log "application package is not installed and APK is unavailable: $TARGET"
       exit 4
     fi
+  fi
+
+  if ! start_package "$TARGET"; then
+    log "application launch command failed: $TARGET"
+    exit 5
   fi
 
   if ! wait_package_visible "$TARGET"; then
