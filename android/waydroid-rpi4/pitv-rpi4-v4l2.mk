@@ -15,16 +15,9 @@ PRODUCT_PACKAGES += \
     android.hardware.media.c2@1.2-service-ffmpeg \
     libc2plugin_store
 
-# Prefer the dedicated V4L2 H.264 component (rank 128) over FFmpeg video
-# components (rank 256). FFmpeg H.264 V4L2 is kept disabled; its stateless
-# V4L2 Request path is enabled only for HEVC/rpivid.
-PRODUCT_PROPERTY_OVERRIDES += \
-    debug.stagefright.c2-poolmask=0x350000 \
-    persist.v4l2_codec2.rank.decoder=128 \
-    persist.ffmpeg_codec2.rank.video=256 \
-    persist.ffmpeg_codec2.v4l2.h264=false \
-    persist.ffmpeg_codec2.v4l2.h265=true \
-    ro.vendor.v4l2_codec2.decode_concurrent_instances=4
+# Codec priority and hardware-enable properties live in vendor.prop and are
+# attached through TARGET_VENDOR_PROP by the build script. This matches the
+# Android 13 Raspberry Pi device pattern and keeps media properties in vendor.
 
 PRODUCT_COPY_FILES += \
     vendor/pitv/rpi4/codec2.vendor.ext.policy:$(TARGET_COPY_OUT_VENDOR)/etc/seccomp_policy/codec2.vendor.ext.policy
