@@ -77,7 +77,7 @@ for pattern in \
   'android.hardware.media.c2@1.0-service-v4l2*.xml' \
   'android.hardware.media.c2@1.2-service-ffmpeg*.rc' \
   'android.hardware.media.c2@1.2-service-ffmpeg*.xml' \
-  '*v4l2*policy*' '*ffmpeg*policy*' 'media_codecs_ffmpeg_c2.xml'
+  '*v4l2*policy*' '*ffmpeg*policy*' 'android.hardware.media.c2@1.2-default-seccomp_policy' 'media_codecs_ffmpeg_c2.xml'
 do
   while IFS= read -r p; do
     [ -n "$p" ] || continue
