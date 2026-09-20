@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -12,6 +13,8 @@ BUNDLED_CATALOG = Path(__file__).resolve().parent.parent / "store" / "catalog.js
 USER_APK_DIR = Path.home() / "PiTV" / "APKs"
 RECEIPT_DIR = Path.home() / ".local" / "share" / "pitv" / "store"
 MAX_APK_BYTES = 1024 * 1024 * 1024
+MAX_VENDOR_PAGE_BYTES = 4 * 1024 * 1024
+STREMIO_DOWNLOADS_URL = "https://www.stremio.com/downloads"
 
 
 def _sha256_file(path):
@@ -143,7 +146,7 @@ def store_state(item):
             return "available"
         p = subprocess.run(["flatpak", "info", "--system", app_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
         return "installed" if p.returncode == 0 else "available"
-    if kind in ("github_release_apk", "direct_apk"):
+    if kind in ("github_release_apk", "direct_apk", "stremio_tv_apk"):
         receipt = read_receipt(item.get("id", ""))
         package = receipt.get("package", "")
         # A successful PiTV install writes an installation receipt.  Do not
@@ -239,6 +242,100 @@ def download_github_apk(item, progress=None):
         verified_digest=bool(digest),
     )
     return dest, release.get("tag_name", "")
+
+
+def _stremio_tv_arm64_source():
+    """Resolve the current official Android TV ARM64 APK from Stremio."""
+    req = urllib.request.Request(
+        STREMIO_DOWNLOADS_URL,
+        headers={"User-Agent": "PiTV-Store/1.5"},
+    )
+    with urllib.request.urlopen(req, timeout=30) as src:
+        data = src.read(MAX_VENDOR_PAGE_BYTES + 1)
+    if len(data) > MAX_VENDOR_PAGE_BYTES:
+        raise RuntimeError("Stremio downloads stránka je neočekávaně velká")
+
+    page = data.decode("utf-8", errors="replace")
+    urls = re.findall(
+        r"""href=["'](https://dl\.strem\.io/android/[^"']+\.apk)["']""",
+        page,
+        re.I,
+    )
+    for url in urls:
+        parsed = urllib.parse.urlparse(url)
+        filename = Path(parsed.path).name
+        low_path = parsed.path.lower()
+        if (
+            parsed.scheme == "https"
+            and (parsed.hostname or "").lower() == "dl.strem.io"
+            and "androidtv" in low_path
+            and filename.startswith("com.stremio.one-")
+            and filename.endswith("-arm64-v8a.apk")
+        ):
+            m = re.match(
+                r"com\.stremio\.one-([0-9]+(?:\.[0-9]+)+)-[0-9]+-arm64-v8a\.apk$",
+                filename,
+                re.I,
+            )
+            version = m.group(1) if m else ""
+            return url, filename, version
+    raise RuntimeError("Oficiální Stremio Android TV ARM64 APK nebylo nalezeno")
+
+
+def download_stremio_tv_apk(item, progress=None):
+    """Download Stremio only from its official Android TV ARM64 endpoint.
+
+    Stremio does not publish a detached SHA-256 on its downloads page, so the
+    source is restricted to HTTPS + the exact dl.strem.io host/path. PiTV then
+    validates the downloaded APK package ID and ABI before installation.
+    """
+    url, filename, version = _stremio_tv_arm64_source()
+
+    USER_APK_DIR.mkdir(parents=True, exist_ok=True)
+    safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", item.get("id", "stremio"))
+    dest = USER_APK_DIR / f"store-{safe_id}-{filename}"
+    tmp = dest.with_suffix(dest.suffix + ".part")
+
+    req = urllib.request.Request(url, headers={"User-Agent": "PiTV-Store/1.5"})
+    with urllib.request.urlopen(req, timeout=60) as src, open(tmp, "wb") as out:
+        resolved = urllib.parse.urlparse(src.geturl())
+        if (
+            resolved.scheme != "https"
+            or (resolved.hostname or "").lower() != "dl.strem.io"
+            or "androidtv" not in resolved.path.lower()
+            or not resolved.path.lower().endswith("-arm64-v8a.apk")
+        ):
+            raise RuntimeError("Stremio APK bylo přesměrováno mimo povolený oficiální zdroj")
+
+        total = int(src.headers.get("Content-Length", "0") or 0)
+        if total and total > MAX_APK_BYTES:
+            raise RuntimeError("Stremio APK je neočekávaně velké")
+        done = 0
+        while True:
+            chunk = src.read(1024 * 256)
+            if not chunk:
+                break
+            out.write(chunk)
+            done += len(chunk)
+            if done > MAX_APK_BYTES:
+                raise RuntimeError("Stremio APK překročilo bezpečný limit velikosti")
+            if progress and total:
+                progress(done, total)
+
+    tmp.replace(dest)
+    sha256 = _sha256_file(dest)
+    write_receipt(
+        item.get("id", ""),
+        path=str(dest),
+        version=version,
+        asset=filename,
+        source=STREMIO_DOWNLOADS_URL,
+        resolved_url=url,
+        sha256=sha256,
+        verified_digest=False,
+        verified_official_source=True,
+    )
+    return dest, version
 
 
 def download_direct_apk(item, progress=None):
