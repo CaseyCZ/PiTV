@@ -118,11 +118,24 @@ jobs:
       - name: Test Store install path with Kodi
         run: |
           echo '{"package":"kodi"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper apt-install
-          echo '{"package":"kodi-eventclients-kodi-send"}' | sudo -u pitv sudo -n /usr/local/libexec/pitv-helper apt-install
+          # Installing Kodi through PiTV must also provide graceful kodi-send
+          # control and the Pi 4 DRM PRIME appliance defaults.
           dpkg-query -W -f='${Status}\n' kodi kodi-eventclients-kodi-send | grep -q "install ok installed"
           command -v kodi
           command -v kodi-send
           kodi --version | head -n 2
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("/usr/share/kodi/system/settings/appliance.xml").getroot()
+          values = {}
+          for node in root.iter("setting"):
+              default = node.find("default")
+              if node.get("id") and default is not None:
+                  values[node.get("id")] = (default.text or "").strip().lower()
+          assert values["videoplayer.useprimedecoder"] == "true"
+          assert values["videoplayer.useprimedecoderforhw"] == "true"
+          print("Live Kodi DRM PRIME appliance defaults OK")
+          PY
 
       - name: Test catalog online update
         run: |
