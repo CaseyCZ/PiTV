@@ -573,15 +573,21 @@ elif action == "waydroid-ready":
 elif action == "waydroid-user-ready":
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
+
+    # Android's documented/CTS-visible shell contract for user readiness is
+    # ActivityManager's started-user state. RUNNING_UNLOCKED is the state used
+    # by Android tests after "am start-user -w"; do not rely on the unrelated
+    # "cmd user is-user-unlocked" command, which is not available consistently
+    # across Android/Lineage builds used by Waydroid.
     p = subprocess.run(
-        ["waydroid", "shell", "cmd", "user", "is-user-unlocked", "0"],
+        ["waydroid", "shell", "am", "get-started-user-state", "0"],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, timeout=10, check=False,
     )
-    value = (p.stdout or "").strip().lower()
-    if p.returncode == 0 and value.endswith("true"):
+    value = (p.stdout or "").strip()
+    if p.returncode == 0 and "RUNNING_UNLOCKED" in value.upper():
         out("ready")
-    out(value or "Android user 0 ještě není odemčený", 4)
+    out(value or "Android user 0 ještě není RUNNING_UNLOCKED", 4)
 
 elif action == "waydroid-diagnostics":
     package = str(payload.get("package", "")).strip()
@@ -603,7 +609,7 @@ elif action == "waydroid-diagnostics":
 
     capture("STATUS", ["waydroid", "status"], 10)
     capture("BOOT", ["waydroid", "shell", "getprop", "sys.boot_completed"], 10)
-    capture("USER0", ["waydroid", "shell", "cmd", "user", "is-user-unlocked", "0"], 10)
+    capture("USER0", ["waydroid", "shell", "am", "get-started-user-state", "0"], 10)
     capture("ACTIVE_APPS", ["waydroid", "shell", "getprop", "waydroid.active_apps"], 10)
     capture("MULTI_WINDOWS", ["waydroid", "shell", "getprop", "persist.waydroid.multi_windows"], 10)
     capture("TOP", ["waydroid", "shell", "dumpsys", "activity", "top"], 15)
