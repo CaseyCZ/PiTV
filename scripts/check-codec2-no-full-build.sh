@@ -14,6 +14,7 @@ PY=(
  scripts/audit-codec2-payload-deps.py
  scripts/make-codec2-rollback-manifest.py
  scripts/register-pitv-codec2-config.py
+ scripts/inventory-codec2-payload.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
