@@ -24,6 +24,7 @@ jobs:
             system/pitv-inputd \
             system/pitv-displayd \
             system/pitv-waydroid-device-patch
+          python3 system/pitv-waydroid-device-patch --self-test
 
       - name: Shell syntax
         run: |
@@ -81,6 +82,9 @@ jobs:
           assert "repo sync -c -d --force-sync" in build
           assert "checkout --detach FETCH_HEAD" in build
           assert "TARGET_VENDOR_PROP += vendor/pitv/rpi4/vendor.prop" in build
+          assert "Unexpected V4L2ComponentStore::listComponents layout" in build
+          assert "ret.push_back(GetTraits(V4L2ComponentName::kH264Decoder));" in build
+          assert "VP8/VP9 are not" in build
           assert "rm -rf external/v4l2_codec2" not in build
 
           installer = Path("scripts/install-waydroid-rpi4-v4l2-image.sh").read_text()
@@ -102,6 +106,9 @@ jobs:
           node_patch = Path("system/pitv-waydroid-device-patch").read_text()
           assert 'glob.glob("/dev/media*")' in node_patch
           assert "--remove" in node_patch
+          assert "--self-test" in node_patch
+          assert "remove_once" in node_patch
+          assert "Future native upstream support" in node_patch
           dropin = Path("system/waydroid-container-pitv.conf").read_text()
           assert "ExecStartPre=/usr/local/libexec/pitv-waydroid-device-patch" in dropin
 
