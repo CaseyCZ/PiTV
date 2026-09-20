@@ -37,8 +37,8 @@ jobs:
             system/pitv-inputd.cpp -o /tmp/pitv-inputd \
             $(pkg-config --cflags --libs libcec) -pthread
           test -x /tmp/pitv-inputd
-          grep -q 'libcec_initialise' system/pitv-inputd.cpp
-          grep -q 'libcec_detect_adapters' system/pitv-inputd.cpp
+          grep -q 'CECInitialise' system/pitv-inputd.cpp
+          grep -q 'DetectAdapters' system/pitv-inputd.cpp
           grep -q '/run/pitv/inputd.sock' system/pitv-inputd.cpp
 
       - name: Shell syntax
