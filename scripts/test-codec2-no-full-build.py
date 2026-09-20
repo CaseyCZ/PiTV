@@ -70,6 +70,10 @@ with tempfile.TemporaryDirectory() as td:
     run(py,str(repo/"scripts/check-codec2-payload-contract.py"),str(payload))
     run(py,str(repo/"scripts/enforce-codec2-payload-scope.py"),str(payload))
     run(py,str(repo/"scripts/inventory-codec2-payload.py"),str(payload))
+    run(py,str(repo/"scripts/make-codec2-rollback-manifest.py"),str(payload))
+    run(py,str(repo/"scripts/verify-codec2-metadata.py"),str(payload))
+    run(py,str(repo/"scripts/check-codec2-payload-size.py"),str(payload))
+    run(py,str(repo/"scripts/codec2-payload-readiness.py"),str(payload),ok=False)
     inv=json.loads((payload/"PITV-CODEC2-INVENTORY.json").read_text())
     assert len(inv["files"])==5
 with tempfile.TemporaryDirectory() as td:
