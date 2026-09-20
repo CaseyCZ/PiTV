@@ -64,6 +64,10 @@ jobs:
           assert "lineage_waydroid_arm64-userdebug" in build
           assert "lineage-rpi/android_external_v4l2_codec2.git" in build
           assert "c2.v4l2.avc.decoder" in build
+          assert "repo forall -c" in build
+          assert "repo sync -c -d --force-sync" in build
+          assert "checkout --detach FETCH_HEAD" in build
+          assert "rm -rf external/v4l2_codec2" not in build
 
           installer = Path("scripts/install-waydroid-rpi4-v4l2-image.sh").read_text()
           assert "restore_previous" in installer
