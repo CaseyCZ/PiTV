@@ -107,6 +107,21 @@ while IFS= read -r rel; do
   [ -f "$src" ] || fail "payload file disappeared: $rel"
   mkdir -p "$(dirname "$dst")"; cp -a "$src" "$dst"
 done <"$STAGE/PITV-CODEC2-PAYLOAD.txt"
+
+# Preserve the target's existing codec registry. Inject PiTV includes into the
+# existing vendor media_codecs.xml instead of replacing the whole file.
+MAIN_XML="$MNT/etc/media_codecs.xml"
+[ -f "$MAIN_XML" ] || fail "vendor media_codecs.xml missing"
+python3 - "$MAIN_XML" <<'PY'
+import sys,xml.etree.ElementTree as ET
+p=sys.argv[1]
+tree=ET.parse(p); root=tree.getroot()
+wanted=["media_codecs_pitv_rpi4.xml","media_codecs_ffmpeg_c2.xml"]
+have={x.get("href") for x in root.findall("Include")}
+for href in wanted:
+    if href not in have: root.append(ET.Element("Include",{"href":href}))
+tree.write(p,encoding="utf-8",xml_declaration=True)
+PY
 # Android 13 V4L2 Codec2 properties required by the selected service.
 # Replace existing keys rather than accumulating duplicates across experiments.
 BUILD_PROP="$MNT/build.prop"
