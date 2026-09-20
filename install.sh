@@ -31,7 +31,7 @@ apt_run install -y software-properties-common
 add-apt-repository -y --no-update universe >/dev/null 2>&1 || true
 apt_run update
 apt_run install -y \
-  python3 python3-pygame \
+  python3 python3-pygame python3-evdev \
   labwc cage wtype cec-utils v4l-utils \
   dbus-user-session pipewire pipewire-pulse wireplumber pulseaudio-utils flatpak \
   fonts-dejavu-core \
@@ -138,9 +138,31 @@ install -d -m 0755 /usr/local/libexec
 install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
 install -m 0755 system/pitv-android-warm /usr/local/libexec/pitv-android-warm
+install -m 0755 system/pitv-inputd /usr/local/libexec/pitv-inputd
+install -m 0755 system/pitv-global-action /usr/local/libexec/pitv-global-action
 install -m 0644 system/pitv.target /etc/systemd/system/pitv.target
 install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
 install -m 0644 system/pitv-android-warm.service /etc/systemd/system/pitv-android-warm.service
+install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service
+
+# Preserve an existing user's CEC choice across upgrades. The service stays
+# enabled as part of the appliance target; a persistent condition marker keeps
+# it intentionally inactive when Settings says HDMI-CEC is off.
+if [ -f /home/pitv/.config/pitv/config.json ] &&
+   /usr/bin/python3 - /home/pitv/.config/pitv/config.json <<'PYCEC'
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        data = json.load(f)
+    raise SystemExit(0 if data.get("cec_enabled", True) is False else 1)
+except Exception:
+    raise SystemExit(1)
+PYCEC
+then
+  touch /var/lib/pitv/cec-disabled
+else
+  rm -f /var/lib/pitv/cec-disabled
+fi
 
 # Kodi's upstream Linux default disables the DRM PRIME decoder. Physical Pi 4
 # testing proved that PiTV needs DRM PRIME enabled for smooth playback. Apply
@@ -246,7 +268,7 @@ EOF
 
 systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
-systemctl enable pitv-shell.service pitv-android-warm.service
+systemctl enable pitv-inputd.service pitv-shell.service pitv-android-warm.service
 systemctl set-default pitv.target
 
 # A 1.4.x in-UI updater is still running inside getty@tty1 at this point.
