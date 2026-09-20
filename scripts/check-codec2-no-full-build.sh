@@ -253,3 +253,4 @@ grep -q 'active-vendor-path' scripts/install-codec2-overlay.sh
 grep -q 'backup vendor path missing' scripts/rollback-codec2-overlay.sh
 grep -q 'unsafe backup vendor path' scripts/rollback-codec2-overlay.sh
 ! grep -q '^waydroid init -f$' scripts/rollback-codec2-overlay.sh
+grep -q 'refusing immutable/unsupported Waydroid vendor image path' scripts/install-codec2-overlay.sh
