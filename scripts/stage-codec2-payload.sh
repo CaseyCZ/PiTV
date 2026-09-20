@@ -6,6 +6,10 @@ PAYLOAD="${1:?payload directory required}"
 STATE="${2:-/var/lib/pitv/codec2-experiment}"
 test -f "$PAYLOAD/PITV-CODEC2-PAYLOAD.txt"
 test -f "$PAYLOAD/PITV-CODEC2-SHA256.json"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+python3 "$HERE/verify-staged-codec2-payload.py" "$PAYLOAD" >/dev/null
+python3 "$HERE/enforce-codec2-payload-scope.py" "$PAYLOAD" >/dev/null
+python3 "$HERE/codec2-payload-readiness.py" "$PAYLOAD" >/dev/null
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dest="$STATE/staged/$stamp"
 mkdir -p "$dest"
