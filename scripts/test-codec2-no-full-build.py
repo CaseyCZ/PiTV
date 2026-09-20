@@ -29,6 +29,16 @@ with tempfile.TemporaryDirectory() as td:
     run(py,str(repo/"scripts/plan-codec2-backup.py"),str(root))
     bp=(root/"PITV-CODEC2-BACKUP-PLAN.txt").read_text()
     assert "BACKUP /vendor/lib64/libdemo.so sha256=" in bp
+    # A file absent from target must be removed, not restored, on rollback.
+    (root/"vendor/lib64/libnew.so").write_bytes(b"new")
+    lines=(root/"PITV-CODEC2-PAYLOAD.txt").read_text()+"vendor/lib64/libnew.so\\n"
+    (root/"PITV-CODEC2-PAYLOAD.txt").write_text(lines)
+    run(py,str(repo/"scripts/validate-codec2-payload.py"),str(root))
+    run(py,str(repo/"scripts/make-codec2-rollback-manifest.py"),str(root))
+    run(py,str(repo/"scripts/preflight-codec2-overlay.py"),str(root),str(target))
+    run(py,str(repo/"scripts/plan-codec2-backup.py"),str(root))
+    bp=(root/"PITV-CODEC2-BACKUP-PLAN.txt").read_text()
+    assert "REMOVE_ON_ROLLBACK /vendor/lib64/libnew.so" in bp
     (root/"PITV-CODEC2-PAYLOAD.txt").write_text("../escape\n")
     run(py,str(repo/"scripts/validate-codec2-payload.py"),str(root),ok=False)
 print("Codec2 metadata self-tests OK")
