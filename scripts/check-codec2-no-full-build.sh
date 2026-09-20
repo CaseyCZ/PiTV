@@ -141,3 +141,6 @@ grep -q 'pitv-waydroid-device-patch --remove' scripts/install-codec2-overlay.sh
 grep -q 'mkdir -p "\$STATE"' scripts/install-codec2-overlay.sh
 grep -q '/usr/local/libexec/pitv-waydroid-device-patch --remove' scripts/rollback-codec2-overlay.sh
 grep -q 'verify-minimal-codec2-sources.py' scripts/build-minimal-codec2-modules.sh
+grep -q 'last_rollback=' scripts/codec2-no-full-build.sh
+grep -q 'current_stage=' scripts/codec2-no-full-build.sh
+grep -q 'verify-minimal-codec2-sources.py' scripts/fetch-minimal-codec2-sources.py
