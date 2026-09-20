@@ -71,7 +71,7 @@ for g in video render input audio tty; do
   getent group "$g" >/dev/null && usermod -aG "$g" pitv || true
 done
 
-install -d -m 0755 /opt/pitv /etc/pitv/apps.d /etc/pitv/store
+install -d -m 0755 /opt/pitv /etc/pitv/apps.d /etc/pitv/store /etc/pitv/kodi
 install -d -m 0775 -o pitv -g pitv /var/lib/pitv /var/lib/pitv/apks /var/lib/pitv/backups
 install -d -m 0775 -o pitv -g pitv /home/pitv/PiTV /home/pitv/PiTV/APKs
 
@@ -108,6 +108,7 @@ fi
 install -m 0644 config/config.json /etc/pitv/config.json
 install -m 0644 store/catalog.json /etc/pitv/store/catalog.json
 install -m 0644 store/server_catalog.json /etc/pitv/store/server_catalog.json
+install -m 0644 system/kodi/appliance.xml /etc/pitv/kodi-appliance.xml
 
 # /etc/pitv/apps.d is PiTV-managed. User custom launchers belong in
 # ~/.config/pitv/apps.d and are preserved across updates.
@@ -122,6 +123,14 @@ install -m 0755 system/pitv-kodi-addon /usr/local/bin/pitv-kodi-addon
 install -d -m 0755 /usr/local/libexec
 install -m 0755 system/pitv-helper /usr/local/libexec/pitv-helper
 install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
+
+# Kodi's upstream Linux default disables the DRM PRIME decoder. Physical Pi 4
+# testing proved that PiTV needs DRM PRIME enabled for smooth playback. Apply
+# the Kodi-supported appliance defaults on every PiTV update when Kodi already
+# exists; future Store installs do the same inside pitv-helper apt-install.
+if command -v kodi >/dev/null 2>&1; then
+  echo '{}' | /usr/local/libexec/pitv-helper kodi-appliance-defaults
+fi
 cat >/usr/local/libexec/pitv-cec-monitor <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
