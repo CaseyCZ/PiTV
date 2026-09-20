@@ -43,6 +43,11 @@ done
   exit 5
 }
 
+# Invalidate the previous shell generation before runtime cleanup. This is
+# repeated here even though pitv-shell.service has an ExecStartPre guard: it
+# keeps manual/non-systemd session starts safe as well.
+rm -f "$RUNTIME/pitv-wayland-display"       "$RUNTIME/pitv-waydroid-app-ready"       "$RUNTIME/pitv-waydroid-runtime-ready"       "$RUNTIME/pitv-global-action"
+
 # One recovery boundary for the complete TV session. External TV applications
 # and any old nested Android surface are cleaned once before the new shell is
 # constructed. Individual launcher/app restarts do not own this responsibility.
@@ -50,11 +55,6 @@ if [ -x /usr/local/libexec/pitv-helper ]; then
   printf '{}' |
     sudo -n /usr/local/libexec/pitv-helper tv-runtime-reset       >/tmp/pitv-runtime-reset.log 2>&1 || true
 fi
-
-# The marker is written by the primary client after labwc has exported its
-# actual WAYLAND_DISPLAY. Removing it here guarantees Android never consumes a
-# socket name from a previous shell generation.
-rm -f "$RUNTIME/pitv-wayland-display" "$RUNTIME/pitv-global-action"
 
 # labwc has a native TV-session lifecycle: -s starts one primary client only
 # after the compositor/Wayland socket is ready and terminates the compositor
