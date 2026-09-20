@@ -338,7 +338,13 @@ if [ "$MODE" = "outer" ]; then
   # until the requested package is actually confirmed on screen.
   rm -f "$READY_FILE" "$RUNTIME_READY"
   log "starting on-demand Android runtime for: $TARGET action=$ACTION"
-  exec env PITV_WAYDROID_ACTION="$ACTION"     cage -d -- "$0" --cage-client "$TARGET" "$APK"
+  # Keep this outer shell alive while Cage runs so fd 9 unquestionably retains
+  # the exclusive runtime lock for the complete Android TV lifecycle.
+  set +e
+  env PITV_WAYDROID_ACTION="$ACTION"     cage -d -- "$0" --cage-client "$TARGET" "$APK"
+  cage_rc=$?
+  set -e
+  exit "$cage_rc"
 fi
 
 if [ "$MODE" = "client" ]; then
