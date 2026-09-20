@@ -10,6 +10,7 @@ JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
+python3 "$HERE/verify-minimal-codec2-sources.py" "$SOURCES"
 "$HERE/guard-codec2-build-workspace.sh" "$TREE"
 release_file="$TREE/build/make/core/version_defaults.mk"
 if [ -f "$release_file" ] && ! grep -Eq 'PLATFORM_VERSION.*13|PLATFORM_VERSION_LAST_STABLE.*13' "$release_file"; then
