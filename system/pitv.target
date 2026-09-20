@@ -1,0 +1,10 @@
+[Unit]
+Description=PiTV Television Interface
+Requires=multi-user.target pitv-shell.service
+After=multi-user.target
+Wants=network-online.target pitv-android-warm.service
+Conflicts=rescue.target emergency.target
+AllowIsolate=yes
+
+[Install]
+Alias=default.target
