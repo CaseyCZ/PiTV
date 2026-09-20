@@ -268,3 +268,5 @@ grep -q 'unexpected V4L2 Codec2 component store' scripts/build-minimal-codec2-mo
 grep -q 'payload_rel=Path("vendor")/rel' scripts/collect-codec2-prebuilt.py
 grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-from-donor.sh
 grep -q 'payload_rel="vendor/$rel"' scripts/build-minimal-codec2-modules.sh
+grep -q 'upstream FFmpeg Codec2 registry missing' scripts/add-pitv-codec2-config-to-payload.sh
+! grep -q '^copy android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml' scripts/add-pitv-codec2-config-to-payload.sh
