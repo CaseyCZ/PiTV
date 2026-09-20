@@ -310,17 +310,20 @@ if [ "$MODE" = "client" ]; then
     waydroid log >>"$LOG" 2>&1 || true
     exit 3
   fi
+  log "Android boot_completed verified"
 
   if ! kill -0 "$SESSION_PID" 2>/dev/null; then
     log "Waydroid on-demand session manager exited during startup"
     exit 18
   fi
 
+  log "waiting for Android user 0 RUNNING_UNLOCKED"
   if ! wait_user_ready; then
-    log "Android framework booted but user 0 did not become ready"
+    log "Android framework booted but user 0 did not reach RUNNING_UNLOCKED"
     diagnostics "$TARGET"
     exit 3
   fi
+  log "Android user 0 RUNNING_UNLOCKED verified"
 
   # persist.waydroid.multi_windows defaults to false upstream. The official
   # docs require a session restart after changing it, so setting it here after
