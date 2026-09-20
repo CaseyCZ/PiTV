@@ -30,9 +30,11 @@ jobs:
           bash -n uninstall.sh
           bash -n system/pitv-session
           bash -n system/pitv-session-run
-          grep -Fxq 'CapabilityBoundingSet=' system/pitv-shell.service
-          grep -Fxq 'AmbientCapabilities=' system/pitv-shell.service
-          grep -Fxq 'NoNewPrivileges=yes' system/pitv-shell.service
+          ! grep -q '^CapabilityBoundingSet=' system/pitv-shell.service
+          ! grep -q '^AmbientCapabilities=' system/pitv-shell.service
+          ! grep -q '^NoNewPrivileges=yes' system/pitv-shell.service
+          grep -q '/usr/local/libexec/pitv-helper' system/pitv-shell.service
+          grep -q 'systemd-run --user' config/apps.d/stremio.json
           bash -n system/pitv-launcher-run
           bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
