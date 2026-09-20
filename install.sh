@@ -71,6 +71,10 @@ for g in video render input audio tty; do
   getent group "$g" >/dev/null && usermod -aG "$g" pitv || true
 done
 
+# Keep the pitv per-user systemd manager alive independently of the visual
+# shell. D-Bus, PipeWire and WirePlumber then survive a TV-shell recovery.
+loginctl enable-linger pitv >/dev/null 2>&1 || true
+
 install -d -m 0755 /opt/pitv /etc/pitv/apps.d /etc/pitv/store /etc/pitv/kodi
 install -d -m 0775 -o pitv -g pitv /var/lib/pitv /var/lib/pitv/apks /var/lib/pitv/backups
 install -d -m 0775 -o pitv -g pitv /home/pitv/PiTV /home/pitv/PiTV/APKs
