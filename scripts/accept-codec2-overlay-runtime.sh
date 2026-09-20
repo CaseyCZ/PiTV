@@ -17,6 +17,8 @@ check boot_completed '[ "$boot" = 1 ]'
 codecs="$(shell 'dumpsys media.codec 2>/dev/null' || true)"
 check avc_registry 'grep -q "c2.v4l2.avc.decoder" <<<"$codecs"'
 check hevc_registry 'grep -q "c2.ffmpeg.hevc.decoder" <<<"$codecs"'
+video="$(shell 'ls -1 /dev/video* 2>/dev/null' || true)"
+check android_video_nodes 'grep -q "^/dev/video" <<<$video'
 media="$(shell 'ls -1 /dev/media* 2>/dev/null' || true)"
 check android_media_nodes 'grep -q "^/dev/media" <<<"$media"'
 procs="$(shell "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'" || true)"
