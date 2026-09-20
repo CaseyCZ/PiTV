@@ -1,0 +1,22 @@
+[Unit]
+Description=PiTV Android TV warm runtime
+After=pitv-shell.service
+Requires=pitv-shell.service
+ConditionPathExists=/usr/local/bin/pitv-waydroid-launch
+
+[Service]
+Type=simple
+User=pitv
+Group=pitv
+SupplementaryGroups=video render input audio
+Environment=HOME=/home/pitv
+Environment=USER=pitv
+Environment=LOGNAME=pitv
+ExecStart=/usr/local/libexec/pitv-android-warm
+Restart=on-failure
+RestartSec=2
+StartLimitIntervalSec=0
+TimeoutStopSec=20
+
+[Install]
+WantedBy=pitv.target
