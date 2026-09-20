@@ -8,6 +8,8 @@ STAGE="${1:?verified staged payload required}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 python3 "$SCRIPT_DIR/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/check-codec2-payload-contract.py" "$STAGE" >/dev/null
+python3 "$SCRIPT_DIR/inventory-codec2-payload.py" "$STAGE" >/dev/null
+python3 "$SCRIPT_DIR/make-codec2-rollback-manifest.py" "$STAGE" >/dev/null
 command -v waydroid >/dev/null
 command -v mount >/dev/null
 command -v umount >/dev/null
@@ -79,6 +81,8 @@ fail(){ echo "Codec2 overlay failed: $*" >&2; restore; RESTORE=0; exit 20; }
 mount -o loop,ro "$SYSTEM" "$SYS_MNT"
 mount -o loop,ro "$VENDOR" "$CUR_VENDOR_MNT"
 preflight_mounted=1
+python3 "$SCRIPT_DIR/preflight-codec2-overlay.py" "$STAGE" "$CUR_VENDOR_MNT" >/dev/null
+python3 "$SCRIPT_DIR/plan-codec2-backup.py" "$STAGE" >/dev/null
 python3 "$SCRIPT_DIR/audit-codec2-payload-deps.py" "$STAGE" "$SYS_MNT" "$CUR_VENDOR_MNT" || {
   echo "ELF dependency closure is incompatible with current Waydroid" >&2
   exit 10
