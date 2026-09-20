@@ -35,15 +35,18 @@
     {
       "id": "stremio",
       "name": "Stremio",
-      "description": "Oficiální Stremio klient pro Linux. PiTV preferuje nativní Linux aplikaci.",
+      "description": "Oficiální Stremio pro Android TV. PiTV vždy vybere aktuální ARM64 APK z oficiální stránky Stremia.",
       "category": "Media",
-      "platform": "linux",
+      "platform": "android",
       "icon": "STR",
       "featured": true,
-      "source_label": "Official Stremio / Flathub",
+      "source_label": "Official Stremio",
+      "requires": "waydroid",
       "installer": {
-        "type": "flatpak",
-        "app_id": "com.stremio.Stremio"
+        "type": "stremio_tv_apk",
+        "source_page": "https://www.stremio.com/downloads",
+        "expected_package": "com.stremio.one",
+        "expected_abi": "arm64-v8a"
       }
     },
     {
