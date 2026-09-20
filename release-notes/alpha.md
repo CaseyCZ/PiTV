@@ -15,6 +15,14 @@
 - kompatibilní příkaz `sudo systemctl restart pitv-launcher` zůstává, ale nově restartuje celý `pitv-shell.service`
 - Android warm runtime je oddělený do `pitv-android-warm.service`; Home obrazovka není jeho rodič ani na něj při startu nečeká
 - při restartu/recovery shellu systemd Android warm službu znovu obnoví; launcher už nevytváří vlastní background warmer proces
+- **ovladač je nově systémová vrstva pod launcherem**: `pitv-inputd.service` čte kernel HDMI‑CEC a vytváří přes Linux `uinput` jedno virtuální zařízení **PiTV TV Remote**
+- šipky, OK, krátké Zpět a Play/Pause už PiTV 1.5 nepřeposílá přes `wtype` ani Android `input keyevent`; labwc doručí stejný vstup přímo právě fokusované PiTV/Kodi/Stremio/Cage ploše
+- raw + decoded CEC řádky jednoho fyzického stisku jsou deduplikované; jeden krátký stisk znamená jeden krok a držená šipka začne opakovat až po řízené prodlevě
+- CEC Home/menu je globální F13 appliance akce: compositor okamžitě ukáže PiTV a launcher uloží foreground aplikaci jako pozastavenou
+- 3s držení Zpět je globální F14 appliance escape: funguje i když focus vlastní Kodi nebo Android, vrátí PiTV a ukončí foreground aplikaci; krátké Zpět zůstává aplikaci
+- input služba přežívá restart launcheru/compositoru, sama se připojuje po HDMI/CEC změně a publikuje skutečně použitý adaptér v `/run/pitv/cec-device`; stejné zařízení pak používají i Power/Active Source/Volume CEC příkazy
+- Nastavení HDMI/CEC přímo ukazuje systémový TV input a aktivní `/dev/cecN`, případně stav čekání na HDMI‑CEC
+- `uinput` se načítá při bootu a 1.5 installer zachovává uživatelovu volbu HDMI‑CEC Zapnuto/Vypnuto; starý launcherový CECReader zůstává jen jako kompatibilní fallback pro před-1.5 instalaci
 - technický kontrakt projektu je v `docs/tv-appliance-contract.md`; priorita je input/focus → rychlost aplikací → fullscreen/session → playback → Store → vzhled
 
 ### PiTV 1.4.31 · TV-appliance runtime: rychlé aplikace, focus a globální stav
