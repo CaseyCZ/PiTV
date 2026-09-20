@@ -2,8 +2,10 @@
 set -euo pipefail
 # Prepare a rollback-safe staging area only. This does NOT mount, modify, or
 # restart Waydroid. A later installer must consume this staged package.
-PAYLOAD="${1:?payload directory required}"
-STATE="${2:-/var/lib/pitv/codec2-experiment}"
+PAYLOAD="$(readlink -f "${1:?payload directory required}")"
+STATE="$(readlink -m "${2:-/var/lib/pitv/codec2-experiment}")"
+[ -d "$PAYLOAD" ] || { echo "payload missing" >&2; exit 2; }
+[ "$STATE" != "/" ] && [ "$STATE" != "$PAYLOAD" ] || { echo "unsafe staging state" >&2; exit 2; }
 test -f "$PAYLOAD/PITV-CODEC2-PAYLOAD.txt"
 test -f "$PAYLOAD/PITV-CODEC2-SHA256.json"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -12,10 +14,14 @@ python3 "$HERE/enforce-codec2-payload-scope.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/check-codec2-manifest-closure.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/check-codec2-payload-size.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/codec2-payload-readiness.py" "$PAYLOAD" >/dev/null
+python3 "$HERE/check-codec2-payload-contract.py" "$PAYLOAD" >/dev/null
+python3 "$HERE/check-codec2-service-metadata.py" "$PAYLOAD" >/dev/null
 python3 "$HERE/verify-codec2-metadata.py" "$PAYLOAD" >/dev/null
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 dest="$STATE/staged/$stamp"
-mkdir -p "$dest"
+mkdir -p "$STATE/staged"
+[ ! -e "$dest" ] || dest="$STATE/staged/${stamp}-$"
+mkdir "$dest"
 cp -a "$PAYLOAD/." "$dest/"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 python3 "$HERE/verify-staged-codec2-payload.py" "$dest" >/dev/null
