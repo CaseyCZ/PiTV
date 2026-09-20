@@ -290,11 +290,18 @@ if [ "$MODE" = "client" ]; then
   while true; do
     if printf '{}' |
         sudo -n /usr/local/libexec/pitv-helper waydroid-ready           >/dev/null 2>&1; then
+      if [ "$READY_MISSES" -gt 0 ]; then
+        log "Android readiness recovered after $READY_MISSES transient misses"
+      fi
       READY_MISSES=0
     else
       READY_MISSES=$((READY_MISSES + 1))
-      if [ "$READY_MISSES" -ge 3 ]; then
-        log "hidden Android TV runtime lost; systemd will restart warm service"
+      # Binder/PackageManager can briefly disappear while Android services
+      # settle. Three 2-second misses physically caused PiTV to tear down an
+      # otherwise healthy Pi 4 runtime. Require a sustained outage instead.
+      log "Android readiness transient miss $READY_MISSES/10"
+      if [ "$READY_MISSES" -ge 10 ]; then
+        log "hidden Android TV runtime unavailable persistently; systemd will restart warm service"
         exit 18
       fi
     fi
