@@ -45,6 +45,9 @@ jobs:
           bash -n /usr/local/libexec/pitv-install-waydroid
           test -f /etc/pitv/store/catalog.json
           test -f /etc/pitv/store/server_catalog.json
+          test -x /usr/local/bin/pitv-kodi-launch
+          test -x /usr/local/bin/pitv-waydroid-launch
+          grep -q '/usr/local/bin/pitv-kodi-launch' /etc/pitv/apps.d/kodi.json
           id pitv
           sudo visudo -cf /etc/sudoers.d/pitv-power
           dpkg -s python3-pygame labwc cage wtype cec-utils alsa-utils pulseaudio-utils aapt apktool >/dev/null
