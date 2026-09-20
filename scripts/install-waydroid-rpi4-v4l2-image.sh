@@ -42,6 +42,24 @@ command -v xz >/dev/null 2>&1 || {
   exit 4
 }
 
+# This vendor is built for LineageOS 20 / Android 13.  If the current Android
+# session is available, refuse a cross-major vendor swap instead of relying on
+# VNDK luck.  A stopped session is allowed; the image validation below remains
+# authoritative after re-init.
+CURRENT_ANDROID_RELEASE="$(
+  printf '%s\n' 'getprop ro.build.version.release' |
+    waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true
+)"
+if [ -n "$CURRENT_ANDROID_RELEASE" ] && [ "$CURRENT_ANDROID_RELEASE" != "13" ]; then
+  echo "PiTV V4L2 vendor targets Android 13; current Waydroid is Android $CURRENT_ANDROID_RELEASE." >&2
+  exit 4
+fi
+
+if ! compgen -G '/dev/video*' >/dev/null; then
+  echo "No host /dev/video* V4L2 devices were found; hardware decode cannot work." >&2
+  exit 4
+fi
+
 STATE="/var/lib/pitv"
 BACKUP_ROOT="$STATE/waydroid-image-backups"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
