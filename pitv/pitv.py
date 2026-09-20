@@ -4497,9 +4497,11 @@ class PiTV:
         app = app or {}
         kind = kind or app.get("kind", "linux")
         if kind == "apk":
-            # Android itself is the multitasking runtime. All APKs share the
-            # same persistent Cage/Waydroid slot.
-            return "android"
+            # The OS runtime is shared, but each Android TV application is a
+            # distinct task. This lets PiTV suspend/resume SmartTube and
+            # another APK independently without reusing the wrong wrapper.
+            package = str(app.get("package", "") or "").strip()
+            return "android:" + (package or "ui")
         command = str(app.get("command", "") or "")
         name = str(app.get("name", "") or "").lower()
         if command.strip() == "kodi" or "pitv-kodi-addon" in command or "kodi" in name or "plex" in name:
@@ -4514,7 +4516,7 @@ class PiTV:
             return "Kodi"
         if key == "stremio":
             return "Stremio"
-        if key == "android":
+        if key.startswith("android:"):
             return "Android"
         return "Apps"
 
@@ -4566,7 +4568,7 @@ class PiTV:
                 return "com.stremio.Stremio" in (p.stdout or "")
             except Exception:
                 return False
-        if key == "android":
+        if key.startswith("android:"):
             package = str(app.get("package", "") or "").strip()
             if package:
                 try:
