@@ -1,5 +1,16 @@
 # PiTV Alpha
 
+### PiTV 1.4.26 · uzavření runtime oprav před fyzickým testem
+- **3 s podržení Zpět je univerzální ukončení aplikace** i na starých TV bez Home; krátké Zpět zůstává normální Back uvnitř aplikace
+- CEC long-press nově funguje i na televizích, které při držení tlačítka posílají opakované dvojice Press/Release místo jednoho dlouhého Press
+- každý návrat z Kodi, Linux Stremia i Android/Waydroidu používá jednu deterministickou cestu zpět na pracovní plochu PiTV; platí to i pro normální ukončení aplikace bez nouzového gesta
+- po návratu do launcheru PiTV znovu otevře jediný kernel CEC monitor, zaregistruje se a znovu oznámí Active Source; tím se opravuje stav, kdy CEC fungovalo po rebootu a později po přechodu aplikací přestalo reagovat
+- známé staré Android instalace z vlastních historických PiTV katalogů se jednorázově migračně odstraní: `com.stremio.one` a starý Android Plex `com.plexapp.android`; cizí uživatelské Android balíčky se nemažou
+- staré Store receipts těchto Android variant se také vyčistí, takže se po refreshi nevracejí do stavu „nainstalováno“
+- zachovány jsou opravy z 1.4.20–1.4.25: odinstalace aplikací, glass UI, Kodi-style seznamové Nastavení, Cage fullscreen Waydroid, root-safe Android DPAD relay a persistentní Kodi lifecycle wrapper
+- tato verze už nemá žádnou další plánovanou softwarovou opravu z incidentů 2026-09-19/20; další krok je **fyzický regresní test na Raspberry Pi 4**
+
+
 ### PiTV 1.4.25 · univerzální ukončení aplikace + Kodi lifecycle
 - krátké Zpět zůstává běžné Back uvnitř aplikace; **podržení Zpět 3 s aplikaci skutečně ukončí a vrátí PiTV launcher**
 - funkce není závislá na Home tlačítku; Home zůstává pouze volitelné pozastavení/multitasking pro ovladače, které ho mají
