@@ -129,6 +129,8 @@ done
 [ "$ready" -eq 1 ] || fail "Android boot timeout"
 release="$(printf 'getprop ro.build.version.release\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
 [ "$release" = 13 ] || fail "expected Android 13, got $release"
+instances="$(printf 'getprop ro.vendor.v4l2_codec2.decode_concurrent_instances\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
+[ "$instances" = 4 ] || fail "V4L2 Codec2 vendor properties not active"
 media="$(printf 'ls -1 /dev/media* 2>/dev/null\n' | waydroid shell 2>/dev/null || true)"
 printf '%s\n' "$media" | grep -q '/dev/media' || fail "/dev/media not visible in Android"
 dump="$(printf 'dumpsys media.codec\n' | waydroid shell 2>/dev/null || true)"
