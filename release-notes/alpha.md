@@ -1,6 +1,11 @@
 # PiTV Alpha
 
 ### PiTV 1.4.30 · jednotné Nastavení a jednoduché „Aktualizovat vše“
+- **Nastavení je OK-only**: ↑/↓ slouží jen k pohybu, OK otevře nabídku/provede akci a Back se vrací; pravá šipka už v Nastavení nespouští skryté funkce
+- vizuální chevrony „›“ byly z Nastavení odstraněny a nahrazeny jasným označením **OK**
+- **Aplikace** mají pevné menu: PiTV Store, Zobrazení aplikací, Odinstalovat aplikaci a Obnovit seznam
+- **Zobrazení aplikací** nejdřív otevře seznam aplikací a po výběru druhý seznam Zobrazit na ploše / Skrýt z plochy
+- **Odinstalovat aplikaci** má vlastní seznam bezpečně odinstalovatelných Linux i APK aplikací a až po výběru zobrazí potvrzení; odinstalace už není schovaná na pravé šipce
 - všechny sekce otevřené z **Nastavení** používají stejný TV/Kodi-style model jako Vzhled: seznam kategorií vlevo, položky uprostřed a vysvětlení vybrané volby vpravo
 - sjednocení platí pro Spořič, Síť, Zvuk, HDMI/CEC, Aplikace, Server Store, Android/APK, Aktualizace, Systém, Napájení i O PiTV; sdílené top-level stránky si při otevření ze sidebaru zachovávají svůj plnohodnotný layout
 - Wi‑Fi už se po OK nepřepíná naslepo; otevře viditelnou nabídku **Zapnuto / Vypnuto**
