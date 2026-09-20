@@ -181,8 +181,8 @@ jobs:
           test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
           grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
           grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
-          grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
-          ! grep -q '^sleep 2$' system/pitv-android-warm
+          grep -q 'starts on demand' system/pitv-android-warm
+          ! grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
           grep -q 'def _android_runtime_ready(self)' pitv/pitv.py
           grep -q 'pid = int(raw)' pitv/pitv.py
           grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
@@ -199,11 +199,14 @@ jobs:
           assert '"container", "stop"' not in block
           wrapper = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
           warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
-          warm = warm.split('MODE="command"', 1)[0]
-          assert 'waydroid session stop' not in warm
+          warm = warm.split('fi', 1)[0]
+          assert 'exit 0' in warm
           assert 'waydroid session start' in wrapper
+          assert 'starting on-demand Android runtime for:' in wrapper
           client = wrapper.split('if [ "$MODE" = "client" ]; then', 2)[2]
-          client = client.split('# From here we are a lightweight app command', 1)[0]
+          client = client.split('# From here the Cage client owns', 1)[0]
+          assert 'waydroid session stop' in client
+          assert 'waydroid-container-stop' in client
           assert 'waydroid show-full-ui' not in client
           assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
           assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
@@ -213,7 +216,8 @@ jobs:
           assert 'waydroid app install "$APK"' in launch
           assert 'start_package "$TARGET"' in launch
           assert 'wait_package_visible "$TARGET"' in launch
-          print("PiTV 1.5 warm lifecycle OK")
+          assert wrapper.index('waydroid app launch "$package"') < wrapper.index('waydroid-app-launch')
+          print("PiTV 1.5 on-demand Android lifecycle OK")
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
           grep -q 'waydroid-app-visible' system/pitv-helper
