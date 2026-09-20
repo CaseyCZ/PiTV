@@ -129,6 +129,10 @@ install -m 0755 system/pitv-self-update /usr/local/libexec/pitv-self-update
 # the Kodi-supported appliance defaults on every PiTV update when Kodi already
 # exists; future Store installs do the same inside pitv-helper apt-install.
 if command -v kodi >/dev/null 2>&1; then
+  # Existing PiTV devices may already have Kodi but not kodi-send (confirmed
+  # on the physical Pi 4). Bring upgraded devices to the same contract as a
+  # fresh Store install before the next physical regression test.
+  apt_run install -y kodi-eventclients-kodi-send
   echo '{}' | /usr/local/libexec/pitv-helper kodi-appliance-defaults
 fi
 cat >/usr/local/libexec/pitv-cec-monitor <<'EOF'
