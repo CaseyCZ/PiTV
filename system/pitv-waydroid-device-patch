@@ -13,10 +13,12 @@ The patch is deliberately tiny, idempotent and reversible:
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
 REMOVE = "--remove" in sys.argv[1:]
+SELF_TEST = "--self-test" in sys.argv[1:]
 
 
 def find_file(suffix):
@@ -94,6 +96,45 @@ mgr_patched = (
     '        perm_list.extend(glob.glob("/dev/video*"))\n'
     '        perm_list.extend(glob.glob("/dev/media*"))\n'
 )
+
+if SELF_TEST:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        lxc_test = root / "lxc.py"
+        mgr_test = root / "container_manager.py"
+        lxc_test.write_text("before\n" + lxc_plain + "after\n", encoding="utf-8")
+        mgr_test.write_text("before\n" + mgr_plain + "after\n", encoding="utf-8")
+
+        assert add_once(lxc_test, lxc_plain, lxc_patched) == (True, True)
+        assert add_once(mgr_test, mgr_plain, mgr_patched) == (True, True)
+        assert lxc_test.read_text(encoding="utf-8").count("/dev/media*") == 1
+        assert mgr_test.read_text(encoding="utf-8").count("/dev/media*") == 1
+
+        # Idempotent add must not duplicate the media-node entries.
+        assert add_once(lxc_test, lxc_plain, lxc_patched) == (True, False)
+        assert add_once(mgr_test, mgr_plain, mgr_patched) == (True, False)
+
+        # Removal must actually reverse PiTV's exact injected block.
+        assert remove_once(lxc_test, lxc_patched, lxc_plain) == (True, True)
+        assert remove_once(mgr_test, mgr_patched, mgr_plain) == (True, True)
+        assert "/dev/media*" not in lxc_test.read_text(encoding="utf-8")
+        assert "/dev/media*" not in mgr_test.read_text(encoding="utf-8")
+
+        # Future native upstream support must be left intact rather than
+        # duplicated or removed by PiTV.
+        native = (
+            lxc_plain
+            + '    for n in glob.glob("/dev/media*"):\n'
+            + '        make_entry(n)\n'
+            + '    # upstream-owned\n'
+        )
+        lxc_test.write_text(native, encoding="utf-8")
+        assert add_once(lxc_test, lxc_plain, lxc_patched) == (True, False)
+        assert remove_once(lxc_test, lxc_patched, lxc_plain) == (True, False)
+        assert lxc_test.read_text(encoding="utf-8") == native
+
+    print("PiTV Waydroid /dev/media* patch self-test OK")
+    raise SystemExit(0)
 
 strict = os.environ.get("PITV_WAYDROID_PATCH_STRICT") == "1"
 lxc = find_file("tools/helpers/lxc.py")
