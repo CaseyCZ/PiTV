@@ -3071,10 +3071,18 @@ class PiTV:
     ]
 
     def cec_rows(self):
+        if self.cfg.get("cec_enabled", True):
+            cec_state = (
+                "Zapnuto · systémový TV input"
+                if system_input_managed()
+                else "Zapnuto · kompatibilní režim"
+            )
+        else:
+            cec_state = "Vypnuto"
         return [
             (
                 "HDMI‑CEC ovládání",
-                "Zapnuto" if self.cfg.get("cec_enabled", True) else "Vypnuto",
+                cec_state,
             ),
             (
                 "Probudit TV při startu",
@@ -3144,7 +3152,7 @@ class PiTV:
             settings_index=4,
             info_lines=[
                 "Tady se ovládá televize přes HDMI‑CEC.",
-                "Ovladač PiTV používá stejný CEC adaptér.",
+                "Ovladač běží jako systémová TV input služba pod aplikacemi.",
                 "Power, Active Source i hlasitost jsou samostatné akce.",
             ],
         )
