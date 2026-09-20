@@ -50,6 +50,9 @@ jobs:
           grep -q 'pitv-kodi-launch' config/apps.d/kodi.json
           grep -q 'system/pitv-kodi-launch /usr/local/bin/pitv-kodi-launch' install.sh
           grep -q 'waydroid-app-uninstall' system/pitv-helper
+          grep -q 'waydroid-clean-legacy' system/pitv-helper
+          grep -q 'com.stremio.one' system/pitv-helper
+          grep -q 'com.plexapp.android' system/pitv-helper
           grep -q 'waydroid-keyevent' system/pitv-helper
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
           grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
@@ -117,7 +120,7 @@ jobs:
           import time
           import pygame
           from queue import Queue
-          from pitv import CECReader, PiTV, VERSION
+          from pitv import CECReader, LEGACY_ANDROID_PACKAGES, PiTV, VERSION
 
           # Regression: cec-ctl prints USER_CONTROL_PRESSED and ui-cmd on
           # separate lines. OK/Back must survive both decoded and raw formats.
@@ -130,17 +133,24 @@ jobs:
           cec._handle_monitor_line("> 01:44:0d\n")
           assert q.get_nowait() == pygame.K_ESCAPE
 
-          # Back long-hold is global PiTV escape. The first Back is delivered,
-          # repeats are suppressed, and release clears the hold timer.
+          # Back long-hold is global PiTV escape. The first Back is delivered
+          # once. Older TVs can repeat press/release pairs while the button is
+          # held, so gesture duration must survive a short release gap.
           cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
           cec._handle_monitor_line("> 01:44:0d\n")
           assert q.get_nowait() == pygame.K_ESCAPE
+          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+          assert cec.gesture_key == pygame.K_ESCAPE
+          cec.gesture_started_at = time.monotonic() - 3.1
+          cec.gesture_last_seen_at = time.monotonic()
           cec._handle_monitor_line("> 01:44:0d\n")
           assert q.empty()
-          cec.press_started_at = time.monotonic() - 3.1
           assert cec.held_for(pygame.K_ESCAPE) >= 3.0
-          cec._handle_monitor_line("USER_CONTROL_RELEASED (0x45)\n")
+          cec.clear_key_state()
           assert cec.held_for(pygame.K_ESCAPE) == 0.0
+
+          assert "com.stremio.one" in LEGACY_ANDROID_PACKAGES
+          assert "com.plexapp.android" in LEGACY_ANDROID_PACKAGES
 
           # Sencor/other TVs may expose the Home key as any CEC menu command.
           for raw_home in ("0a", "0c", "11"):
@@ -163,6 +173,13 @@ jobs:
           assert app.page == "home"
           assert demo_key in app.background_tasks
           app.background_tasks.clear()
+
+          # Every app exit converges on the same visible PiTV workspace.
+          app.cfg["cec_enabled"] = False
+          app.page = "settings"
+          app._return_to_launcher("test", refresh_cec=False)
+          assert app.page == "home"
+          assert not app.sidebar_focus
 
           app.external_kind = "linux"
           app.external_app = dict(demo_app)
