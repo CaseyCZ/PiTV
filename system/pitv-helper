@@ -583,6 +583,37 @@ elif action == "waydroid-user-ready":
         out("ready")
     out(value or "Android user 0 ještě není odemčený", 4)
 
+elif action == "waydroid-diagnostics":
+    package = str(payload.get("package", "")).strip()
+    if package and not re.fullmatch(
+            r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+        out("Neplatný Android package ID", 2)
+
+    sections = []
+    def capture(title, args, timeout=15):
+        try:
+            p = subprocess.run(
+                args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, timeout=timeout, check=False,
+            )
+            body = (p.stdout or "").strip()
+            sections.append(f"=== {title} rc={p.returncode} ===\n{body}")
+        except Exception as e:
+            sections.append(f"=== {title} ===\n{type(e).__name__}: {e}")
+
+    capture("STATUS", ["waydroid", "status"], 10)
+    capture("BOOT", ["waydroid", "shell", "getprop", "sys.boot_completed"], 10)
+    capture("USER0", ["waydroid", "shell", "cmd", "user", "is-user-unlocked", "0"], 10)
+    capture("ACTIVE_APPS", ["waydroid", "shell", "getprop", "waydroid.active_apps"], 10)
+    capture("MULTI_WINDOWS", ["waydroid", "shell", "getprop", "persist.waydroid.multi_windows"], 10)
+    capture("TOP", ["waydroid", "shell", "dumpsys", "activity", "top"], 15)
+    if package:
+        capture("PACKAGE", ["waydroid", "shell", "pm", "path", package], 15)
+        capture("PID", ["waydroid", "shell", "pidof", package], 10)
+    capture("LOGCAT", ["waydroid", "shell", "logcat", "-d", "-t", "120"], 20)
+    print("\n".join(sections)[-24000:])
+    raise SystemExit(0)
+
 elif action == "waydroid-keyevent":
     # Upstream Waydroid requires "waydroid shell" to run as root. PiTV owns
     # the TV CEC adapter and relays only this small allowlist into Android.
