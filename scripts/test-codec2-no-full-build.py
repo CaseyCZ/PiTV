@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory() as td:
     run(py,str(repo/"scripts/validate-codec2-payload.py"),str(root))
     sums=json.loads((root/"PITV-CODEC2-SHA256.json").read_text())
     assert "vendor/lib64/libdemo.so" in sums
+    run(py,str(repo/"scripts/check-codec2-payload-contract.py"),str(root))
     run(py,str(repo/"scripts/make-codec2-rollback-manifest.py"),str(root))
     rb=json.loads((root/"PITV-CODEC2-ROLLBACK.json").read_text())
     assert rb["entries"][0]["target"]=="/vendor/lib64/libdemo.so"
