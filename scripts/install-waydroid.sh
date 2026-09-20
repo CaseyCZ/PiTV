@@ -114,6 +114,14 @@ if ! command -v waydroid >/dev/null 2>&1; then
   exit 1
 fi
 
+# Raspberry Pi 4 HEVC/rpivid requires Media Request API nodes (/dev/media*).
+# Waydroid currently exposes /dev/video* by default but not /dev/media*.
+# PiTV's small reversible patch adds those nodes before any Android container
+# is initialized or started.
+if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
+  PITV_WAYDROID_PATCH_STRICT=1 /usr/local/libexec/pitv-waydroid-device-patch
+fi
+
 if [ "${PITV_WAYDROID_SKIP_INIT:-0}" = "1" ]; then
   echo "Waydroid balíčky jsou nainstalované; inicializace byla přeskočena."
   exit 0
