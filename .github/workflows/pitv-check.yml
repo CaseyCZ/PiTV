@@ -60,12 +60,14 @@ jobs:
           mk = Path("android/waydroid-rpi4/pitv-rpi4-v4l2.mk").read_text()
           assert "android.hardware.media.c2@1.0-service-v4l2" in mk
           assert "android.hardware.media.c2@1.2-service-ffmpeg" in mk
-          assert "debug.stagefright.c2-poolmask=0x350000" in mk
-          assert "persist.v4l2_codec2.rank.decoder=128" in mk
-          assert "persist.ffmpeg_codec2.rank.video=256" in mk
-          assert "persist.ffmpeg_codec2.v4l2.h264=false" in mk
-          assert "persist.ffmpeg_codec2.v4l2.h265=true" in mk
-          assert "ro.vendor.v4l2_codec2.decode_concurrent_instances=4" in mk
+
+          vendor_prop = Path("android/waydroid-rpi4/vendor.prop").read_text()
+          assert "debug.stagefright.c2-poolmask=0x350000" in vendor_prop
+          assert "persist.v4l2_codec2.rank.decoder=128" in vendor_prop
+          assert "persist.ffmpeg_codec2.rank.video=256" in vendor_prop
+          assert "persist.ffmpeg_codec2.v4l2.h264=false" in vendor_prop
+          assert "persist.ffmpeg_codec2.v4l2.h265=true" in vendor_prop
+          assert "ro.vendor.v4l2_codec2.decode_concurrent_instances=4" in vendor_prop
 
           build = Path("scripts/build-waydroid-rpi4-v4l2.sh").read_text()
           assert "lineage_waydroid_arm64-userdebug" in build
@@ -78,6 +80,7 @@ jobs:
           assert "repo forall -c" in build
           assert "repo sync -c -d --force-sync" in build
           assert "checkout --detach FETCH_HEAD" in build
+          assert "TARGET_VENDOR_PROP += vendor/pitv/rpi4/vendor.prop" in build
           assert "rm -rf external/v4l2_codec2" not in build
 
           installer = Path("scripts/install-waydroid-rpi4-v4l2-image.sh").read_text()
