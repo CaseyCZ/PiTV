@@ -70,3 +70,4 @@ grep -q 'codec2.vendor.ext.policy' scripts/add-pitv-codec2-config-to-payload.sh
 grep -q 'dumpsys media.codec' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'c2.v4l2.avc.decoder' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'c2.ffmpeg.hevc.decoder' scripts/accept-codec2-overlay-runtime.sh
+grep -q 'vendor.prop.*pitv-codec2.prop' scripts/assemble-codec2-overlay.py
