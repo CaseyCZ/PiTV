@@ -116,10 +116,10 @@ Aplikace se instalují přímo z TV přes **Nastavení → Aplikace → PiTV Sto
 |---|---|
 | Kodi | Ubuntu APT |
 | SmartTube | ARM64 GitHub release |
-| Stremio | Android TV ARM64 APK |
+| Stremio | Linux Flatpak (`com.stremio.Stremio`) |
 | YouTube | Google Play / Waydroid |
 | Spotify | Google Play / Waydroid |
-| Plex | Google Play / Waydroid |
+| Plex | Kodi + PM4K (Linux) |
 
 U přímých APK PiTV kontroluje očekávané package ID před instalací.
 
@@ -194,7 +194,7 @@ Automatické testy ověřují:
 - PiTV Apple Dark / Light
 - Ubuntu 24.04 x64 i ARM64 install / start / update / uninstall
 - Kodi Store install
-- SmartTube + Stremio APK zdroje
+- SmartTube ARM64 APK zdroj + Linux Stremio Flatpak
 - Homebridge, Tailscale, Docker a ATVLoadly
 
 Na fyzickém Raspberry Pi 4 ještě ověřujeme zejména:
@@ -221,7 +221,7 @@ PiTV stojí na práci několika open-source projektů a služeb:
 - **Homebridge** — HomeKit bridge
 - **Tailscale** — mesh VPN
 - **Docker** — kontejnery
-- **SmartTube, Stremio, Plex, Spotify a YouTube** — aplikace dostupné přes PiTV Store / Android
+- **Stremio a Plex** — Linux aplikace / Kodi integrace; **SmartTube, Spotify a YouTube** — Android/Waydroid aplikace dostupné přes PiTV Store
 
 PiTV tyto projekty nevlastní a není jejich oficiální součástí. Jejich názvy a ochranné známky patří příslušným vlastníkům.
 
