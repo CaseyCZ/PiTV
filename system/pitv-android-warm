@@ -40,5 +40,6 @@ done
 }
 export WAYLAND_DISPLAY="$WAYLAND"
 
-sleep 2
+# The PiTV primary client has already published the visible compositor.
+# Start optional Android immediately; do not add artificial first-app latency.
 exec /usr/local/bin/pitv-waydroid-launch --warm
