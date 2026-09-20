@@ -245,7 +245,7 @@ elif action == "flatpak-uninstall":
 
 elif action == "waydroid-clean-legacy":
     if shutil.which("waydroid") is None:
-        out("Waydroid není nainstalovaný")
+        out("Waydroid není nainstalovaný", 2)
 
     status = subprocess.run(
         ["waydroid", "status"],
@@ -283,10 +283,16 @@ elif action == "waydroid-clean-legacy":
             if package not in installed:
                 continue
             p = subprocess.run(
-                ["waydroid", "shell", "pm", "uninstall", "--user", "0", package],
+                ["waydroid", "shell", "pm", "uninstall", package],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, timeout=120, check=False,
             )
+            if p.returncode != 0 or "failure" in (p.stdout or "").lower():
+                p = subprocess.run(
+                    ["waydroid", "shell", "pm", "uninstall", "--user", "0", package],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=120, check=False,
+                )
             if p.returncode != 0 or "failure" in (p.stdout or "").lower():
                 out(
                     (p.stdout or "").strip() or
