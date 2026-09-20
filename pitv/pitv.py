@@ -2614,7 +2614,7 @@ class PiTV:
                   nav.x, int(self.h*.922), self.h*.014, self.t["muted"])
 
     def draw_rows(self, title, subtitle, rows, selected=0, footer="",
-                  settings_index=None, info_lines=None):
+                  settings_index=None, info_lines=None, sidebar_active="settings"):
         """Draw a TV-friendly list.
 
         When a page was opened from Settings, every Settings section uses the
@@ -2720,7 +2720,7 @@ class PiTV:
                           self.h*.014, self.t["muted"])
             return
 
-        self.draw_sidebar("settings")
+        self.draw_sidebar(sidebar_active)
         self.header(title, subtitle)
         x = self.main_left()+int(self.w*.022)
         y0 = int(self.h*.165)
@@ -3656,6 +3656,7 @@ class PiTV:
                 "APK lze obnovit, spustit a bezpečně odinstalovat.",
                 "Google Play se instaluje společně s Waydroidem.",
             ],
+            sidebar_active="android",
         )
 
     def _installed_store_apt_packages(self):
