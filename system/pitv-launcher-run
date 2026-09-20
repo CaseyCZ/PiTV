@@ -12,19 +12,9 @@ export LOGNAME=pitv
 export PITV_SUPERVISED=1
 
 CHILD=""
-WARMER=""
 STOPPING=0
 
-stop_warmer() {
-  if [ -n "$WARMER" ] && kill -0 "$WARMER" 2>/dev/null; then
-    kill -TERM "$WARMER" 2>/dev/null || true
-    wait "$WARMER" 2>/dev/null || true
-  fi
-  WARMER=""
-}
-
 runtime_cleanup() {
-  stop_warmer
   if [ -x /usr/local/libexec/pitv-helper ]; then
     printf '{}' |
       sudo -n /usr/local/libexec/pitv-helper tv-runtime-reset         >/tmp/pitv-runtime-reset.log 2>&1 || true
@@ -48,19 +38,6 @@ shutdown_supervisor() {
 
 trap shutdown_supervisor TERM INT HUP
 
-start_android_warmer() {
-  command -v waydroid >/dev/null 2>&1 || return 0
-  [ -x /usr/local/bin/pitv-waydroid-launch ] || return 0
-
-  # Launcher availability always wins. Give PiTV a moment to paint Home, then
-  # boot the hidden Android TV runtime independently in the background.
-  (
-    sleep 2
-    exec /usr/local/bin/pitv-waydroid-launch --warm
-  ) >>/tmp/pitv-waydroid-warm.log 2>&1 &
-  WARMER=$!
-}
-
 # A launcher restart/crash must never reveal a stale Kodi/Waydroid/Stremio
 # surface underneath. Start from a known-clean TV runtime.
 runtime_cleanup
@@ -68,7 +45,6 @@ runtime_cleanup
 while [ "$STOPPING" -eq 0 ]; do
   /usr/bin/python3 /opt/pitv/pitv/pitv.py >>/tmp/pitv.log 2>&1 &
   CHILD=$!
-  start_android_warmer
 
   wait "$CHILD"
   RC=$?
