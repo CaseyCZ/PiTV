@@ -196,24 +196,14 @@ start_explicit_tv_activity() {
 
 start_package() {
   local package="$1"
-  # Primary path: use Waydroid's own application controller. Upstream handles
-  # active_apps and container unfreeze. Physical Pi 4 testing with SmartTube
-  # showed that this command can still return success while Android Home stays
-  # foreground and only the target process is created in background.
-  log "launching through official Waydroid app controller: $package"
-  set +e
-  timeout --signal=TERM --kill-after=5s 20s     waydroid app launch "$package" >>"$LOG" 2>&1
-  local rc=$?
-  set -e
-  if [ "$rc" -eq 0 ]; then
-    return 0
-  fi
-
-  if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
-    log "Waydroid app controller timed out rc=$rc; trying explicit TV activity: $package"
-  else
-    log "Waydroid app launch failed rc=$rc; trying explicit TV activity: $package"
-  fi
+  # Physical Pi 4 testing proved that `waydroid app launch` can either leave
+  # Android Home in front while only creating the SmartTube process, or wedge
+  # long enough for PiTV's 120 s application watchdog to tear the runtime down.
+  # Once this on-demand session has reached RUNNING_UNLOCKED there is nothing
+  # useful left for the desktop controller to prepare, so launch the resolved
+  # Android TV Activity directly and keep the whole operation bounded inside
+  # the privileged helper.
+  log "launching resolved Android TV Activity directly: $package"
   start_explicit_tv_activity "$package"
 }
 
@@ -550,18 +540,17 @@ else
   fi
 
   if ! wait_package_visible "$TARGET"; then
-    # The official Waydroid controller may return success after merely creating
-    # the app process while Android Home remains foreground. Repeating the same
-    # controller call cannot fix that state. Resolve LEANBACK_LAUNCHER (falling
-    # back to LAUNCHER) and explicitly start the resolved Activity instead.
-    log "official launch returned but Android Home is still foreground: $TARGET"
+    # The direct TV Activity already used the strongest deterministic launch
+    # path. Retry that same explicit intent once for slow first-run startup;
+    # never fall back to Waydroid's desktop app controller.
+    log "Android TV Activity not visible yet; retrying explicit launch: $TARGET"
     if ! start_explicit_tv_activity "$TARGET"; then
-      log "explicit Android TV Activity launch failed: $TARGET"
+      log "explicit Android TV Activity retry failed: $TARGET"
       diagnostics "$TARGET"
       exit 5
     fi
     if ! wait_package_visible "$TARGET"; then
-      log "application failed to create a visible TV surface after explicit Activity launch: $TARGET"
+      log "application failed to create a visible TV surface after explicit Activity retry: $TARGET"
       diagnostics "$TARGET"
       waydroid log >>"$LOG" 2>&1 || true
       exit 5
