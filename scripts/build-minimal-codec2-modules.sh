@@ -28,6 +28,8 @@ install_src ffmpeg_codec2 external/ffmpeg_codec2
 install_src libudev_zero external/libudev-zero
 
 cd "$TREE"
+# Android envsetup/lunch scripts are not guaranteed to be nounset-clean.
+set +u
 # shellcheck disable=SC1091
 source build/envsetup.sh
 lunch "${PITV_CODEC2_LUNCH:-lineage_waydroid_arm64-userdebug}"
