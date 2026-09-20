@@ -25,6 +25,7 @@ jobs:
             system/pitv-displayd \
             system/pitv-waydroid-device-patch
           python3 system/pitv-waydroid-device-patch --self-test
+          python3 -m py_compile scripts/probe-codec2-prebuilt.py scripts/collect-codec2-prebuilt.py
 
       - name: Shell syntax
         run: |
@@ -42,6 +43,8 @@ jobs:
           bash -n system/pitv-waydroid-launch
           bash -n scripts/build-waydroid-rpi4-v4l2.sh
           bash -n scripts/install-waydroid-rpi4-v4l2-image.sh
+          bash -n scripts/probe-waydroid-codec2-target.sh
+          bash scripts/check-codec2-no-full-build.sh
           python3 - <<'PYV4L2'
           import xml.etree.ElementTree as ET
           from pathlib import Path
