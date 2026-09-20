@@ -107,10 +107,10 @@ Full manual guide: **[INSTALL_EN.md](INSTALL_EN.md)**
 |---|---|
 | Kodi | Ubuntu APT |
 | SmartTube | ARM64 GitHub release |
-| Stremio | Android TV ARM64 APK |
+| Stremio | Linux Flatpak (`com.stremio.Stremio`) |
 | YouTube | Google Play / Waydroid |
 | Spotify | Google Play / Waydroid |
-| Plex | Google Play / Waydroid |
+| Plex | Kodi + PM4K (Linux) |
 
 PiTV validates the expected package ID for direct APK installs.
 
@@ -193,7 +193,7 @@ PiTV builds on the work of several open-source projects and services:
 - **Homebridge** — HomeKit bridge
 - **Tailscale** — mesh VPN
 - **Docker** — containers
-- **SmartTube, Stremio, Plex, Spotify and YouTube** — applications available through PiTV Store / Android
+- **Stremio and Plex** — Linux/Kodi paths; **SmartTube, Spotify and YouTube** — Android/Waydroid apps available through PiTV Store
 
 PiTV is not an official product of these projects. Product names and trademarks belong to their respective owners.
 
