@@ -1177,9 +1177,13 @@ class PiTV:
         # One ordered Android-TV input stream. Never spawn one independent
         # helper thread per D-pad press; ordering matters more than parallelism.
         self.android_key_queue = queue.Queue(maxsize=32)
-        threading.Thread(
-            target=self._android_key_worker, daemon=True
-        ).start()
+        if not system_input_managed():
+            # Legacy relay worker only. PiTV 1.5 sends navigation through the
+            # system virtual remote and Cage receives it as normal Wayland
+            # keyboard input.
+            threading.Thread(
+                target=self._android_key_worker, daemon=True
+            ).start()
         self._back_hold_triggered = False
         self._keyboard_back_down_at = 0.0
         self._cec_refreshing = False
@@ -5324,6 +5328,16 @@ class PiTV:
                 self.run_cec_action(cec_volume_down); return
             if key == PITV_KEY_MUTE:
                 self.run_cec_action(cec_mute); return
+
+            if system_input_managed():
+                # In PiTV 1.5 this branch is not the app-input path. The
+                # virtual Linux remote is delivered by labwc directly to the
+                # focused Kodi/Stremio/Cage surface. If PiTV receives a key
+                # while external state is still set, do not synthesize a
+                # second key and create a focus/echo loop.
+                return
+
+            # Pre-1.5 compatibility only.
             self.relay_to_external(key)
             return
 
