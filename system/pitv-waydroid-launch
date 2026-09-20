@@ -244,6 +244,61 @@ runtime_ready() {
   return 0
 }
 
+session_running() {
+  waydroid status 2>/dev/null |
+    grep -Eq '^Session:[[:space:]]*RUNNING[[:space:]]*$'
+}
+
+cleanup_stale_android_runtime() {
+  local stale=0
+
+  if pgrep -u pitv -f 'pitv-waydroid-launch --cage-client' >/dev/null 2>&1 ||
+     pgrep -u pitv -x cage >/dev/null 2>&1 ||
+     session_running; then
+    stale=1
+  fi
+  [ "$stale" -eq 1 ] || return 0
+
+  log "stale Android runtime detected before new Cage session; cleaning it first"
+
+  # Stop the stale Cage client before creating a new Waydroid session. Its
+  # EXIT trap gets the first chance to stop the old user session cleanly.
+  pkill -TERM -u pitv -f 'pitv-waydroid-launch --cage-client' >/dev/null 2>&1 || true
+  pkill -TERM -u pitv -x cage >/dev/null 2>&1 || true
+
+  for _ in $(seq 1 20); do
+    if ! pgrep -u pitv -f 'pitv-waydroid-launch --cage-client' >/dev/null 2>&1 &&
+       ! pgrep -u pitv -x cage >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.25
+  done
+
+  # A previously killed wrapper may not have executed its trap. Explicitly
+  # converge the global Waydroid user session to STOPPED before the new Cage
+  # binds Android to its own Wayland socket.
+  if session_running; then
+    timeout --signal=TERM --kill-after=5s 20s       waydroid session stop >>"$LOG" 2>&1 || true
+  fi
+
+  for _ in $(seq 1 40); do
+    session_running || break
+    sleep 0.25
+  done
+
+  pkill -KILL -u pitv -f 'pitv-waydroid-launch --cage-client' >/dev/null 2>&1 || true
+  pkill -KILL -u pitv -x cage >/dev/null 2>&1 || true
+
+  if session_running; then
+    log "stale Waydroid session could not be stopped safely"
+    return 1
+  fi
+
+  rm -f "$READY_FILE" "$RUNTIME_READY"
+  log "stale Android runtime cleaned; new Cage session may start"
+  return 0
+}
+
 if [ "$MODE" = "outer" ]; then
   if ! command -v cage >/dev/null 2>&1; then
     log "Cage kiosk compositor is not installed"
@@ -260,12 +315,36 @@ if [ "$MODE" = "outer" ]; then
     exit 0
   fi
 
+  # Exactly one PiTV Android runtime may own Waydroid/Cage at a time. The outer
+  # wrapper keeps fd 9 open while Cage runs, so a second launch cannot create
+  # the "Session is already running" race.
+  exec 9>"$WARM_LOCK"
+  if ! flock -n 9; then
+    log "another PiTV Android runtime already owns the session lock"
+    exit 17
+  fi
+
+  # Alpha #804 physical testing exposed a pre-existing on-demand wrapper that
+  # survived long enough for the next launch to see "Session is already
+  # running". Clean pre-lock/legacy leftovers before binding the new session to
+  # the current Cage Wayland socket.
+  if ! cleanup_stale_android_runtime; then
+    diagnostics "$TARGET"
+    exit 18
+  fi
+
   # One Android launch owns one nested Cage compositor and one Waydroid user
   # session. labwc maps Cage to Android with follow=no, so PiTV stays visible
   # until the requested package is actually confirmed on screen.
   rm -f "$READY_FILE" "$RUNTIME_READY"
   log "starting on-demand Android runtime for: $TARGET action=$ACTION"
-  exec env PITV_WAYDROID_ACTION="$ACTION"     cage -d -- "$0" --cage-client "$TARGET" "$APK"
+  # Keep this outer shell alive while Cage runs so fd 9 unquestionably retains
+  # the exclusive runtime lock for the complete Android TV lifecycle.
+  set +e
+  env PITV_WAYDROID_ACTION="$ACTION"     cage -d -- "$0" --cage-client "$TARGET" "$APK"
+  cage_rc=$?
+  set -e
+  exit "$cage_rc"
 fi
 
 if [ "$MODE" = "client" ]; then
@@ -298,6 +377,15 @@ if [ "$MODE" = "client" ]; then
     log "Waydroid container or PiTV Media bridge failed"
     waydroid log >>"$LOG" 2>&1 || true
     exit 10
+  fi
+
+  # At this point this Cage owns the exclusive PiTV Android lock. A RUNNING
+  # user session can therefore only be a stale leftover; never ask Waydroid to
+  # start a second session and then treat its immediate exit as an app failure.
+  if session_running; then
+    log "Waydroid session is still RUNNING after stale cleanup"
+    diagnostics "$TARGET"
+    exit 18
   fi
 
   waydroid session start >>"$LOG" 2>&1 &
