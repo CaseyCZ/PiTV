@@ -1246,6 +1246,17 @@ class PiTV:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def legacy_android_migration_ready(self):
+        """Gate Android launch until PiTV's own obsolete packages are cleaned."""
+        if not waydroid_available():
+            return True
+        marker = MIGRATION_DIR / "legacy-android-media-v1.done"
+        if marker.exists():
+            return True
+        self.migrate_legacy_android_async()
+        self.show_toast("Dokončuji odstranění starého Android Stremia…", 4)
+        return False
+
     @property
     def t(self):
         theme = self.cfg.get("theme", "apple_dark")
@@ -4124,6 +4135,8 @@ class PiTV:
     def launch_apk(self, app):
         if self._resume_existing_for_app(app, "apk"):
             return
+        if not self.legacy_android_migration_ready():
+            return
         if not waydroid_available():
             self.show_toast("Waydroid není nainstalovaný — viz Android / APK", 5)
             return
@@ -4544,6 +4557,8 @@ class PiTV:
                     self.android_selected = min(self.android_selected, len(self.android_items())-1)
                     self.show_toast("APK seznam obnoven")
                 elif self.android_selected == 5 and waydroid_available():
+                    if not self.legacy_android_migration_ready():
+                        return
                     try:
                         env = build_gui_env()
                         problem = gui_env_error(env)
