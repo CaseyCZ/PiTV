@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[ "$(id -un)" = "pitv" ] || exit 2
+command -v waydroid >/dev/null 2>&1 || exit 0
+[ -x /usr/local/bin/pitv-waydroid-launch ] || exit 0
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+
+RUNTIME="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="$RUNTIME"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+
+# LibreELEC-style service ordering: the TV shell is allowed to become visible
+# first. Android is an optional background runtime and must never delay Home.
+WAYLAND=""
+for _ in $(seq 1 300); do
+  [ -S "$RUNTIME/bus" ] || { sleep 0.1; continue; }
+  for socket in "$RUNTIME"/wayland-*; do
+    if [ -S "$socket" ]; then
+      WAYLAND="$(basename "$socket")"
+      break 2
+    fi
+  done
+  sleep 0.1
+done
+
+[ -n "$WAYLAND" ] || {
+  echo "PiTV Android warm: Wayland socket nenalezen." >&2
+  exit 3
+}
+export WAYLAND_DISPLAY="$WAYLAND"
+
+# Give Home priority over optional Android boot/GPU activity.
+sleep 2
+exec /usr/local/bin/pitv-waydroid-launch --warm
