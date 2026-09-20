@@ -165,3 +165,4 @@ grep -q 'metadata path escapes payload' scripts/verify-codec2-metadata.py
 grep -q 'init metadata missing exact service path' scripts/check-codec2-service-metadata.py
 grep -q 'check-codec2-service-metadata.py' scripts/prepare-codec2-from-donor.sh
 grep -q 'check-codec2-service-metadata.py' scripts/build-minimal-codec2-modules.sh
+grep -q 'v4l2_instances_property' scripts/accept-codec2-overlay-runtime.sh
