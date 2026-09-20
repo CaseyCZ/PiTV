@@ -57,4 +57,15 @@ with tempfile.TemporaryDirectory() as td:
     (root / "PITV-CODEC2-PAYLOAD.txt").write_text("../escape\n")
     run(py, str(repo / "scripts/validate-codec2-payload.py"), str(root), ok=False)
 
+with tempfile.TemporaryDirectory() as td:
+    payload=Path(td)/"payload"; payload.mkdir()
+    run("bash",str(repo/"scripts/add-pitv-codec2-config-to-payload.sh"),str(payload))
+    lines=(payload/"PITV-CODEC2-PAYLOAD.txt").read_text().splitlines()
+    assert "vendor/etc/media_codecs.xml" in lines
+    assert "vendor/etc/media_codecs_ffmpeg_c2.xml" in lines
+    assert "vendor/etc/pitv-codec2.prop" in lines
+    assert "vendor/etc/pitv-hwdecode.env" in lines
+    assert "vendor/etc/seccomp_policy/codec2.vendor.ext.policy" in lines
+    run(py,str(repo/"scripts/validate-codec2-payload.py"),str(payload))
+    run(py,str(repo/"scripts/check-codec2-payload-contract.py"),str(payload))
 print("Codec2 metadata self-tests OK")
