@@ -26,6 +26,7 @@ PY=(
  scripts/check-codec2-service-metadata.py
  scripts/check-codec2-manifest-closure.py
  scripts/verify-minimal-codec2-sources.py
+ scripts/check-codec2-xml-contract.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -47,6 +48,7 @@ SH=(
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
+python3 scripts/check-codec2-xml-contract.py >/dev/null
 for f in "${SH[@]}"; do bash -n "$f"; done
 grep -q 'never writes to Waydroid' scripts/probe-codec2-prebuilt.py
 grep -q 'No Waydroid files are changed' scripts/collect-codec2-prebuilt.py
