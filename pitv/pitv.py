@@ -22,7 +22,7 @@ from store_backend import (clear_android_receipts, download_direct_apk,
 from update_backend import is_newer, remote_pitv_version
 
 APP_NAME = "PiTV"
-VERSION = "1.4.23"
+VERSION = "1.4.24"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
@@ -1090,7 +1090,9 @@ class PiTV:
         self.external_proc = None
         self.external_kind = None
         self.external_app = None
+        self.external_task_key = None
         self.external_started_at = 0.0
+        self.background_tasks = {}
         self._relay_echo = {}
         self._back_hold_triggered = False
         self._keyboard_back_down_at = 0.0
@@ -3528,20 +3530,233 @@ class PiTV:
             except Exception:
                 self._relay_echo.pop(key, None)
 
+    def _task_key(self, app, kind=None):
+        app = app or {}
+        kind = kind or app.get("kind", "linux")
+        if kind == "apk":
+            # Android itself is the multitasking runtime. All APKs share the
+            # same persistent Cage/Waydroid slot.
+            return "android"
+        command = str(app.get("command", "") or "")
+        name = str(app.get("name", "") or "").lower()
+        if command.strip() == "kodi" or "pitv-kodi-addon" in command or "kodi" in name or "plex" in name:
+            return "kodi"
+        if "com.stremio.Stremio" in command or "stremio" in name:
+            return "stremio"
+        return "linux:" + (command or name or "app")
+
+    def _workspace_for_app(self, app, kind=None):
+        key = self._task_key(app, kind)
+        if key == "kodi":
+            return "Kodi"
+        if key == "stremio":
+            return "Stremio"
+        if key == "android":
+            return "Android"
+        return "Apps"
+
+    WORKSPACE_KEYS = {
+        "Apps": "F8",
+        "PiTV": "F9",
+        "Kodi": "F10",
+        "Stremio": "F11",
+        "Android": "F12",
+    }
+
+    def _switch_workspace(self, workspace):
+        key = self.WORKSPACE_KEYS.get(workspace)
+        if not key or not shutil.which("wtype"):
+            return False
+        try:
+            subprocess.Popen(
+                ["wtype", "-M", "logo", "-k", key, "-m", "logo"],
+                env=build_gui_env(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return True
+        except Exception:
+            return False
+
+    def _known_app_alive(self, task):
+        app = task.get("app") or {}
+        key = task.get("key") or self._task_key(app, task.get("kind"))
+        proc = task.get("proc")
+        if proc is not None and proc.poll() is None:
+            return True
+        if key == "kodi":
+            try:
+                return subprocess.run(
+                    ["pgrep", "-u", "pitv", "-x", "kodi.bin"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    check=False,
+                ).returncode == 0
+            except Exception:
+                return False
+        if key == "stremio":
+            try:
+                p = subprocess.run(
+                    ["flatpak", "ps", "--columns=application"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    text=True, timeout=3, check=False,
+                )
+                return "com.stremio.Stremio" in (p.stdout or "")
+            except Exception:
+                return False
+        if key == "android":
+            try:
+                p = subprocess.run(
+                    ["waydroid", "status"],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    text=True, timeout=3, check=False,
+                )
+                return bool(re.search(r"^Session:\s*RUNNING\s*$", p.stdout or "", re.M | re.I))
+            except Exception:
+                return False
+        return False
+
+    def _set_linux_suspended(self, task, suspend):
+        app = task.get("app") or {}
+        proc = task.get("proc")
+        sig = signal.SIGSTOP if suspend else signal.SIGCONT
+
+        if proc is not None and proc.poll() is None:
+            try:
+                os.killpg(os.getpgid(proc.pid), sig)
+            except Exception:
+                try:
+                    os.kill(proc.pid, sig)
+                except Exception:
+                    pass
+
+        # Kodi can re-parent kodi.bin outside the original wrapper/process
+        # group. Suspend/continue the real player too, preserving playback
+        # position without relying on a toggle-style Pause action.
+        if task.get("key") == "kodi":
+            flag = "-STOP" if suspend else "-CONT"
+            for proc_name in ("kodi.bin", "kodi"):
+                try:
+                    subprocess.run(
+                        ["pkill", flag, "-u", "pitv", "-x", proc_name],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        timeout=3, check=False,
+                    )
+                except Exception:
+                    pass
+
+    def _pause_android_media(self):
+        # KEYCODE_MEDIA_PAUSE is pause-only (unlike PLAY_PAUSE), so a movie
+        # that is already paused is never accidentally resumed when returning
+        # to the PiTV launcher.
+        def worker():
+            run_privileged("waydroid-keyevent", {"code": "127"}, 10)
+        threading.Thread(target=worker, daemon=True).start()
+
     def _register_external(self, proc, kind, app=None):
         self.external_proc = proc
         self.external_kind = kind
         self.external_app = dict(app or {})
+        self.external_task_key = self._task_key(self.external_app, kind)
         self.external_started_at = time.monotonic()
         self._back_hold_triggered = False
 
+    def _clear_external_state(self):
+        self.external_proc = None
+        self.external_kind = None
+        self.external_app = None
+        self.external_task_key = None
+        self.external_started_at = 0.0
+        self._pitv_focus_samples = 0
+        self._relay_echo.clear()
+        self._back_hold_triggered = False
+        self._keyboard_back_down_at = 0.0
+        if self.cec:
+            self.cec.clear_key_state()
+
+    def suspend_external(self):
+        """TV multitasking: pause/suspend the foreground app and show PiTV."""
+        if not self.external_kind:
+            return
+
+        task = {
+            "key": self.external_task_key or self._task_key(self.external_app, self.external_kind),
+            "proc": self.external_proc,
+            "kind": self.external_kind,
+            "app": dict(self.external_app or {}),
+            "workspace": self._workspace_for_app(self.external_app, self.external_kind),
+            "suspended_at": time.monotonic(),
+        }
+
+        if task["kind"] == "apk":
+            self._pause_android_media()
+        else:
+            self._set_linux_suspended(task, True)
+
+        self.background_tasks[task["key"]] = task
+        self._clear_external_state()
+        self.page = "home"
+        self.sidebar_focus = False
+        self.selected = 0
+        self._switch_workspace("PiTV")
+        self.show_toast("Aplikace pozastavena • PiTV", 2.2)
+
+    def _resume_task(self, task, requested_app=None):
+        if not task or not self._known_app_alive(task):
+            if task:
+                self.background_tasks.pop(task.get("key"), None)
+            return False
+
+        requested_app = dict(requested_app or task.get("app") or {})
+        kind = task.get("kind")
+        key = task.get("key")
+
+        if kind == "apk":
+            package = requested_app.get("package", "")
+            if package:
+                try:
+                    subprocess.Popen(
+                        ["waydroid", "app", "launch", package],
+                        env=build_gui_env(),
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    task["app"] = requested_app
+                except Exception:
+                    pass
+            # Do not send Play here. Returning to the app leaves media paused;
+            # playback resumes only when the user explicitly presses Play.
+        else:
+            self._set_linux_suspended(task, False)
+
+        self.background_tasks.pop(key, None)
+        self.external_proc = task.get("proc")
+        self.external_kind = kind
+        self.external_app = dict(task.get("app") or requested_app)
+        self.external_task_key = key
+        self.external_started_at = time.monotonic()
+        self._back_hold_triggered = False
+        self._switch_workspace(task.get("workspace") or self._workspace_for_app(self.external_app, kind))
+        self.show_toast("Pokračuji v aplikaci", 1.6)
+        return True
+
+    def _resume_existing_for_app(self, app, kind):
+        key = self._task_key(app, kind)
+        task = self.background_tasks.get(key)
+        return self._resume_task(task, app) if task else False
+
+    def _reap_background_tasks(self):
+        dead = []
+        for key, task in list(self.background_tasks.items()):
+            if not self._known_app_alive(task):
+                dead.append(key)
+        for key in dead:
+            self.background_tasks.pop(key, None)
+
     def _terminate_known_external(self, app, force=False):
-        """Stop detached media processes that can outlive their launch wrapper."""
+        """Explicit close path for app management / recovery, not normal Back."""
         command = str((app or {}).get("command", "") or "")
         name = str((app or {}).get("name", "") or "").lower()
 
-        # Kodi/Plex can re-parent kodi.bin to PID 1. A process-group signal to
-        # the original shell is therefore not sufficient on the physical Pi.
         if command.strip() == "kodi" or "pitv-kodi-addon" in command or "kodi" in name:
             sig = "-KILL" if force else "-TERM"
             for proc_name in ("kodi.bin", "kodi"):
@@ -3553,8 +3768,6 @@ class PiTV:
                 except Exception:
                     pass
 
-        # Native Stremio is a system Flatpak and can also outlive a shell
-        # wrapper. flatpak kill targets only this application.
         if "com.stremio.Stremio" in command:
             try:
                 subprocess.Popen(
@@ -3564,51 +3777,13 @@ class PiTV:
             except Exception:
                 pass
 
-    def _clear_external_state(self):
-        self.external_proc = None
-        self.external_kind = None
-        self.external_app = None
-        self.external_started_at = 0.0
-        self._pitv_focus_samples = 0
-        self._relay_echo.clear()
-        self._back_hold_triggered = False
-        self._keyboard_back_down_at = 0.0
-        if self.cec:
-            self.cec.clear_key_state()
-
     def _recover_external_focus(self):
-        proc = self.external_proc
-        kind = self.external_kind
-        app = self.external_app
-        self._clear_external_state()
-
-        # PiTV received a wtype echo, so its SDL window is active again and
-        # the external session marker is stale. Terminate the stale process
-        # group so it cannot steal future CEC input.
-        if proc and proc.poll() is None:
-            try:
-                os.killpg(os.getpgid(proc.pid), 15)
-            except Exception:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-
-        self._terminate_known_external(app, force=False)
-
-        if kind == "apk":
-            try:
-                subprocess.Popen(
-                    ["waydroid", "session", "stop"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except Exception:
-                pass
-
-        self.show_toast("Ovládání PiTV obnoveno", 2.0)
+        # If labwc unexpectedly returned focus to PiTV, treat it like the
+        # multitasking Back gesture instead of destroying the app.
+        self.suspend_external()
 
     def stop_external(self, force=False):
+        """Explicitly close the foreground task (used by management/recovery)."""
         proc = self.external_proc
         kind = self.external_kind
         app = self.external_app
@@ -3626,8 +3801,6 @@ class PiTV:
         self._terminate_known_external(app, force=force)
 
         if kind == "apk":
-            # A forced Back-hold can SIGKILL Cage/the wrapper, so always stop
-            # the Waydroid user session explicitly as the final cleanup.
             try:
                 subprocess.Popen(
                     ["waydroid", "session", "stop"],
@@ -3636,13 +3809,15 @@ class PiTV:
                 )
             except Exception:
                 pass
+            self.background_tasks.pop("android", None)
             self.apps = load_apps()
             self.refresh_store_async()
 
         self.page = "home"
         self.sidebar_focus = False
         self.selected = 0
-        self.show_toast("Návrat do PiTV", 2.0)
+        self._switch_workspace("PiTV")
+        self.show_toast("Aplikace ukončena", 2.0)
 
     def _check_global_back_hold(self):
         if not self.external_kind:
@@ -3658,7 +3833,7 @@ class PiTV:
 
         if held >= 3.0 and not self._back_hold_triggered:
             self._back_hold_triggered = True
-            self.stop_external(force=True)
+            self.suspend_external()
 
     def _watch_launch(self, proc, name, kind, log_path=None):
         def worker():
@@ -3684,6 +3859,8 @@ class PiTV:
         threading.Thread(target=worker, daemon=True).start()
 
     def launch_linux(self, app):
+        if self._resume_existing_for_app(app, "linux"):
+            return
         try:
             name = app.get("name", "Aplikace")
             env = build_gui_env()
@@ -3712,6 +3889,8 @@ class PiTV:
             self.show_toast(f"Nelze spustit: {e}", 4)
 
     def launch_apk(self, app):
+        if self._resume_existing_for_app(app, "apk"):
+            return
         if not waydroid_available():
             self.show_toast("Waydroid není nainstalovaný — viz Android / APK", 5)
             return
@@ -3847,11 +4026,12 @@ class PiTV:
 
         self.mark_activity()
 
-        # PiTV owns HDMI-CEC. While Kodi/Android is on top, relay navigation
-        # through Wayland. HOME always closes the foreground app and returns.
+        # PiTV owns HDMI-CEC. While an app is on top, short Back remains the
+        # app's Back. HOME (where available) and 3s Back perform the same TV
+        # multitasking action: pause/suspend and reveal PiTV without closing.
         if self.external_kind:
             if key == pygame.K_HOME:
-                self.stop_external()
+                self.suspend_external()
                 return
             if key in (PITV_KEY_VOLUMEUP, pygame.K_KP_PLUS):
                 self.run_cec_action(cec_volume_up); return
@@ -4285,6 +4465,7 @@ class PiTV:
                     self.handle_key(key)
 
             self._check_global_back_hold()
+            self._reap_background_tasks()
 
             if self.external_proc is not None and self.external_proc.poll() is not None:
                 finished_kind = self.external_kind
