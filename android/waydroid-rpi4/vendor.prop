@@ -6,6 +6,9 @@ persist.v4l2_codec2.rank.decoder=128
 ro.vendor.v4l2_codec2.decode_concurrent_instances=4
 
 # FFmpeg Codec2 / stateless rpivid HEVC
+# Keep FFmpeg audio below Android's normal audio codecs; PiTV installs this
+# service for the HEVC video Request-API path, not to replace audio decoding.
+persist.ffmpeg_codec2.rank.audio=4096
 persist.ffmpeg_codec2.rank.video=256
 persist.ffmpeg_codec2.v4l2.h264=false
 persist.ffmpeg_codec2.v4l2.h265=true
