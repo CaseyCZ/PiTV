@@ -4392,6 +4392,21 @@ class PiTV:
                 return False
         if key == "stremio":
             try:
+                active = subprocess.run(
+                    [
+                        "systemctl", "--user", "is-active", "--quiet",
+                        "pitv-stremio.service",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=3,
+                    check=False,
+                ).returncode == 0
+                if active:
+                    return True
+            except Exception:
+                pass
+            try:
                 p = subprocess.run(
                     ["flatpak", "ps", "--columns=application"],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -4436,6 +4451,23 @@ class PiTV:
                     os.kill(proc.pid, sig)
                 except Exception:
                     pass
+
+        if task.get("key") == "stremio":
+            try:
+                subprocess.run(
+                    [
+                        "systemctl", "--user", "kill",
+                        "--kill-whom=all",
+                        "--signal=" + ("STOP" if suspend else "CONT"),
+                        "pitv-stremio.service",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=4,
+                    check=False,
+                )
+            except Exception:
+                pass
 
         # Kodi can re-parent kodi.bin outside the original wrapper/process
         # group. Suspend/continue the real player too, preserving playback
@@ -4494,14 +4526,18 @@ class PiTV:
 
         if action == "home":
             if self.external_kind:
-                self.suspend_external()
+                self.suspend_external(workspace_already_switched=True)
             else:
-                self._return_to_launcher("Domů", refresh_cec=False)
+                self._return_to_launcher(
+                    "Domů", refresh_cec=False, switch_workspace=False
+                )
         elif action == "close":
             if self.external_kind:
-                self.stop_external()
+                self.stop_external(workspace_already_switched=True)
             else:
-                self._return_to_launcher("Domů", refresh_cec=False)
+                self._return_to_launcher(
+                    "Domů", refresh_cec=False, switch_workspace=False
+                )
         elif action == "display":
             # HDMI/EDID recovery repaired the compositor output in place.
             # Rebind SDL immediately when PiTV is visible; when another app is
@@ -4519,19 +4555,21 @@ class PiTV:
         # the Raspberry Pi as the active HDMI source.
         threading.Thread(target=cec_active_source, daemon=True).start()
 
-    def _return_to_launcher(self, message="PiTV", refresh_cec=True):
+    def _return_to_launcher(
+            self, message="PiTV", refresh_cec=True, switch_workspace=True):
         """One deterministic path back to the visible PiTV workspace."""
         self.page = "home"
         self.sidebar_focus = False
         self.selected = 0
-        self._switch_workspace("PiTV")
+        if switch_workspace:
+            self._switch_workspace("PiTV")
         self._repair_fullscreen(force=True)
         if refresh_cec:
             self._refresh_cec_after_return()
         if message:
             self.show_toast(message, 2.2)
 
-    def suspend_external(self):
+    def suspend_external(self, workspace_already_switched=False):
         """TV multitasking: pause/suspend the foreground app and show PiTV."""
         if not self.external_kind:
             return
@@ -4552,7 +4590,10 @@ class PiTV:
 
         self.background_tasks[task["key"]] = task
         self._clear_external_state()
-        self._return_to_launcher("Aplikace pozastavena • PiTV")
+        self._return_to_launcher(
+            "Aplikace pozastavena • PiTV",
+            switch_workspace=not workspace_already_switched,
+        )
 
     def _resume_task(self, task, requested_app=None):
         if not task or not self._known_app_alive(task):
@@ -4622,11 +4663,36 @@ class PiTV:
                 except Exception:
                     pass
 
-        if "com.stremio.Stremio" in command:
+        if "com.stremio.Stremio" in command or "stremio" in name:
             try:
-                subprocess.Popen(
+                if force:
+                    subprocess.run(
+                        [
+                            "systemctl", "--user", "kill",
+                            "--kill-whom=all", "--signal=KILL",
+                            "pitv-stremio.service",
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=4,
+                        check=False,
+                    )
+                subprocess.run(
+                    ["systemctl", "--user", "stop", "pitv-stremio.service"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=6,
+                    check=False,
+                )
+            except Exception:
+                pass
+            try:
+                subprocess.run(
                     ["flatpak", "kill", "com.stremio.Stremio"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                    check=False,
                 )
             except Exception:
                 pass
@@ -4637,7 +4703,7 @@ class PiTV:
         # that runtime instead of leaving a hidden/frozen process behind.
         self.stop_external()
 
-    def stop_external(self, force=False):
+    def stop_external(self, force=False, workspace_already_switched=False):
         """Close the foreground task and return immediately to the PiTV launcher.
 
         TV apps do not expose a consistent Quit action.  PiTV first asks the
@@ -4668,7 +4734,10 @@ class PiTV:
         # CEC is reopened immediately so the old TV remote never depends on
         # the foreground application's shutdown timing.
         self.set_operation("Ukončuji aplikaci…", 20)
-        self._return_to_launcher("Ukončuji aplikaci…")
+        self._return_to_launcher(
+            "Ukončuji aplikaci…",
+            switch_workspace=not workspace_already_switched,
+        )
 
         def worker():
             sig = signal.SIGKILL if force else signal.SIGTERM
