@@ -64,12 +64,15 @@ while queue:
         queue.append(matches[0])
 
 if out.exists(): shutil.rmtree(out)
+rels=[]
 for p in sorted(chosen):
     rel=p.relative_to(src)
+    # Android vendor executables are installed under bin/hw; keep that exact
+    # target path so init .rc and VINTF fragments remain valid.
     dest=out/rel; dest.parent.mkdir(parents=True,exist_ok=True)
-    shutil.copy2(p,dest)
+    shutil.copy2(p,dest); rels.append(str(rel))
 
 manifest=out/"PITV-CODEC2-PAYLOAD.txt"
-manifest.write_text("\n".join(str(p.relative_to(src)) for p in sorted(chosen))+"\n",encoding="utf-8")
+manifest.write_text("\n".join(rels)+"\n",encoding="utf-8")
 print(f"PAYLOAD_FILES={len(chosen)}")
 print(f"MANIFEST={manifest}")
