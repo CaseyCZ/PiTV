@@ -3672,6 +3672,19 @@ class PiTV:
                 pass
         return packages
 
+    def _installed_store_flatpak_ids(self):
+        app_ids = []
+        for item in self.store_catalog:
+            ins = item.get("installer", {})
+            if ins.get("type") != "flatpak":
+                continue
+            try:
+                if store_state(item) == "installed" and ins.get("app_id"):
+                    app_ids.append(ins.get("app_id"))
+            except Exception:
+                pass
+        return app_ids
+
     def update_status_items(self):
         if self.remote_pitv:
             pitv_value = (
@@ -3689,10 +3702,12 @@ class PiTV:
         installed_linux = []
         for item in self.store_catalog:
             ins = item.get("installer", {})
-            if ins.get("type") == "apt":
+            if ins.get("type") in ("apt", "flatpak"):
                 try:
                     if store_state(item) == "installed":
-                        installed_linux.append(item.get("name", ins.get("package", "")))
+                        installed_linux.append(
+                            item.get("name", ins.get("package") or ins.get("app_id", ""))
+                        )
                 except Exception:
                     pass
 
@@ -3825,7 +3840,7 @@ class PiTV:
             [
                 ("Pouze PiTV", "pitv"),
                 ("Pouze Store + Server katalog", "catalog"),
-                ("Pouze Linux Store aplikace", "linux"),
+                ("Pouze Store aplikace", "linux"),
                 ("Pouze Ubuntu", "ubuntu"),
             ],
             "",
@@ -3844,7 +3859,7 @@ class PiTV:
         elif action == "linux":
             self.open_confirm(
                 "Store aplikace",
-                "Aktualizovat nainstalované Linux aplikace z PiTV Store?",
+                "Aktualizovat nainstalované aplikace spravované PiTV Store?",
                 self.update_linux_store_apps_async,
             )
         elif action == "ubuntu":
@@ -3878,9 +3893,12 @@ class PiTV:
             self.server_store_catalog = load_server_catalog()
             self.store_states = {}
 
-            # 2) Update managed Linux Store apps when any are installed.
+            # 2) Update all PiTV-managed native Linux Store apps. Kodi is
+            # APT-managed while Stremio is system Flatpak; both belong under
+            # the same user-facing "Store aplikace" step.
             self.set_operation("2/4 · Aktualizuji Store aplikace…", 38)
             packages = self._installed_store_apt_packages()
+            flatpaks = self._installed_store_flatpak_ids()
             if packages:
                 ok, msg = run_privileged(
                     "apt-store-upgrade", {"packages": packages}, 1800
@@ -3888,6 +3906,14 @@ class PiTV:
                 if not ok:
                     fail("Store aplikace", msg)
                     return
+            if flatpaks:
+                ok, msg = run_privileged(
+                    "flatpak-store-upgrade", {"app_ids": flatpaks}, 1800
+                )
+                if not ok:
+                    fail("Store aplikace", msg)
+                    return
+            if packages or flatpaks:
                 self.apps = load_apps()
 
             # 3) Ubuntu packages. Refresh package metadata explicitly even
@@ -4001,18 +4027,10 @@ class PiTV:
     def update_linux_store_apps_async(self):
         if self.updates_busy:
             return
-        packages = []
-        for item in self.store_catalog:
-            ins = item.get("installer", {})
-            if ins.get("type") == "apt":
-                try:
-                    if store_state(item) == "installed":
-                        packages.append(ins.get("package",""))
-                except Exception:
-                    pass
-        packages = [p for p in packages if p]
-        if not packages:
-            self.show_toast("Žádné Linux Store aplikace k aktualizaci")
+        packages = self._installed_store_apt_packages()
+        flatpaks = self._installed_store_flatpak_ids()
+        if not packages and not flatpaks:
+            self.show_toast("Žádné Store aplikace k aktualizaci")
             return
 
         self.updates_busy = True
@@ -4020,11 +4038,29 @@ class PiTV:
         self.show_toast("Aktualizuji Store aplikace…", 4)
 
         def worker():
-            ok, msg = run_privileged("apt-store-upgrade", {"packages": packages}, 1800)
+            if packages:
+                ok, msg = run_privileged(
+                    "apt-store-upgrade", {"packages": packages}, 1800
+                )
+                if not ok:
+                    self.updates_busy = False
+                    self.finish_operation(msg, False)
+                    self.show_toast(msg, 6)
+                    return
+            if flatpaks:
+                ok, msg = run_privileged(
+                    "flatpak-store-upgrade", {"app_ids": flatpaks}, 1800
+                )
+                if not ok:
+                    self.updates_busy = False
+                    self.finish_operation(msg, False)
+                    self.show_toast(msg, 6)
+                    return
+
             self.updates_busy = False
             self.apps = load_apps()
-            self.finish_operation(msg, ok)
-            self.show_toast(msg, 5)
+            self.finish_operation("Store aplikace aktualizovány", True)
+            self.show_toast("Store aplikace aktualizovány", 5)
 
         threading.Thread(target=worker, daemon=True).start()
 
