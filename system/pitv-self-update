@@ -85,6 +85,7 @@ LIBEXEC_BIN = {
     "system/pitv-cec-control": "/usr/local/libexec/pitv-cec-control",
     "system/pitv-global-action": "/usr/local/libexec/pitv-global-action",
     "system/pitv-displayd": "/usr/local/libexec/pitv-displayd",
+    "system/pitv-waydroid-device-patch": "/usr/local/libexec/pitv-waydroid-device-patch",
 }
 SYSTEMD_FILES = {
     "system/pitv.target": "/etc/systemd/system/pitv.target",
@@ -92,6 +93,7 @@ SYSTEMD_FILES = {
     "system/pitv-android-warm.service": "/etc/systemd/system/pitv-android-warm.service",
     "system/pitv-inputd.service": "/etc/systemd/system/pitv-inputd.service",
     "system/pitv-displayd.service": "/etc/systemd/system/pitv-displayd.service",
+    "system/waydroid-container-pitv.conf": "/etc/systemd/system/waydroid-container.service.d/pitv-rpi4-media.conf",
 }
 
 
@@ -397,6 +399,11 @@ def updater_self_test():
     assert target[3] == {"android"}
     target = delta_target("system/pitv-shell.service")
     assert target[3] == {"daemon-reload", "shell"}
+    target = delta_target("system/pitv-waydroid-device-patch")
+    assert str(target[0]) == "/usr/local/libexec/pitv-waydroid-device-patch"
+    target = delta_target("system/waydroid-container-pitv.conf")
+    assert str(target[0]).endswith("waydroid-container.service.d/pitv-rpi4-media.conf")
+    assert target[3] == {"daemon-reload"}
     assert delta_target("scripts/build-waydroid-rpi4-v4l2.sh") is None
     assert delta_target("scripts/install-waydroid-rpi4-v4l2-image.sh") is None
     plan, restarts = build_delta_plan([

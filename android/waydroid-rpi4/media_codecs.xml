@@ -6,8 +6,9 @@
   codecs on the physical Pi 4.  Keep the normal software codecs as fallback,
   but register the Raspberry Pi V4L2 Codec2 AVC decoder first.
 
-  Initial scope is deliberately H.264/AVC only.  Additional codecs must be
-  enabled only after physical verification against the Pi kernel V4L2 nodes.
+  H.264/AVC is handled by the stateful V4L2 Codec2 service. HEVC/H.265 is
+  handled by the FFmpeg Codec2 service using Raspberry Pi's stateless rpivid
+  decoder through the V4L2 Request API. VP9/AV1 remain software fallbacks.
 -->
 <MediaCodecs>
     <Settings>
@@ -30,7 +31,10 @@
         </MediaCodec>
     </Decoders>
 
-    <!-- Keep the original Waydroid software codecs available as fallbacks. -->
+    <!-- Raspberry Pi stateless HEVC hardware path; this file is overwritten
+         into the FFmpeg Codec2 module by the PiTV vendor build. -->
+    <Include href="media_codecs_ffmpeg_c2.xml" />
+
+    <!-- Keep Android software video codecs available as fallbacks. -->
     <Include href="media_codecs_google_video.xml" />
-    <Include href="media_codecs_ffmpeg.xml" />
 </MediaCodecs>

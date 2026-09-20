@@ -137,7 +137,7 @@ PiTV first uses the official `repo.waydro.id` source. If it is unavailable or pa
 
 ### Raspberry Pi 4 — Waydroid hardware video decoding
 
-A generic Waydroid ARM64 image can see the Pi host `/dev/video*` devices while still exposing only software codecs to Android applications. PiTV therefore includes a dedicated **RPi4 V4L2 Codec2 profile** for LineageOS 20 / Android 13 that adds `c2.v4l2.avc.decoder`.
+A generic Waydroid ARM64 image can see the Pi host `/dev/video*` devices while still exposing only software codecs to Android applications. PiTV therefore includes a dedicated **RPi4 hardware-video profile** for LineageOS 20 / Android 13: H.264/AVC uses `c2.v4l2.avc.decoder`, while HEVC/H.265 uses `c2.ffmpeg.hevc.decoder` through stateless `rpivid` and the V4L2 Media Request API. PiTV also exposes `/dev/media*` inside Waydroid for that HEVC request path.
 
 The reproducible build and rollback-safe test installer live in:
 
@@ -153,7 +153,7 @@ On a Raspberry Pi, verify the active codec path with:
 sudo /usr/local/libexec/pitv-helper waydroid-hw-codec-status
 ```
 
-The first profile intentionally accelerates **H.264/AVC only**. Additional codecs should be enabled only after their V4L2 support is physically verified.
+The profile is prepared to accelerate **H.264/AVC and HEVC/H.265**; physical acceptance of the custom `vendor.img` on PiTV still has to confirm both hardware paths. VP9 and AV1 remain software fallbacks on Raspberry Pi 4 and are not advertised by PiTV as hardware codecs.
 
 Custom APK files:
 

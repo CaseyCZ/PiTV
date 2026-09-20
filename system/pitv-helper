@@ -697,33 +697,89 @@ elif action == "waydroid-hw-codec-status":
 
     release = waydroid_shell(["getprop", "ro.build.version.release"], timeout=10)
     xml = waydroid_shell(["cat", "/vendor/etc/media_codecs.xml"], timeout=10)
-    service = waydroid_shell(
-        ["getprop", "init.svc.android-hardware-media-c2-v4l2-hal-1-0"],
+    ffmpeg_xml = waydroid_shell(
+        ["cat", "/vendor/etc/media_codecs_ffmpeg_c2.xml"],
         timeout=10,
     )
-    nodes = waydroid_shell(
+    process_probe = waydroid_shell(
+        [
+            "sh", "-c",
+            "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'",
+        ],
+        timeout=10,
+    )
+    hw_marker = waydroid_shell(
+        ["cat", "/vendor/etc/pitv-hwdecode.env"],
+        timeout=10,
+    )
+    video_probe = waydroid_shell(
         ["sh", "-c", "ls -1 /dev/video* 2>/dev/null | head -n 64"],
+        timeout=10,
+    )
+    media_probe = waydroid_shell(
+        ["sh", "-c", "ls -1 /dev/media* 2>/dev/null | head -n 64"],
         timeout=10,
     )
 
     release_value = (release.stdout or "").strip()
     xml_text = xml.stdout or ""
-    service_value = (service.stdout or "").strip()
+    ffmpeg_xml_text = ffmpeg_xml.stdout or ""
+    process_lines = [
+        line.strip().lower()
+        for line in (process_probe.stdout or "").splitlines()
+        if line.strip()
+    ]
+    avc_service_value = (
+        "running"
+        if any("media.c2" in line and "v4l2" in line for line in process_lines)
+        else "missing"
+    )
+    hevc_service_value = (
+        "running"
+        if any("media.c2" in line and "ffmpeg" in line for line in process_lines)
+        else "missing"
+    )
+    marker_text = hw_marker.stdout or ""
+    hevc_hw_value = (
+        "compiled"
+        if "HEVC_V4L2_REQUEST=compiled" in marker_text
+        else "missing"
+    )
     video_nodes = [
         line.strip()
-        for line in (nodes.stdout or "").splitlines()
+        for line in (video_probe.stdout or "").splitlines()
         if line.strip().startswith("/dev/video")
     ]
-    decoder = "c2.v4l2.avc.decoder" in xml_text
+    media_nodes = [
+        line.strip()
+        for line in (media_probe.stdout or "").splitlines()
+        if line.strip().startswith("/dev/media")
+    ]
+    avc_decoder = "c2.v4l2.avc.decoder" in xml_text
+    hevc_decoder = "c2.ffmpeg.hevc.decoder" in ffmpeg_xml_text
 
     print(f"android_release={release_value or 'unknown'}")
     print(f"v4l2_video_nodes={len(video_nodes)}")
-    print(f"avc_decoder={'c2.v4l2.avc.decoder' if decoder else 'missing'}")
-    print(f"codec2_hal={service_value or 'missing'}")
+    print(f"media_request_nodes={len(media_nodes)}")
+    print(f"avc_decoder={'c2.v4l2.avc.decoder' if avc_decoder else 'missing'}")
+    print(f"hevc_decoder={'c2.ffmpeg.hevc.decoder' if hevc_decoder else 'missing'}")
+    print(f"avc_codec2_hal={avc_service_value or 'missing'}")
+    print(f"hevc_codec2_hal={hevc_service_value or 'missing'}")
+    print(f"hevc_v4l2_request={hevc_hw_value or 'missing'}")
     if video_nodes:
         print("video_nodes=" + ",".join(video_nodes))
+    if media_nodes:
+        print("media_nodes=" + ",".join(media_nodes))
 
-    if decoder and service_value == "running" and video_nodes:
+    if (
+        avc_decoder
+        and hevc_decoder
+        and avc_service_value == "running"
+        and hevc_service_value == "running"
+        and hevc_hw_value == "compiled"
+        and video_nodes
+        and media_nodes
+    ):
         raise SystemExit(0)
     raise SystemExit(4)
 

@@ -59,6 +59,10 @@ if ! compgen -G '/dev/video*' >/dev/null; then
   echo "No host /dev/video* V4L2 devices were found; hardware decode cannot work." >&2
   exit 4
 fi
+if ! compgen -G '/dev/media*' >/dev/null; then
+  echo "No host /dev/media* Media Request devices were found; RPi4 HEVC/rpivid cannot work." >&2
+  exit 4
+fi
 
 STATE="/var/lib/pitv"
 BACKUP_ROOT="$STATE/waydroid-image-backups"
@@ -122,6 +126,7 @@ restore_previous() {
   systemctl stop pitv-android-warm.service >/dev/null 2>&1 || true
   timeout 20s waydroid session stop >/dev/null 2>&1 || true
   timeout 20s waydroid container stop >/dev/null 2>&1 || true
+  systemctl stop waydroid-container.service >/dev/null 2>&1 || true
   mkdir -p "$EXTRA"
   cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
   cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
@@ -157,6 +162,14 @@ echo "Stopping the persistent Android runtime..."
 systemctl stop pitv-android-warm.service >/dev/null 2>&1 || true
 timeout 20s waydroid session stop >/dev/null 2>&1 || true
 timeout 20s waydroid container stop >/dev/null 2>&1 || true
+systemctl stop waydroid-container.service >/dev/null 2>&1 || true
+
+# Re-run the reversible host-node extension before the manager is imported
+# again. The systemd drop-in runs the same helper as ExecStartPre.
+if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
+  PITV_WAYDROID_PATCH_STRICT=1 /usr/local/libexec/pitv-waydroid-device-patch \
+    || fail_and_restore "Waydroid /dev/media* passthrough patch failed"
+fi
 
 mkdir -p "$EXTRA"
 cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
@@ -187,19 +200,53 @@ done
 [ "$ready" -eq 1 ] || fail_and_restore "Android did not reach boot_completed=1"
 
 codec_xml="$(printf '%s\n' 'cat /vendor/etc/media_codecs.xml' | waydroid shell 2>/dev/null || true)"
+ffmpeg_codec_xml="$(printf '%s\n' 'cat /vendor/etc/media_codecs_ffmpeg_c2.xml' | waydroid shell 2>/dev/null || true)"
 printf '%s\n' "$codec_xml" | grep -q 'c2.v4l2.avc.decoder' \
   || fail_and_restore "c2.v4l2.avc.decoder is missing from /vendor/etc/media_codecs.xml"
+printf '%s\n' "$codec_xml" | grep -q 'media_codecs_ffmpeg_c2.xml' \
+  || fail_and_restore "HEVC FFmpeg Codec2 include is missing from /vendor/etc/media_codecs.xml"
+printf '%s\n' "$ffmpeg_codec_xml" | grep -q 'c2.ffmpeg.hevc.decoder' \
+  || fail_and_restore "c2.ffmpeg.hevc.decoder is missing from /vendor/etc/media_codecs_ffmpeg_c2.xml"
 
-svc="$(printf '%s\n' 'getprop init.svc.android-hardware-media-c2-v4l2-hal-1-0' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
-[ "$svc" = "running" ] \
-  || fail_and_restore "V4L2 Codec2 HAL service is not running (state: ${svc:-missing})"
+android_media_nodes="$(printf '%s\n' 'ls -1 /dev/media* 2>/dev/null' | waydroid shell 2>/dev/null || true)"
+printf '%s\n' "$android_media_nodes" | grep -q '^/dev/media' \
+  || fail_and_restore "/dev/media* is not visible inside Android; HEVC Request API cannot work"
+
+codec_processes="$(
+  printf '%s\n' "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'" |
+    waydroid shell 2>/dev/null | tr -d '\r' || true
+)"
+
+if printf '%s\n' "$codec_processes" | grep -Eiq 'media\.c2.*v4l2|v4l2.*media\.c2'; then
+  avc_svc="running"
+else
+  avc_svc="missing"
+fi
+[ "$avc_svc" = "running" ] \
+  || fail_and_restore "V4L2 AVC Codec2 process is not running"
+
+if printf '%s\n' "$codec_processes" | grep -Eiq 'media\.c2.*ffmpeg|ffmpeg.*media\.c2'; then
+  hevc_svc="running"
+else
+  hevc_svc="missing"
+fi
+[ "$hevc_svc" = "running" ] \
+  || fail_and_restore "FFmpeg HEVC Codec2 process is not running"
+
+hw_marker="$(printf '%s\n' 'cat /vendor/etc/pitv-hwdecode.env' | waydroid shell 2>/dev/null | tr -d '\r' || true)"
+printf '%s\n' "$hw_marker" | grep -qx 'HEVC_V4L2_REQUEST=compiled' \
+  || fail_and_restore "PiTV vendor does not contain the compiled HEVC V4L2 Request backend"
+hevc_hw="compiled"
 
 RESTORE_NEEDED=0
-sha256sum "$EXTRA/vendor.img" > "$STATE/waydroid-rpi4-v4l2-vendor.sha256"
-printf '%s\n' "$BACKUP" > "$STATE/waydroid-rpi4-v4l2-last-backup"
+sha256sum "$EXTRA/vendor.img" > "$STATE/waydroid-rpi4-hwdecode-vendor.sha256"
+printf '%s\n' "$BACKUP" > "$STATE/waydroid-rpi4-hwdecode-last-backup"
 
 echo
-echo "PiTV RPi4 V4L2 Waydroid vendor installed successfully."
-echo "Codec: c2.v4l2.avc.decoder"
-echo "HAL:   $svc"
-echo "Backup: $BACKUP"
+echo "PiTV RPi4 hardware-decode Waydroid vendor installed successfully."
+echo "AVC codec:  c2.v4l2.avc.decoder"
+echo "AVC HAL:    $avc_svc"
+echo "HEVC codec: c2.ffmpeg.hevc.decoder"
+echo "HEVC HAL:   $hevc_svc"
+echo "HEVC V4L2:  $hevc_hw"
+echo "Backup:     $BACKUP"

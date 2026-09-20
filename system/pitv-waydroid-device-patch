@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""PiTV Raspberry Pi media-node extension for Waydroid.
+
+Upstream Waydroid passes /dev/video* into the Android LXC container, but the
+Raspberry Pi 4 stateless HEVC decoder also needs /dev/media* for Media Request
+API control submission.
+
+The patch is deliberately tiny, idempotent and reversible:
+  pitv-waydroid-device-patch          -> add /dev/media* passthrough
+  pitv-waydroid-device-patch --remove -> restore the upstream snippets
+"""
+
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+REMOVE = "--remove" in sys.argv[1:]
+SELF_TEST = "--self-test" in sys.argv[1:]
+
+
+def find_file(suffix):
+    roots = []
+    try:
+        p = subprocess.run(
+            ["dpkg", "-L", "waydroid"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+        roots.extend(Path(line.strip()) for line in p.stdout.splitlines() if line.strip())
+    except Exception:
+        pass
+
+    candidates = [p for p in roots if str(p).endswith(suffix)]
+    candidates += [
+        Path("/usr/lib/waydroid") / suffix,
+        Path("/usr/share/waydroid") / suffix,
+    ]
+    seen = set()
+    for path in candidates:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if path.is_file():
+            return path
+    return None
+
+
+def write_replacement(path, text):
+    tmp = path.with_name(path.name + ".pitv.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.chmod(tmp, path.stat().st_mode & 0o777)
+    os.replace(tmp, path)
+
+
+def add_once(path, old, new):
+    text = path.read_text(encoding="utf-8")
+    if new in text or "/dev/media*" in text:
+        # Either PiTV already patched this layout or upstream gained native
+        # media-controller passthrough. Never add a duplicate.
+        return True, False
+    if old not in text:
+        return False, False
+    write_replacement(path, text.replace(old, new, 1))
+    return True, True
+
+
+def remove_once(path, patched, plain):
+    text = path.read_text(encoding="utf-8")
+    if patched in text:
+        write_replacement(path, text.replace(patched, plain, 1))
+        return True, True
+    # Do not remove a future upstream /dev/media* implementation that does not
+    # exactly match PiTV's injected block.
+    if plain in text:
+        return True, False
+    return False, False
+
+
+lxc_plain = '    for n in glob.glob("/dev/video*"):\n        make_entry(n)\n'
+lxc_patched = (
+    lxc_plain
+    + '    # PiTV: stateless HEVC Media Request API\n'
+    + '    for n in glob.glob("/dev/media*"):\n        make_entry(n)\n'
+)
+mgr_plain = (
+    '        # Videos\n'
+    '        perm_list.extend(glob.glob("/dev/video*"))\n'
+)
+mgr_patched = (
+    '        # Videos\n'
+    '        perm_list.extend(glob.glob("/dev/video*"))\n'
+    '        # PiTV: stateless HEVC Media Request API\n'
+    '        perm_list.extend(glob.glob("/dev/media*"))\n'
+)
+
+if SELF_TEST:
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        lxc_test = root / "lxc.py"
+        mgr_test = root / "container_manager.py"
+        lxc_test.write_text("before\n" + lxc_plain + "after\n", encoding="utf-8")
+        mgr_test.write_text("before\n" + mgr_plain + "after\n", encoding="utf-8")
+
+        assert add_once(lxc_test, lxc_plain, lxc_patched) == (True, True)
+        assert add_once(mgr_test, mgr_plain, mgr_patched) == (True, True)
+        assert lxc_test.read_text(encoding="utf-8").count("/dev/media*") == 1
+        assert mgr_test.read_text(encoding="utf-8").count("/dev/media*") == 1
+
+        # Idempotent add must not duplicate the media-node entries.
+        assert add_once(lxc_test, lxc_plain, lxc_patched) == (True, False)
+        assert add_once(mgr_test, mgr_plain, mgr_patched) == (True, False)
+
+        # Removal must actually reverse PiTV's exact injected block.
+        assert remove_once(lxc_test, lxc_patched, lxc_plain) == (True, True)
+        assert remove_once(mgr_test, mgr_patched, mgr_plain) == (True, True)
+        assert "/dev/media*" not in lxc_test.read_text(encoding="utf-8")
+        assert "/dev/media*" not in mgr_test.read_text(encoding="utf-8")
+
+        # Future native upstream support must be left intact rather than
+        # duplicated or removed by PiTV.
+        native = (
+            lxc_plain
+            + '    for n in glob.glob("/dev/media*"):\n'
+            + '        make_entry(n)\n'
+            + '    # upstream-owned\n'
+        )
+        lxc_test.write_text(native, encoding="utf-8")
+        assert add_once(lxc_test, lxc_plain, lxc_patched) == (True, False)
+        assert remove_once(lxc_test, lxc_patched, lxc_plain) == (True, False)
+        assert lxc_test.read_text(encoding="utf-8") == native
+
+    print("PiTV Waydroid /dev/media* patch self-test OK")
+    raise SystemExit(0)
+
+strict = os.environ.get("PITV_WAYDROID_PATCH_STRICT") == "1"
+lxc = find_file("tools/helpers/lxc.py")
+manager = find_file("tools/actions/container_manager.py")
+
+if not lxc or not manager:
+    message = "PiTV: Waydroid Python device helpers were not found; /dev/media* patch skipped"
+    print(message)
+    raise SystemExit(1 if strict and not REMOVE else 0)
+
+if REMOVE:
+    ok1, changed1 = remove_once(lxc, lxc_patched, lxc_plain)
+    ok2, changed2 = remove_once(manager, mgr_patched, mgr_plain)
+    # Already-unpatched upstream files are also a successful removal.
+    if lxc_plain in lxc.read_text(encoding="utf-8") and "/dev/media*" not in lxc.read_text(encoding="utf-8"):
+        ok1 = True
+    if (
+        'perm_list.extend(glob.glob("/dev/video*"))' in manager.read_text(encoding="utf-8")
+        and 'perm_list.extend(glob.glob("/dev/media*"))' not in manager.read_text(encoding="utf-8")
+    ):
+        ok2 = True
+    if not (ok1 and ok2):
+        print("PiTV: installed Waydroid layout changed; /dev/media* patch removal was incomplete")
+        raise SystemExit(1 if strict else 0)
+    state = "removed" if changed1 or changed2 else "already absent"
+    print(f"PiTV: Waydroid /dev/media* passthrough {state}")
+    raise SystemExit(0)
+
+ok1, changed1 = add_once(lxc, lxc_plain, lxc_patched)
+ok2, changed2 = add_once(manager, mgr_plain, mgr_patched)
+
+if not (ok1 and ok2):
+    print("PiTV: installed Waydroid layout changed; /dev/media* patch could not be applied")
+    raise SystemExit(1 if strict else 0)
+
+state = "updated" if changed1 or changed2 else "already present"
+print(f"PiTV: Waydroid /dev/media* passthrough {state}")

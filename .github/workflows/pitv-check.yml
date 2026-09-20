@@ -22,7 +22,9 @@ jobs:
             system/pitv-helper \
             system/pitv-self-update \
             system/pitv-inputd \
-            system/pitv-displayd
+            system/pitv-displayd \
+            system/pitv-waydroid-device-patch
+          python3 system/pitv-waydroid-device-patch --self-test
 
       - name: Shell syntax
         run: |
@@ -51,31 +53,93 @@ jobs:
               for node in root.findall(".//MediaCodec")
               if node.get("name")
           }
+          includes = {node.get("href") for node in root.findall(".//Include")}
           assert "c2.v4l2.avc.decoder" in names
           assert "c2.v4l2.vp9.decoder" not in names
           assert "c2.v4l2.hevc.decoder" not in names
+          assert "media_codecs_ffmpeg_c2.xml" in includes
+
+          ffmpeg = ET.parse(
+              "android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml"
+          ).getroot()
+          ffmpeg_names = {
+              node.get("name")
+              for node in ffmpeg.findall(".//MediaCodec")
+              if node.get("name")
+          }
+          assert ffmpeg_names == {"c2.ffmpeg.hevc.decoder"}
 
           mk = Path("android/waydroid-rpi4/pitv-rpi4-v4l2.mk").read_text()
           assert "android.hardware.media.c2@1.0-service-v4l2" in mk
-          assert "debug.stagefright.c2-poolmask=0x350000" in mk
-          assert "ro.vendor.v4l2_codec2.decode_concurrent_instances=4" in mk
+          assert "android.hardware.media.c2@1.2-service-ffmpeg" in mk
+
+          vendor_prop = Path("android/waydroid-rpi4/vendor.prop").read_text()
+          assert "debug.stagefright.c2-poolmask=0x350000" in vendor_prop
+          assert "persist.v4l2_codec2.rank.decoder=128" in vendor_prop
+          assert "ro.vendor.v4l2_codec2.decode_concurrent_instances=4" in vendor_prop
+          assert "persist.ffmpeg_codec2" not in vendor_prop
+
+          hw_marker = Path("android/waydroid-rpi4/hwdecode.env").read_text()
+          assert "HEVC_V4L2_REQUEST=compiled" in hw_marker
+          assert "HEVC_BACKEND=ffmpeg-v4l2-request-rpivid" in hw_marker
 
           build = Path("scripts/build-waydroid-rpi4-v4l2.sh").read_text()
           assert "lineage_waydroid_arm64-userdebug" in build
           assert "lineage-rpi/android_external_v4l2_codec2.git" in build
+          assert "raspberry-vanilla/android_external_ffmpeg.git" in build
+          assert "raspberry-vanilla/android_external_ffmpeg_codec2.git" in build
+          assert "raspberry-vanilla/android_external_libudev-zero.git" in build
           assert "c2.v4l2.avc.decoder" in build
+          assert "c2.ffmpeg.hevc.decoder" in build
           assert "repo forall -c" in build
           assert "repo sync -c -d --force-sync" in build
           assert "checkout --detach FETCH_HEAD" in build
+          assert "TARGET_VENDOR_PROP += vendor/pitv/rpi4/vendor.prop" in build
+          assert "Unexpected V4L2ComponentStore::listComponents layout" in build
+          assert "ret.push_back(GetTraits(V4L2ComponentName::kH264Decoder));" in build
+          assert "VP8/VP9 are not" in build
+          assert "Unexpected FFmpeg HEVC hwaccel property gate" in build
+          assert "static const size_t kNumAudioComponents = 0;" in build
+          assert "defaultRankVideo = 0x100u" in build
+          assert "media_codecs_ffmpeg_c2.xml" in build
+          assert "HEVC_V4L2_REQUEST=compiled" in build
+          assert "persist.ffmpeg_codec2.v4l2.h265" in build
           assert "rm -rf external/v4l2_codec2" not in build
 
           installer = Path("scripts/install-waydroid-rpi4-v4l2-image.sh").read_text()
           assert "restore_previous" in installer
           assert "fail_and_restore" in installer
           assert "c2.v4l2.avc.decoder" in installer
-          assert "android-hardware-media-c2-v4l2-hal-1-0" in installer
+          assert "c2.ffmpeg.hevc.decoder" in installer
+          assert "V4L2 AVC Codec2 process is not running" in installer
+          assert "FFmpeg HEVC Codec2 process is not running" in installer
+          assert "media\\.c2.*v4l2" in installer
+          assert "media\\.c2.*ffmpeg" in installer
+          assert "/dev/media*" in installer
+          assert "HEVC_V4L2_REQUEST=compiled" in installer
+          assert "persist.ffmpeg_codec2.v4l2.h265" not in installer
 
-          print("PiTV RPi4 V4L2 Codec2 static contract OK")
+          helper = Path("system/pitv-helper").read_text()
+          assert "process_probe = waydroid_shell(" in helper
+          assert 'any("media.c2" in line and "v4l2" in line for line in process_lines)' in helper
+          assert 'any("media.c2" in line and "ffmpeg" in line for line in process_lines)' in helper
+          assert "HEVC_V4L2_REQUEST=compiled" in helper
+          assert "persist.ffmpeg_codec2.v4l2.h265" not in helper
+
+          node_patch = Path("system/pitv-waydroid-device-patch").read_text()
+          assert 'glob.glob("/dev/media*")' in node_patch
+          assert "--remove" in node_patch
+          assert "--self-test" in node_patch
+          assert "remove_once" in node_patch
+          assert "Future native upstream support" in node_patch
+          dropin = Path("system/waydroid-container-pitv.conf").read_text()
+          assert "ExecStartPre=/usr/local/libexec/pitv-waydroid-device-patch" in dropin
+
+          main_install = Path("install.sh").read_text()
+          assert "system/pitv-waydroid-device-patch /usr/local/libexec/pitv-waydroid-device-patch" in main_install
+          assert "waydroid-container.service.d/pitv-rpi4-media.conf" in main_install
+
+          print("PiTV RPi4 AVC + HEVC hardware decode static contract OK")
           PYV4L2
           python3 - <<'PYWAYDROID'
           from pathlib import Path
@@ -162,6 +226,8 @@ jobs:
           grep -q 'waydroid-keyevent' system/pitv-helper
           grep -q 'waydroid-hw-codec-status' system/pitv-helper
           grep -q 'c2.v4l2.avc.decoder' system/pitv-helper
+          grep -q 'c2.ffmpeg.hevc.decoder' system/pitv-helper
+          grep -q 'hevc_v4l2_request' system/pitv-helper
           grep -q 'if sys.stdin.isatty():' system/pitv-helper
           grep -q 'payload = json.loads(sys.stdin.read() or "{}")' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-helper
