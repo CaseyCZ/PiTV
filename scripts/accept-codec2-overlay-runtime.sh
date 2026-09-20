@@ -24,4 +24,10 @@ check android_media_nodes 'grep -q "^/dev/media" <<<"$media"'
 procs="$(shell "cat /proc/[0-9]*/cmdline 2>/dev/null | tr '\\000' '\\n'" || true)"
 check avc_service 'grep -Eiq "media\.c2.*v4l2|v4l2.*media\.c2" <<<"$procs"'
 check hevc_service 'grep -Eiq "media\.c2.*ffmpeg|ffmpeg.*media\.c2" <<<"$procs"'
+rank="$(shell 'getprop persist.v4l2_codec2.rank.decoder' | tail -n1 || true)"
+check v4l2_rank_property '[ "$rank" = 128 ]'
+pool="$(shell 'getprop debug.stagefright.c2-poolmask' | tail -n1 || true)"
+check c2_poolmask_property '[ "$pool" = 0x350000 ]'
+instances="$(shell 'getprop ro.vendor.v4l2_codec2.decode_concurrent_instances' | tail -n1 || true)"
+check v4l2_instances_property '[ "$instances" = 4 ]'
 exit "$fail"
