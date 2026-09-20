@@ -1237,6 +1237,27 @@ class PiTV:
                         except Exception:
                             pass
 
+                # Older alpha builds could also have persisted a launcher
+                # JSON in ~/.config/pitv/apps.d. Remove only launchers that
+                # explicitly target one of the same known obsolete packages.
+                if USER_APPS.exists():
+                    for launcher in USER_APPS.glob("*.json"):
+                        data = safe_json(launcher, {})
+                        package = str(data.get("package", "") or "").strip()
+                        command = str(data.get("command", "") or "")
+                        targets_legacy = package in LEGACY_ANDROID_PACKAGES
+                        if not targets_legacy:
+                            targets_legacy = any(
+                                re.search(r"(?<![A-Za-z0-9_.])" + re.escape(pkg) +
+                                          r"(?![A-Za-z0-9_.])", command)
+                                for pkg in LEGACY_ANDROID_PACKAGES
+                            )
+                        if targets_legacy:
+                            try:
+                                launcher.unlink(missing_ok=True)
+                            except Exception:
+                                pass
+
                 # An older/manual PiTV build may also have left a managed APK
                 # copy. discover_apks() would surface it again even after the
                 # Android package itself is removed. Delete only APKs whose
