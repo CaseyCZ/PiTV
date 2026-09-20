@@ -106,8 +106,10 @@ contract is the baseline for all future UI, Store and runtime changes.
 - HDMI/EDID disconnect/reconnect must restore PiTV to the full current output
   size without requiring an OS reboot.
 - Output geometry belongs below the UI. `pitv-display.service` monitors the
-  HDMI/wlroots state and normalizes the primary TV output to the preferred
-  mode, origin `0,0`, normal transform and scale 1.
+  HDMI/wlroots state, preserves an already-valid current video mode and
+  normalizes the primary TV output to origin `0,0`, normal transform and
+  scale 1. Preferred mode is only a fallback when a disabled output must be
+  enabled again.
 - The display service publishes `pitv-display-repair` after normalization.
   PiTV consumes that event on its main render thread and re-binds SDL
   fullscreen even when width/height did not change.
