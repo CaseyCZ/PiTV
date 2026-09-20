@@ -1208,7 +1208,7 @@ class PiTV:
         migration is intentionally narrow: no unknown/user-installed Android
         package is touched.
         """
-        marker = MIGRATION_DIR / "legacy-android-media-v1.done"
+        marker = MIGRATION_DIR / "legacy-android-media-v2.done"
         if self._legacy_migration_started or marker.exists() or not waydroid_available():
             return
         self._legacy_migration_started = True
@@ -1307,7 +1307,7 @@ class PiTV:
         """Gate Android launch until PiTV's own obsolete packages are cleaned."""
         if not waydroid_available():
             return True
-        marker = MIGRATION_DIR / "legacy-android-media-v1.done"
+        marker = MIGRATION_DIR / "legacy-android-media-v2.done"
         if marker.exists():
             return True
         self.migrate_legacy_android_async()
