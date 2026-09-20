@@ -29,14 +29,11 @@
             <Limit name="performance-point-1920x1080" range="60-60" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
-
-        <MediaCodec name="c2.ffmpeg.hevc.decoder" type="video/hevc">
-            <Limit name="size" min="16x16" max="4096x4096" />
-            <Limit name="alignment" value="2x2" />
-            <Limit name="block-size" value="16x16" />
-            <Feature name="adaptive-playback" />
-        </MediaCodec>
     </Decoders>
+
+    <!-- Raspberry Pi stateless HEVC hardware path; this file is overwritten
+         into the FFmpeg Codec2 module by the PiTV vendor build. -->
+    <Include href="media_codecs_ffmpeg_c2.xml" />
 
     <!-- Keep Android software video codecs available as fallbacks. -->
     <Include href="media_codecs_google_video.xml" />
