@@ -49,7 +49,6 @@ BACKUP="$BACKUP_ROOT/$STAMP"
 EXTRA="/etc/waydroid-extra/images"
 TMP="$(mktemp -d /tmp/pitv-waydroid-v4l2.XXXXXX)"
 RESTORE_NEEDED=0
-trap 'rm -rf "$TMP"' EXIT
 
 find_current_image() {
   local name="$1"
@@ -116,10 +115,25 @@ restore_previous() {
 fail_and_restore() {
   local message="$1"
   echo "V4L2 vendor validation failed: $message" >&2
+  RESTORE_NEEDED=0
   restore_previous
   echo "Previous Waydroid images restored." >&2
   exit 20
 }
+
+cleanup() {
+  local rc=$?
+  if [ "$RESTORE_NEEDED" -eq 1 ]; then
+    echo "V4L2 vendor installation aborted; restoring previous Waydroid images." >&2
+    RESTORE_NEEDED=0
+    set +e
+    restore_previous
+    set -e
+  fi
+  rm -rf "$TMP"
+  return "$rc"
+}
+trap cleanup EXIT
 
 echo "Stopping the persistent Android runtime..."
 systemctl stop pitv-android-warm.service >/dev/null 2>&1 || true
@@ -133,8 +147,9 @@ sync
 RESTORE_NEEDED=1
 
 echo "Re-initializing Waydroid with PiTV RPi4 V4L2 vendor image..."
-waydroid init -f
-systemctl start waydroid-container.service
+waydroid init -f || fail_and_restore "waydroid init -f failed"
+systemctl start waydroid-container.service \
+  || fail_and_restore "waydroid-container.service failed to start"
 systemctl start pitv-android-warm.service >/dev/null 2>&1 || true
 
 # The PiTV warm service owns the Waydroid user session. Give it enough time for
