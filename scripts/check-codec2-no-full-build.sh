@@ -196,3 +196,8 @@ grep -q 'CONFIG_V4L2_REQUEST=yes' scripts/verify-minimal-codec2-sources.py
 grep -q 'CONFIG_HEVC_V4L2REQUEST_HWACCEL=yes' scripts/verify-minimal-codec2-sources.py
 grep -q 'android.hardware.media.c2@1.2-ffmpeg.policy' scripts/codec2-payload-readiness.py
 grep -q 'installed payload hash mismatch' scripts/install-codec2-overlay.sh
+grep -q 'unsafe source install target' scripts/build-minimal-codec2-modules.sh
+grep -q 'media_codecs_ffmpeg_c2.xml' scripts/build-minimal-codec2-modules.sh
+grep -q 'evidence output already exists' scripts/capture-codec2-evidence.sh
+grep -q 'STAMP}-\$\$' scripts/install-codec2-overlay.sh
+grep -q 'check-codec2-payload-contract.py' scripts/codec2-install-readiness.sh
