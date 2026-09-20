@@ -141,6 +141,10 @@ jobs:
           PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
           grep -q 'waydroid-app-visible' system/pitv-helper
+          grep -q '"dumpsys", "activity", "top"' system/pitv-helper
+          ! grep -q '"dumpsys", "activity", "activities"' system/pitv-helper
+          grep -q 'for _ in $(seq 1 50)' system/pitv-waydroid-launch
+          grep -q 'sleep 0.20' system/pitv-waydroid-launch
           grep -q 'waydroid-app-stop' system/pitv-helper
           grep -q 'waydroid-app-stop' pitv/pitv.py
           ! grep -q '\["waydroid", "session", "stop"\]' pitv/pitv.py
