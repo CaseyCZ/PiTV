@@ -38,4 +38,11 @@ done
 [ -S "$RUNTIME/bus" ] || { echo "PiTV user D-Bus není připravený." >&2; exit 4; }
 [ -S "$RUNTIME/pulse/native" ] || { echo "PiTV PipeWire/Pulse není připravený." >&2; exit 5; }
 
+# A TV-session restart is a recovery boundary. Never inherit a stale fullscreen
+# Android/Kodi/Stremio surface from a crashed/older launcher process.
+if [ -x /usr/local/libexec/pitv-helper ]; then
+  printf '{}' |
+    sudo -n /usr/local/libexec/pitv-helper tv-runtime-reset       >/tmp/pitv-runtime-reset.log 2>&1 || true
+fi
+
 exec labwc
