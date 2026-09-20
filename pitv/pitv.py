@@ -3818,41 +3818,95 @@ class PiTV:
         self.suspend_external()
 
     def stop_external(self, force=False):
-        """Explicitly close the foreground task (used by management/recovery)."""
+        """Close the foreground task and return immediately to the PiTV launcher.
+
+        TV apps do not expose a consistent Quit action.  PiTV first asks the
+        tracked process/runtime to stop gracefully, then escalates after a
+        short grace period so a detached kodi.bin, Flatpak client or Waydroid
+        session cannot keep the TV stuck behind the launcher.
+        """
         proc = self.external_proc
         kind = self.external_kind
-        app = self.external_app
+        app = dict(self.external_app or {})
+        task_key = self.external_task_key or self._task_key(app, kind)
+        task = {
+            "key": task_key,
+            "proc": proc,
+            "kind": kind,
+            "app": app,
+        }
+        try:
+            pgid = os.getpgid(proc.pid) if proc and proc.poll() is None else None
+        except Exception:
+            pgid = None
+
         self._clear_external_state()
+        if task_key:
+            self.background_tasks.pop(task_key, None)
 
-        if proc and proc.poll() is None:
-            try:
-                os.killpg(os.getpgid(proc.pid), 9 if force else 15)
-            except Exception:
-                try:
-                    proc.kill() if force else proc.terminate()
-                except Exception:
-                    pass
-
-        self._terminate_known_external(app, force=force)
-
-        if kind == "apk":
-            try:
-                subprocess.Popen(
-                    ["waydroid", "session", "stop"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except Exception:
-                pass
-            self.background_tasks.pop("android", None)
-            self.apps = load_apps()
-            self.refresh_store_async()
-
+        # Reveal PiTV first. Cleanup continues off the render/input thread.
         self.page = "home"
         self.sidebar_focus = False
         self.selected = 0
         self._switch_workspace("PiTV")
-        self.show_toast("Aplikace ukončena", 2.0)
+        self.show_toast("Ukončuji aplikaci…", 2.0)
+
+        def worker():
+            sig = signal.SIGKILL if force else signal.SIGTERM
+            if proc and proc.poll() is None:
+                try:
+                    if pgid is not None:
+                        os.killpg(pgid, sig)
+                    elif force:
+                        proc.kill()
+                    else:
+                        proc.terminate()
+                except Exception:
+                    pass
+
+            self._terminate_known_external(app, force=force)
+
+            if kind == "apk":
+                try:
+                    subprocess.run(
+                        ["waydroid", "session", "stop"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=12,
+                        check=False,
+                    )
+                except Exception:
+                    pass
+
+            # A wrapper can exit while the real application survives (Kodi was
+            # observed re-parented to PID 1). Give normal shutdown a moment,
+            # then terminate the actual known runtime as a deterministic exit.
+            if not force:
+                deadline = time.monotonic() + 2.5
+                while time.monotonic() < deadline:
+                    if not self._known_app_alive(task):
+                        break
+                    time.sleep(0.15)
+
+                if self._known_app_alive(task):
+                    if pgid is not None:
+                        try:
+                            os.killpg(pgid, signal.SIGKILL)
+                        except Exception:
+                            pass
+                    self._terminate_known_external(app, force=True)
+
+            if kind == "apk":
+                # Full Back-hold exit means Android is finished, not merely
+                # hidden. Stop the container too so Pi 4 resources/GPU state
+                # are clean for the next launch.
+                run_privileged("waydroid-container-stop", {}, 90)
+                self.apps = load_apps()
+                self.refresh_store_async()
+
+            self.show_toast("Aplikace ukončena • PiTV", 2.0)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _check_global_back_hold(self):
         if not self.external_kind:
