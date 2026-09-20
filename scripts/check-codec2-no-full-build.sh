@@ -43,6 +43,7 @@ SH=(
  scripts/add-pitv-codec2-config-to-payload.sh
  scripts/accept-codec2-overlay-runtime.sh
  scripts/codec2-install-readiness.sh
+ scripts/capture-codec2-evidence.sh
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
@@ -144,3 +145,7 @@ grep -q 'verify-minimal-codec2-sources.py' scripts/build-minimal-codec2-modules.
 grep -q 'last_rollback=' scripts/codec2-no-full-build.sh
 grep -q 'current_stage=' scripts/codec2-no-full-build.sh
 grep -q 'verify-minimal-codec2-sources.py' scripts/fetch-minimal-codec2-sources.py
+grep -q 'v4l2_rank=' scripts/verify-codec2-runtime.sh
+grep -q 'c2_poolmask=' scripts/verify-codec2-runtime.sh
+bash scripts/codec2-no-full-build.sh help | grep -q 'evidence \[OUT\]'
+grep -q 'last_evidence=' scripts/codec2-no-full-build.sh
