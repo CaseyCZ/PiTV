@@ -119,14 +119,15 @@ package_installed() {
 
 wait_package_visible() {
   local package="$1"
-  # Process existence is not enough for TV UX. Reveal Android only after the
-  # requested package owns a visible Activity/Window.
-  for _ in $(seq 1 80); do
+  # Warm Android should feel like a TV OS, not another boot sequence. Poll only
+  # the top Activity and keep each launch window bounded. A genuinely cold
+  # Android boot is handled earlier by runtime_ready()/request_warmer().
+  for _ in $(seq 1 50); do
     if printf '{"package":"%s"}' "$package" |
         sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible >/dev/null 2>&1; then
       return 0
     fi
-    sleep 0.25
+    sleep 0.20
   done
   return 1
 }
