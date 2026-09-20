@@ -137,6 +137,7 @@ BUILD_PROP="$MNT/build.prop"
 for kv in \
   'debug.stagefright.c2-poolmask=0x350000' \
   'persist.v4l2_codec2.rank.decoder=128' \
+  'persist.ffmpeg_codec2.v4l2.h265=1' \
   'ro.vendor.v4l2_codec2.decode_concurrent_instances=4'
 do
   key="${kv%%=*}"
@@ -178,6 +179,8 @@ rank="$(printf 'getprop persist.v4l2_codec2.rank.decoder\n' | waydroid shell 2>/
 [ "$rank" = 128 ] || fail "V4L2 Codec2 rank property not active"
 pool="$(printf 'getprop debug.stagefright.c2-poolmask\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
 [ "$pool" = 0x350000 ] || fail "Codec2 poolmask property not active"
+ffmpeg_hw="$(printf 'getprop persist.ffmpeg_codec2.v4l2.h265\n' | waydroid shell 2>/dev/null | tr -d '\r' | tail -n1 || true)"
+[ "$ffmpeg_hw" = 1 ] || fail "FFmpeg HEVC V4L2 Request property not active"
 video="$(printf 'ls -1 /dev/video* 2>/dev/null\n' | waydroid shell 2>/dev/null || true)"
 printf '%s\n' "$video" | grep -q '/dev/video' || fail "/dev/video not visible in Android"
 media="$(printf 'ls -1 /dev/media* 2>/dev/null\n' | waydroid shell 2>/dev/null || true)"
