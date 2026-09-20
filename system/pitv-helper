@@ -30,16 +30,45 @@ ANDROID_HOME_PACKAGES = {
 
 
 def parse_android_top_component(text):
+    """Return the Activity that is actually resumed on screen.
+
+    Waydroid can expose multiple ACTIVITY blocks in `dumpsys activity top`.
+    On the physical Pi 4 the first block may be Launcher3 even while a later
+    SmartTube BrowseActivity block has `mResumed=true`. Treat explicit resumed
+    markers as authoritative and use the first generic ACTIVITY only as a
+    compatibility fallback for Android builds that omit those markers.
+    """
     text = text or ""
-    patterns = (
-        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
-        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
+
+    # Newer ActivityManager dumps often publish the resumed component directly.
+    for pattern in (
         r"topResumedActivity=.*?\s([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
-    )
-    for pattern in patterns:
+        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
+    ):
         match = re.search(pattern, text)
         if match:
             return match.group(1)
+
+    # `dumpsys activity top` may contain several full Activity blocks. Select
+    # the block whose local Activity state says mResumed=true instead of blindly
+    # accepting the first ACTIVITY line (which can be Android Home).
+    activity_re = re.compile(
+        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)"
+    )
+    activities = list(activity_re.finditer(text))
+    for index, match in enumerate(activities):
+        block_end = (
+            activities[index + 1].start()
+            if index + 1 < len(activities)
+            else len(text)
+        )
+        block = text[match.end():block_end]
+        if re.search(r"(?m)^\s*mResumed\s*=\s*true\b", block):
+            return match.group(1)
+
+    # Compatibility fallback for terse dumps containing a single ACTIVITY line.
+    if activities:
+        return activities[0].group(1)
     return ""
 
 
@@ -314,6 +343,21 @@ if action == "self-test":
     assert parse_android_top_package(
         "mResumedActivity: ActivityRecord{abc u0 com.android.settings/.Settings t42}"
     ) == "com.android.settings"
+    # Physical Waydroid regression: Launcher3 may be the first ACTIVITY block
+    # while SmartTube's later BrowseActivity is the one actually resumed.
+    _multi_activity_top = """TASK null id=25 userId=0
+  ACTIVITY com.android.launcher3/.uioverrides.QuickstepLauncher aaa pid=878
+    Local Activity state:
+      mResumed=false
+  ACTIVITY org.smarttube.stable/com.liskovsoft.smartyoutubetv2.tv.ui.browse.BrowseActivity bbb pid=1749
+    Local FragmentActivity state:
+      mCreated=true mResumed=true mStopped=false
+"""
+    assert parse_android_top_component(_multi_activity_top) == (
+        "org.smarttube.stable/"
+        "com.liskovsoft.smartyoutubetv2.tv.ui.browse.BrowseActivity"
+    )
+    assert parse_android_top_package(_multi_activity_top) == "org.smarttube.stable"
     assert parse_android_top_component(
         "  ACTIVITY com.android.settings/.FallbackHome b00149e pid=741"
     ) == "com.android.settings/.FallbackHome"
