@@ -68,7 +68,9 @@ jobs:
             system/pitv-launcher-run system/pitv-android-warm \
             system/pitv-waydroid-launch system/pitv-kodi-launch \
             system/pitv-kodi-addon system/pitv-cec-control \
-            tools/pitv-flasher.sh scripts/install-waydroid.sh
+            tools/pitv-flasher.sh scripts/install-waydroid.sh \
+            scripts/build-waydroid-rpi4-v4l2.sh \
+            scripts/install-waydroid-rpi4-v4l2-image.sh
           do
             bash -n "$file"
           done
@@ -85,6 +87,9 @@ jobs:
           for path in Path("store").glob("*.json"):
               json.loads(path.read_text(encoding="utf-8"))
           ET.parse("system/labwc/rc.xml")
+          media = ET.parse("android/waydroid-rpi4/media_codecs.xml").getroot()
+          codecs = {x.get("name") for x in media.findall(".//MediaCodec")}
+          assert "c2.v4l2.avc.decoder" in codecs
           print("PiTV JSON/XML syntax OK")
           PY
 
