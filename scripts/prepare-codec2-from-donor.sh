@@ -11,7 +11,7 @@ find_one(){
   [ "${#hits[@]}" -eq 1 ] || { echo "expected exactly one $1, found ${#hits[@]}" >&2; exit 3; }
   printf '%s\n' "${hits[0]}"
 }
-avc="$(find_one android.hardware.media.c2@1.0-service-v4l2)"
+avc="$(find_one android.hardware.media.c2@1.0-service-v4l2-64)"
 hevc="$(find_one android.hardware.media.c2@1.2-service-ffmpeg)"
 python3 "$HERE/probe-codec2-prebuilt.py" "$DONOR" "$avc" "$hevc"
 python3 "$HERE/collect-codec2-prebuilt.py" "$DONOR" "$OUT" "$avc" "$hevc"
