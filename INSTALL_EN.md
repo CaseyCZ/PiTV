@@ -26,7 +26,7 @@ For normal PiTV control, a TV remote through **HDMI-CEC** is recommended.
 
 ## 1. Test the TV and remote
 
-Before installing PiTV, verify Power, arrows, OK, Back / Return, Home / Menu, Volume and Mute.
+Before installing PiTV, verify Power, arrows, OK, Back / Return, Volume and Mute. Home / Menu is optional; holding Back for 3 seconds is PiTV's universal app-exit gesture.
 
 Enable **HDMI-CEC** in the TV settings. Depending on the TV manufacturer it may be called Anynet+, SIMPLINK, BRAVIA Sync, VIERA Link or EasyLink.
 
@@ -126,7 +126,7 @@ SSH and background server services remain available.
 
 ## 11. First checks
 
-Verify HDMI video, resolution, arrows, OK, Back, Home / Menu, HDMI-CEC, HDMI audio, Wi-Fi, both PiTV themes and the screensaver.
+Verify HDMI video, resolution, arrows, OK, Back, the 3-second Back app-exit gesture, optional Home / Menu, HDMI-CEC, HDMI audio, Wi-Fi, both PiTV themes and the screensaver.
 
 Then continue with PiTV Store, Android / APK or Server Store.
 
