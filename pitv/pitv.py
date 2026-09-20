@@ -4133,10 +4133,12 @@ class PiTV:
         threading.Thread(target=worker, daemon=True).start()
 
     def restart_ui_clean(self):
-        """Restart only PiTV UI after deterministically closing TV apps."""
-        run_privileged("tv-runtime-reset", {}, 90)
-        pygame.quit()
-        os.execv(sys.executable, [sys.executable, __file__])
+        """Restart the complete supervised TV shell without rebooting Linux."""
+        # PiTV is labwc's primary client (-S). Ending the main loop lets the
+        # normal cleanup run, then labwc exits and systemd Restart=always
+        # reconstructs compositor + launcher + optional Android runtime.
+        # Server services remain untouched.
+        self.running = False
 
     def update_pitv_async(self):
         if self.updates_busy:
