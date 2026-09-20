@@ -177,6 +177,10 @@ jobs:
           ! grep -q '"waydroid", "shell", "input"' pitv/pitv.py
           grep -q 'waydroid session start' system/pitv-waydroid-launch
           test "$(grep -c 'waydroid session start' system/pitv-waydroid-launch)" -eq 1
+          grep -q 'flock -n 9' system/pitv-waydroid-launch
+          grep -q 'cleanup_stale_android_runtime' system/pitv-waydroid-launch
+          grep -q 'stale Android runtime detected before new Cage session' system/pitv-waydroid-launch
+          grep -q 'Waydroid session is still RUNNING after stale cleanup' system/pitv-waydroid-launch
           grep -q 'waydroid show-full-ui' system/pitv-waydroid-launch
           test "$(grep -c 'waydroid show-full-ui' system/pitv-waydroid-launch)" -eq 1
           grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
@@ -203,6 +207,11 @@ jobs:
           assert 'exit 0' in warm
           assert 'waydroid session start' in wrapper
           assert 'starting on-demand Android runtime for:' in wrapper
+          outer = wrapper.split('if [ "$MODE" = "outer" ]; then', 1)[1]
+          outer = outer.split('if [ "$MODE" = "client" ]; then', 1)[0]
+          assert 'flock -n 9' in outer
+          assert 'cleanup_stale_android_runtime' in outer
+          assert outer.index('flock -n 9') < outer.index('cleanup_stale_android_runtime')
           client = wrapper.split('if [ "$MODE" = "client" ]; then', 2)[2]
           client = client.split('# From here the Cage client owns', 1)[0]
           assert 'waydroid session stop' in client
