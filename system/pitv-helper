@@ -307,12 +307,17 @@ elif action == "tv-runtime-reset":
             check=False,
         )
 
-    try:
-        os.unlink(os.path.join(runtime, "pitv-launch.json"))
-    except FileNotFoundError:
-        pass
-    except OSError:
-        pass
+    for marker in (
+        "pitv-launch.json",
+        "pitv-waydroid-app-ready",
+        "pitv-waydroid-runtime-ready",
+    ):
+        try:
+            os.unlink(os.path.join(runtime, marker))
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
 
     out("PiTV TV runtime vyčištěn")
 
