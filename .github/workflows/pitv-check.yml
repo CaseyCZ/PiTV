@@ -65,6 +65,7 @@ jobs:
           vendor_prop = Path("android/waydroid-rpi4/vendor.prop").read_text()
           assert "debug.stagefright.c2-poolmask=0x350000" in vendor_prop
           assert "persist.v4l2_codec2.rank.decoder=128" in vendor_prop
+          assert "persist.ffmpeg_codec2.rank.audio=4096" in vendor_prop
           assert "persist.ffmpeg_codec2.rank.video=256" in vendor_prop
           assert "persist.ffmpeg_codec2.v4l2.h264=false" in vendor_prop
           assert "persist.ffmpeg_codec2.v4l2.h265=true" in vendor_prop
