@@ -2269,6 +2269,16 @@ class PiTV:
             rr = pygame.Rect(x+j*(tile_w+gap), second_y, tile_w, tile_h)
             self.draw_home_tile(item, rr, i == self.selected)
 
+        hint = "Podrž Zpět 3 s = návrat do PiTV"
+        hint_surf = self.font(self.h*.0135, False).render(
+            hint, True, self.t["muted"]
+        )
+        self.screen.blit(
+            hint_surf,
+            (self.w-hint_surf.get_width()-int(self.w*.020),
+             self.h-int(self.h*.030)),
+        )
+
     SETTINGS = [
         ("Vzhled", "Motiv, dlaždice a hodiny"),
         ("Spořič obrazovky", "Nečinnost, černá obrazovka a CEC standby"),
