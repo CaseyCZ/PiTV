@@ -333,48 +333,70 @@ def self_test():
     tr = CECTranslator(sink)
     t = 100.0
 
+    # One physical OK can be printed by cec-ctl in both raw and decoded form.
     tr.feed("> 01:44:00\n", t)
     tr.feed("USER_CONTROL_PRESSED (0x44):\n", t + 0.01)
     tr.feed("  ui-cmd: select (0x00)\n", t + 0.02)
     assert sink.events == [KEY_ENTER], sink.events
     tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.03)
 
-    # Raw+decoded duplicate and aggressive hold repeats must not skip menu
-    # rows. Release makes the next real physical press immediate.
-    tr.feed("> 01:44:01\n", t + 0.20)
-    tr.feed("  ui-cmd: up (0x01)\n", t + 0.21)
-    tr.feed("> 01:44:01\n", t + 0.35)
-    assert sink.events[-1] == KEY_UP
-    up_count = sink.events.count(KEY_UP)
-    tr.feed("> 01:44:01\n", t + 0.70)
-    assert sink.events.count(KEY_UP) == up_count + 1
-    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.72)
-    tr.feed("> 01:44:01\n", t + 0.75)
-    assert sink.events.count(KEY_UP) == up_count + 2
-    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.76)
-    tr.feed("> 01:44:02\n", t + 0.80)
-    assert sink.events[-1] == KEY_DOWN
-    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.81)
+    # Direction presses are one step each. A held direction may repeat, but
+    # duplicate raw/decoded frames inside the repeat window never skip rows.
+    for offset, raw, expected in (
+        (0.20, "01", KEY_UP),
+        (1.00, "02", KEY_DOWN),
+        (1.80, "03", KEY_LEFT),
+        (2.60, "04", KEY_RIGHT),
+    ):
+        before = len(sink.events)
+        tr.feed(f"> 01:44:{raw}\n", t + offset)
+        tr.feed(f"  ui-cmd: { { "01":"up", "02":"down", "03":"left", "04":"right" }[raw] } (0x{raw})\n", t + offset + 0.01)
+        assert sink.events[before:] == [expected], sink.events[before:]
+        tr.feed(f"> 01:44:{raw}\n", t + offset + 0.20)
+        assert sink.events[before:] == [expected], sink.events[before:]
+        tr.feed(f"> 01:44:{raw}\n", t + offset + 0.55)
+        assert sink.events[before:] == [expected, expected], sink.events[before:]
+        tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + offset + 0.60)
 
-    tr.feed("> 01:44:0a\n", t + 0.90)
-    tr.feed("  ui-cmd: setup menu (0x0a)\n", t + 0.91)
-    assert sink.events[-1] == KEY_F13
-    home_count = sink.events.count(KEY_F13)
-    assert home_count == 1
-    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.92)
+    # TVs expose their Home/menu button under several CEC UI commands. Each
+    # supported code must become exactly one global F13 until release.
+    for index, code in enumerate(sorted(HOME_CODES)):
+        base = t + 4.0 + index
+        before = len(sink.events)
+        tr.feed(f"> 01:44:{code:02x}\n", base)
+        tr.feed(f"> 01:44:{code:02x}\n", base + 0.10)
+        assert sink.events[before:] == [KEY_F13], (code, sink.events[before:])
+        tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 0.20)
 
-    before = len(sink.events)
-    tr.feed("> 01:44:0d\n", t + 1.0)
-    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 1.1)
-    tr.feed("> 01:44:0d\n", t + 1.3)
-    assert sink.events[before:] == [KEY_ESC], sink.events[before:]
-    tr.tick(t + 4.2)
-    assert sink.events[-1] == KEY_F14, sink.events
+    # Back and Previous-channel are both appliance Back. Older TVs may encode
+    # one physical hold as repeated press/release pairs: send one short Back,
+    # preserve gesture continuity, then emit one F14 after three seconds.
+    for back_code in (0x0D, 0x32):
+        base = t + 20.0 + back_code
+        before = len(sink.events)
+        tr.feed(f"> 01:44:{back_code:02x}\n", base)
+        tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 0.10)
+        tr.feed(f"> 01:44:{back_code:02x}\n", base + 0.30)
+        assert sink.events[before:] == [KEY_ESC], sink.events[before:]
+        tr.tick(base + 3.20)
+        assert sink.events[before:] == [KEY_ESC, KEY_F14], sink.events[before:]
+        tr.feed("USER_CONTROL_RELEASED (0x45)\n", base + 3.30)
+        tr.tick(base + 4.20)
 
-    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 4.3)
-    tr.tick(t + 5.2)
+    # Media and volume keys remain ordinary Linux input events.
+    for code, expected in (
+        (0x41, KEY_VOLUMEUP),
+        (0x42, KEY_VOLUMEDOWN),
+        (0x43, KEY_MUTE),
+        (0x44, KEY_PLAYPAUSE),
+        (0x46, KEY_PLAYPAUSE),
+    ):
+        before = len(sink.events)
+        tr.feed(f"> 01:44:{code:02x}\n", t + 80.0 + code)
+        assert sink.events[before:] == [expected], (code, sink.events[before:])
+        tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 80.1 + code)
+
     print("PiTV inputd parser OK")
-
 
 def handle_signal(_signum, _frame):
     global STOP
