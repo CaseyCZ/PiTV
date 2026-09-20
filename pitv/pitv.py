@@ -27,6 +27,8 @@ VERSION = "1.4.26"
 
 SYSTEM_CONFIG = Path("/etc/pitv/config.json")
 USER_CONFIG = Path.home() / ".config/pitv/config.json"
+MIGRATION_DIR = USER_CONFIG.parent / "migrations"
+LEGACY_ANDROID_PACKAGES = ("com.stremio.one", "com.plexapp.android")
 SYSTEM_APPS = Path("/etc/pitv/apps.d")
 USER_APPS = Path.home() / ".config/pitv/apps.d"
 SYSTEM_SERVER_CATALOG = Path("/etc/pitv/store/server_catalog.json")
@@ -1137,6 +1139,8 @@ class PiTV:
         self._relay_echo = {}
         self._back_hold_triggered = False
         self._keyboard_back_down_at = 0.0
+        self._cec_refreshing = False
+        self._legacy_migration_started = False
 
         self.wifi_networks = []
         self.wifi_scanning = False
@@ -1191,6 +1195,11 @@ class PiTV:
         # their own hold/repeat events; SDL repeat caused multi-tile jumps.
         pygame.key.set_repeat()
         self.clock = pygame.time.Clock()
+
+        # Cleanup is deliberately asynchronous: the TV launcher must appear
+        # immediately even if Waydroid needs to boot once to remove packages
+        # shipped by older PiTV alpha builds.
+        self.migrate_legacy_android_async()
 
     @property
     def t(self):
