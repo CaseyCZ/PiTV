@@ -187,3 +187,4 @@ grep -q 'media_codecs_pitv_rpi4.xml' scripts/add-pitv-codec2-config-to-payload.s
 grep -q 'metadata path is a symlink' scripts/verify-codec2-metadata.py
 grep -q 'payload entry is a symlink' scripts/check-codec2-payload-size.py
 grep -q 'manifest symlink rejected' scripts/check-codec2-manifest-closure.py
+grep -q 'p.is_file() and iself(p)' scripts/audit-codec2-payload-deps.py
