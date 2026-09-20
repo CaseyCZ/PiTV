@@ -167,6 +167,7 @@ jobs:
           test ! -e /usr/local/bin/pitv-kodi-addon
           test ! -e /usr/local/libexec/pitv-helper
           test ! -e /usr/local/libexec/pitv-cec-monitor
+          test ! -e /usr/local/libexec/pitv-cec-control
           test -d /home/pitv/.config/pitv
           test -d /home/pitv/PiTV/APKs
 
