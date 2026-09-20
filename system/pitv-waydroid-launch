@@ -289,8 +289,8 @@ if [ "$MODE" = "client" ]; then
     exit 17
   fi
 
-  printf '%s\n' "$" >"$RUNTIME_READY"
-  log "hidden Android TV runtime ready pid=$ session_pid=$SESSION_PID"
+  printf '%s\n' "${BASHPID:-0}" >"$RUNTIME_READY"
+  log "hidden Android TV runtime ready pid=${BASHPID:-0} session_pid=$SESSION_PID"
 
   READY_MISSES=0
   while true; do
