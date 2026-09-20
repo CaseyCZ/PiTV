@@ -22,7 +22,7 @@ rm -f /etc/modules-load.d/pitv-uinput.conf
 rm -f /etc/systemd/system/getty@tty1.service.d/pitv-autologin.conf
 rmdir /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
 rm -f /etc/sudoers.d/pitv-power
-rm -f /usr/local/bin/pitv-session /usr/local/bin/pitv-session-run /usr/local/bin/pitv-launcher-run /usr/local/bin/pitv-waydroid-launch /usr/local/bin/pitv-kodi-launch /usr/local/bin/pitv-kodi-addon /usr/local/libexec/pitv-helper /usr/local/libexec/pitv-self-update /usr/local/libexec/pitv-install-waydroid /usr/local/libexec/pitv-cec-monitor /usr/local/libexec/pitv-android-warm /usr/local/libexec/pitv-inputd /usr/local/libexec/pitv-global-action
+rm -f /usr/local/bin/pitv-session /usr/local/bin/pitv-session-run /usr/local/bin/pitv-launcher-run /usr/local/bin/pitv-waydroid-launch /usr/local/bin/pitv-kodi-launch /usr/local/bin/pitv-kodi-addon /usr/local/libexec/pitv-helper /usr/local/libexec/pitv-self-update /usr/local/libexec/pitv-install-waydroid /usr/local/libexec/pitv-cec-monitor /usr/local/libexec/pitv-cec-control /usr/local/libexec/pitv-android-warm /usr/local/libexec/pitv-inputd /usr/local/libexec/pitv-global-action
 rm -rf /opt/pitv /etc/pitv /home/pitv/.config/labwc
 rm -f /home/pitv/.bash_profile
 rm -f /var/lib/pitv/cec-disabled
