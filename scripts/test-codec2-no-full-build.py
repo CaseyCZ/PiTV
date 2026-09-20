@@ -25,6 +25,9 @@ with tempfile.TemporaryDirectory() as td:
     run(py,str(repo/"scripts/preflight-codec2-overlay.py"),str(root),str(target))
     pf=json.loads((root/"PITV-CODEC2-PREFLIGHT.json").read_text())
     assert pf["entries"][0]["state"]=="replace"
+    run(py,str(repo/"scripts/plan-codec2-backup.py"),str(root))
+    bp=(root/"PITV-CODEC2-BACKUP-PLAN.txt").read_text()
+    assert "BACKUP /vendor/lib64/libdemo.so sha256=" in bp
     (root/"PITV-CODEC2-PAYLOAD.txt").write_text("../escape\n")
     run(py,str(repo/"scripts/validate-codec2-payload.py"),str(root),ok=False)
 print("Codec2 metadata self-tests OK")
