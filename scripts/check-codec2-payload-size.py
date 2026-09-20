@@ -11,10 +11,12 @@ total=0
 for rel in m.read_text().splitlines():
     rel=rel.strip()
     if not rel: continue
-    p=(root/rel).resolve()
+    raw=root/rel
+    if raw.is_symlink(): raise SystemExit(f"payload entry is a symlink: {rel}")
+    p=raw.resolve()
     try: p.relative_to(root)
     except ValueError: raise SystemExit(f"payload path escapes root: {rel}")
-    if p.is_symlink() or not p.is_file(): raise SystemExit(f"payload entry is not a regular file: {rel}")
+    if not p.is_file(): raise SystemExit(f"payload entry is not a regular file: {rel}")
     size=p.stat().st_size
     if size>MAX_FILE: raise SystemExit(f"payload file too large: {rel} ({size})")
     total+=size
