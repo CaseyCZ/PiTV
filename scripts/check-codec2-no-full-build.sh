@@ -20,6 +20,7 @@ SH=(
  scripts/rollback-codec2-overlay.sh
  scripts/build-minimal-codec2-modules.sh
  scripts/codec2-no-full-build.sh
+ scripts/verify-codec2-runtime.sh
 )
 python3 -m py_compile "${PY[@]}"
 python3 scripts/check-minimal-codec2-source-lock.py >/dev/null
