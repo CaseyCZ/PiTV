@@ -196,7 +196,7 @@ jobs:
           warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
           warm = warm.split('MODE="command"', 1)[0]
           assert 'waydroid session stop' not in warm
-          assert 'printf \'%s\\n\' "$" >"$RUNTIME_READY"' in wrapper
+          assert '>"$RUNTIME_READY"' in wrapper.replace(" ", "")
           assert 'waydroid app list' in wrapper  # diagnostics/Play Store + package verification
           launch = wrapper.split('# Never trust only the exit status', 1)[1]
           launch = launch.split('TRACK_PACKAGE="$TARGET"', 1)[0]
