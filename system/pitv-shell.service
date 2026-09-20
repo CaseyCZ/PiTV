@@ -30,6 +30,10 @@ Environment=LOGNAME=pitv
 Environment=XDG_SESSION_TYPE=wayland
 Environment=XDG_CURRENT_DESKTOP=labwc
 Environment=SDL_VIDEODRIVER=wayland
+# Remove stale compositor/Android readiness markers before this Type=simple
+# service can be considered active. pitv-android-warm.service starts After=
+# this unit, so it must never observe sockets/markers from the previous shell.
+ExecStartPre=/bin/sh -c 'r=/run/user/$(id -u); rm -f "$r/pitv-wayland-display" "$r/pitv-waydroid-app-ready" "$r/pitv-waydroid-runtime-ready"'
 ExecStart=/usr/local/bin/pitv-session
 Restart=always
 RestartSec=2
