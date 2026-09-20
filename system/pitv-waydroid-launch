@@ -120,6 +120,21 @@ package_installed() {
     sudo -n /usr/local/libexec/pitv-helper waydroid-package-installed       >/dev/null 2>&1
 }
 
+wait_package_installed() {
+  local package="$1"
+  # Waydroid's installApp call may return before Android PackageManager has
+  # published the new package. Physical Pi 4 testing showed a successful
+  # install result followed by a temporary "missing" state. Poll the actual
+  # PackageManager for up to 30 seconds and return immediately once visible.
+  for _ in $(seq 1 60); do
+    if package_installed "$package"; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
 wait_package_visible() {
   local package="$1"
   # Warm Android should become visible quickly. Keep one launch attempt bounded
@@ -324,8 +339,9 @@ else
         exit 4
       fi
       log "waydroid app install returned success: target=$TARGET"
-      if ! package_installed "$TARGET"; then
-        log "APK install completed but PackageManager still reports missing: $TARGET"
+      log "waiting for Android PackageManager to publish: $TARGET"
+      if ! wait_package_installed "$TARGET"; then
+        log "APK install timed out after 30s; PackageManager still reports missing: $TARGET"
         printf '{"package":"%s"}' "$TARGET" |
           sudo -n /usr/local/libexec/pitv-helper waydroid-package-installed             >>"$LOG" 2>&1 || true
         exit 4
