@@ -22,6 +22,7 @@ for p in root.rglob("*.xml"):
     text=p.read_text(errors="ignore")
     for name in service_names:
         if name in text: seen.add(name)
-if not seen:
-    raise SystemExit("no Codec2 service metadata found")
+missing=service_names-seen
+if missing:
+    raise SystemExit("missing Codec2 service metadata: "+", ".join(sorted(missing)))
 print("SERVICE_METADATA="+",".join(sorted(seen)))
