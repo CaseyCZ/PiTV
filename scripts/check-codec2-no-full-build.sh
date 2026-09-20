@@ -153,3 +153,4 @@ bash scripts/codec2-no-full-build.sh help | grep -q 'evidence \[OUT\]'
 grep -q 'last_evidence=' scripts/codec2-no-full-build.sh
 grep -q 'check-codec2-xml-contract.py' scripts/prepare-codec2-overlay.sh
 grep -q 'check-codec2-xml-contract.py' scripts/build-minimal-codec2-modules.sh
+grep -q 'remaining external prerequisite is a real compatible codec payload' docs/experiments/rpi4-codec2-no-full-build.md
