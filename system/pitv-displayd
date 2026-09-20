@@ -1,0 +1,319 @@
+#!/usr/bin/python3
+"""PiTV HDMI/EDID recovery below the visual shell.
+
+The daemon watches Raspberry Pi DRM HDMI connectors. After a real disconnect /
+reconnect (or a stable EDID/mode change) it repairs the existing labwc output
+in place with wlr-randr. Running TV applications therefore stay alive.
+
+Only when the compositor refuses output-management repeatedly do we fall back
+to restarting pitv-shell.service. The OS/server itself is never rebooted.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import pathlib
+import pwd
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+STOP = False
+RUNTIME_STATE = pathlib.Path("/run/pitv/display-state")
+SETTLE_SECONDS = 1.5
+POLL_SECONDS = 0.25
+
+
+def output_name_from_connector(name):
+    match = re.fullmatch(r"card\d+-(.+)", name)
+    return match.group(1) if match else name
+
+
+def read_text(path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return ""
+
+
+def connector_snapshot(root=pathlib.Path("/sys/class/drm")):
+    snapshot = {}
+    for status_path in sorted(root.glob("card*-HDMI-A-*/status")):
+        if read_text(status_path).lower() != "connected":
+            continue
+        connector = status_path.parent
+        name = connector.name
+        modes = read_text(connector / "modes")
+        try:
+            edid = (connector / "edid").read_bytes()
+        except OSError:
+            edid = b""
+        fingerprint = hashlib.sha256(
+            name.encode("utf-8") + b"\0" + modes.encode("utf-8") + b"\0" + edid
+        ).hexdigest()
+        snapshot[name] = {
+            "output": output_name_from_connector(name),
+            "fingerprint": fingerprint,
+            "modes": modes.splitlines(),
+        }
+    return snapshot
+
+
+def snapshot_fingerprint(snapshot):
+    payload = [
+        (name, value["fingerprint"])
+        for name, value in sorted(snapshot.items())
+    ]
+    return hashlib.sha256(
+        json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def parse_wlr_outputs(text):
+    outputs = []
+    for line in text.splitlines():
+        match = re.match(r'^(\S+)\s+"', line)
+        if match:
+            outputs.append(match.group(1))
+    return outputs
+
+
+def pitv_context():
+    try:
+        user = pwd.getpwnam("pitv")
+    except KeyError:
+        return None
+    runtime = pathlib.Path(f"/run/user/{user.pw_uid}")
+    marker = runtime / "pitv-wayland-display"
+    display = read_text(marker)
+    if not re.fullmatch(r"wayland-[0-9]+", display):
+        return None
+    if not (runtime / display).is_socket():
+        return None
+    runuser = shutil.which("runuser") or "/usr/sbin/runuser"
+    env = [
+        "env", "-i",
+        "HOME=/home/pitv",
+        "USER=pitv",
+        "LOGNAME=pitv",
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        f"XDG_RUNTIME_DIR={runtime}",
+        f"WAYLAND_DISPLAY={display}",
+        "XDG_SESSION_TYPE=wayland",
+        "XDG_CURRENT_DESKTOP=labwc",
+    ]
+    return runuser, runtime, env
+
+
+def run_as_pitv(argv, timeout=8):
+    context = pitv_context()
+    if context is None:
+        return None
+    runuser, _runtime, env = context
+    try:
+        return subprocess.run(
+            [runuser, "-u", "pitv", "--", *env, *argv],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def notify_launcher():
+    action = pathlib.Path("/usr/local/libexec/pitv-global-action")
+    if not action.exists():
+        return
+    run_as_pitv([str(action), "display"], timeout=3)
+
+
+def choose_output(snapshot, available):
+    wanted = [item["output"] for _, item in sorted(snapshot.items())]
+    for name in wanted:
+        if name in available:
+            return name
+    hdmi = [name for name in available if name.upper().startswith("HDMI-")]
+    if len(hdmi) == 1:
+        return hdmi[0]
+    if len(available) == 1:
+        return available[0]
+    return None
+
+
+def repair_output(snapshot):
+    if not snapshot:
+        return False, "no connected HDMI output"
+    if shutil.which("wlr-randr") is None:
+        return False, "wlr-randr is not installed"
+
+    query = run_as_pitv(["wlr-randr"], timeout=5)
+    if query is None or query.returncode != 0:
+        return False, "labwc output manager is not ready"
+
+    available = parse_wlr_outputs(query.stdout or "")
+    output = choose_output(snapshot, available)
+    if not output:
+        return False, f"no matching wlroots output: {available}"
+
+    command = [
+        "wlr-randr",
+        "--output", output,
+        "--on",
+        "--preferred",
+        "--pos", "0,0",
+        "--transform", "normal",
+        "--scale", "1",
+    ]
+    result = run_as_pitv(command, timeout=8)
+    if result is None or result.returncode != 0:
+        message = (result.stdout or "").strip() if result else "command failed"
+        return False, message or "wlr-randr rejected configuration"
+
+    notify_launcher()
+    return True, output
+
+
+def fallback_shell_restart():
+    try:
+        subprocess.run(
+            ["/usr/bin/systemctl", "try-restart", "pitv-shell.service"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            check=False,
+        )
+    except Exception:
+        pass
+
+
+def write_state(status, snapshot, detail=""):
+    try:
+        RUNTIME_STATE.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "status": status,
+            "detail": detail,
+            "connected": [
+                item["output"] for _, item in sorted(snapshot.items())
+            ],
+            "updated": int(time.time()),
+        }
+        tmp = RUNTIME_STATE.with_name(RUNTIME_STATE.name + f".{os.getpid()}")
+        tmp.write_text(json.dumps(data, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(tmp, RUNTIME_STATE)
+    except OSError:
+        pass
+
+
+def self_test():
+    assert output_name_from_connector("card1-HDMI-A-1") == "HDMI-A-1"
+    assert output_name_from_connector("card0-HDMI-A-2") == "HDMI-A-2"
+    sample = """HDMI-A-1 "Example TV"
+  Enabled: yes
+  Modes:
+    1920x1080 px, 60.000000 Hz (preferred, current)
+  Position: 0,0
+DP-1 "Other"
+  Enabled: no
+"""
+    assert parse_wlr_outputs(sample) == ["HDMI-A-1", "DP-1"]
+    snapshot = {
+        "card1-HDMI-A-1": {
+            "output": "HDMI-A-1",
+            "fingerprint": "a",
+            "modes": ["1920x1080"],
+        }
+    }
+    assert choose_output(snapshot, ["HDMI-A-1"]) == "HDMI-A-1"
+    assert choose_output(snapshot, ["HDMI-A-2"]) == "HDMI-A-2"
+    assert choose_output(snapshot, ["DP-1", "DP-2"]) is None
+    assert len(snapshot_fingerprint(snapshot)) == 64
+    print("PiTV displayd self-test OK")
+
+
+def handle_signal(_signum, _frame):
+    global STOP
+    STOP = True
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return 0
+
+    if os.geteuid() != 0:
+        print("pitv-displayd musí běžet jako root system service", file=sys.stderr)
+        return 2
+
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
+
+    previous = connector_snapshot()
+    previous_fp = snapshot_fingerprint(previous) if previous else ""
+    disconnected_seen = False
+    pending_fp = ""
+    pending_since = 0.0
+    pending_snapshot = {}
+    write_state("connected" if previous else "disconnected", previous)
+
+    while not STOP:
+        time.sleep(POLL_SECONDS)
+        current = connector_snapshot()
+        current_fp = snapshot_fingerprint(current) if current else ""
+
+        if not current:
+            if previous:
+                disconnected_seen = True
+                write_state("disconnected", current)
+            pending_fp = ""
+            pending_since = 0.0
+            pending_snapshot = {}
+        else:
+            changed = bool(previous and current_fp != previous_fp)
+            reconnected = bool(disconnected_seen and not previous)
+            if changed or reconnected:
+                pending_fp = current_fp
+                pending_since = time.monotonic()
+                pending_snapshot = current
+                write_state("settling", current)
+
+            if pending_fp:
+                if current_fp != pending_fp:
+                    pending_fp = current_fp
+                    pending_since = time.monotonic()
+                    pending_snapshot = current
+                elif time.monotonic() - pending_since >= SETTLE_SECONDS:
+                    ok = False
+                    detail = ""
+                    for attempt in range(3):
+                        ok, detail = repair_output(pending_snapshot)
+                        if ok:
+                            break
+                        time.sleep(0.6)
+                    if ok:
+                        write_state("repaired", pending_snapshot, detail)
+                    else:
+                        write_state("shell-recovery", pending_snapshot, detail)
+                        fallback_shell_restart()
+                    disconnected_seen = False
+                    pending_fp = ""
+                    pending_since = 0.0
+                    pending_snapshot = {}
+
+        previous = current
+        previous_fp = current_fp
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
