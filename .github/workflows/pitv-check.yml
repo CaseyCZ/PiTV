@@ -297,6 +297,10 @@ jobs:
           src = Path("system/pitv-helper").read_text(encoding="utf-8")
           launch = src.split('elif action == "waydroid-app-launch":', 1)[1]
           launch = launch.split('elif action == "waydroid-app-running":', 1)[0]
+          assert 'prepared = waydroid_shell(' in launch
+          assert 'setprop waydroid.active_apps' in launch
+          assert "settings put global policy_control 'immersive.status=*'" in launch
+          assert launch.index('prepared = waydroid_shell(') < launch.index('resolved = waydroid_shell(')
           assert 'resolved = waydroid_shell(' in launch
           assert 'launched = waydroid_shell(' in launch
           assert '"cmd", "package", "resolve-activity"' in launch
