@@ -145,6 +145,11 @@ install -m 0644 system/pitv-shell.service /etc/systemd/system/pitv-shell.service
 install -m 0644 system/pitv-android-warm.service /etc/systemd/system/pitv-android-warm.service
 install -m 0644 system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service
 
+# The virtual PiTV TV Remote uses Linux uinput. Load it during every boot
+# before pitv-inputd and load it now as well for an in-place upgrade.
+printf '%s\n' "uinput" >/etc/modules-load.d/pitv-uinput.conf
+modprobe uinput >/dev/null 2>&1 || true
+
 # Preserve an existing user's CEC choice across upgrades. The service stays
 # enabled as part of the appliance target; a persistent condition marker keeps
 # it intentionally inactive when Settings says HDMI-CEC is off.
