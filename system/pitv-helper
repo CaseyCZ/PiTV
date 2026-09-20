@@ -684,6 +684,42 @@ elif action == "waydroid-user-ready":
         out("ready")
     out(value or "Android user 0 ještě není RUNNING_UNLOCKED", 4)
 
+elif action == "waydroid-hw-codec-status":
+    if shutil.which("waydroid") is None:
+        out("Waydroid není nainstalovaný", 2)
+
+    release = waydroid_shell(["getprop", "ro.build.version.release"], timeout=10)
+    xml = waydroid_shell(["cat", "/vendor/etc/media_codecs.xml"], timeout=10)
+    service = waydroid_shell(
+        ["getprop", "init.svc.android-hardware-media-c2-v4l2-hal-1-0"],
+        timeout=10,
+    )
+    nodes = waydroid_shell(
+        ["sh", "-c", "ls -1 /dev/video* 2>/dev/null | head -n 64"],
+        timeout=10,
+    )
+
+    release_value = (release.stdout or "").strip()
+    xml_text = xml.stdout or ""
+    service_value = (service.stdout or "").strip()
+    video_nodes = [
+        line.strip()
+        for line in (nodes.stdout or "").splitlines()
+        if line.strip().startswith("/dev/video")
+    ]
+    decoder = "c2.v4l2.avc.decoder" in xml_text
+
+    print(f"android_release={release_value or 'unknown'}")
+    print(f"v4l2_video_nodes={len(video_nodes)}")
+    print(f"avc_decoder={'c2.v4l2.avc.decoder' if decoder else 'missing'}")
+    print(f"codec2_hal={service_value or 'missing'}")
+    if video_nodes:
+        print("video_nodes=" + ",".join(video_nodes))
+
+    if decoder and service_value == "running" and video_nodes:
+        raise SystemExit(0)
+    raise SystemExit(4)
+
 elif action == "waydroid-diagnostics":
     package = str(payload.get("package", "")).strip()
     if package and not re.fullmatch(
