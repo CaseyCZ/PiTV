@@ -1,5 +1,17 @@
 # PiTV Alpha
 
+### PiTV 1.4.25 · univerzální ukončení aplikace + Kodi lifecycle
+- krátké Zpět zůstává běžné Back uvnitř aplikace; **podržení Zpět 3 s aplikaci skutečně ukončí a vrátí PiTV launcher**
+- funkce není závislá na Home tlačítku; Home zůstává pouze volitelné pozastavení/multitasking pro ovladače, které ho mají
+- návrat do launcheru proběhne okamžitě a cleanup aplikace pokračuje mimo render/input thread
+- pokud aplikace po běžném TERM nezmizí do 2,5 s, PiTV použije cílený force fallback; tím se uklidí i procesy odpojené od původního wrapperu
+- Android exit zastaví Cage/Waydroid session a po long-Back ukončí také Waydroid container, aby Pi 4 dostalo zpět RAM/GPU stav
+- Kodi má nový `pitv-kodi-launch`, který sleduje skutečný `kodi.bin` i když distro `kodi` wrapper skončí a proces se reparentuje pod PID 1
+- Plex/PM4K používá stejný Kodi lifecycle wrapper; `kodi-send` je volitelný pro běžné Kodi a povinný pouze tam, kde ho Plex integrace opravdu potřebuje
+- stale focus recovery už nenechá skrytou aplikaci suspendovanou; provede deterministické ukončení a návrat do PiTV
+- Home obrazovka i dokumentace ukazují nový TV kontrakt: **Podrž Zpět 3 s = ukončit aplikaci • PiTV**
+
+
 ### PiTV 1.4.24 · TV multitasking místo ukončování
 - 3sekundové podržení Zpět už aplikaci nezabije: pozastaví ji, vrátí launcher PiTV a aplikace zůstane připravená v paměti
 - Kodi/Plex, nativní Stremio, Android/Waydroid a ostatní TV aplikace dostávají vlastní labwc pracovní plochu; PiTV launcher zůstává na samostatné ploše
