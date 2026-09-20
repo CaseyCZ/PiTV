@@ -17,7 +17,7 @@ Environment=LOGNAME=pitv
 ExecStart=/usr/local/libexec/pitv-android-warm
 Restart=always
 RestartSec=2
-TimeoutStopSec=20
+TimeoutStopSec=40
 
 [Install]
 WantedBy=pitv.target
