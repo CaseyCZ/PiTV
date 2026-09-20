@@ -29,12 +29,12 @@ ANDROID_HOME_PACKAGES = {
 }
 
 
-def parse_android_top_package(text):
+def parse_android_top_component(text):
     text = text or ""
     patterns = (
-        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
-        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
-        r"topResumedActivity=.*?\s([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/",
+        r"(?m)^\s*ACTIVITY\s+([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
+        r"mResumedActivity:.*?\s([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
+        r"topResumedActivity=.*?\s([A-Za-z][A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)",
     )
     for pattern in patterns:
         match = re.search(pattern, text)
@@ -43,10 +43,43 @@ def parse_android_top_package(text):
     return ""
 
 
-def android_tv_session_active(top_package, target_running=False, top_ok=True):
+def parse_android_top_package(text):
+    component = parse_android_top_component(text)
+    if component:
+        return component.split("/", 1)[0]
+    return ""
+
+
+def android_home_surface(top_package, top_component=""):
+    if top_package in ANDROID_HOME_PACKAGES:
+        return True
+    component = str(top_component or "").lower()
+    # AOSP/Lineage may expose its bootstrap Home as Settings/FallbackHome
+    # until a dedicated launcher is provisioned. Physical Pi 4 Waydroid uses
+    # exactly this surface.
+    return component.endswith("/.fallbackhome") or component.endswith(".fallbackhome")
+
+
+def resolve_android_launcher_component(text, package):
+    """Extract one PackageManager-resolved component for the requested app."""
+    package = str(package or "").strip()
+    if not package:
+        return ""
+    for raw in reversed((text or "").splitlines()):
+        line = raw.strip()
+        if re.fullmatch(
+            re.escape(package) + r"/[A-Za-z0-9_.$]+",
+            line,
+        ):
+            return line
+    return ""
+
+
+def android_tv_session_active(top_package, target_running=False, top_ok=True,
+                              top_component=""):
     """Return whether the viewer is still inside one Android TV app flow."""
     if top_ok and top_package:
-        return top_package not in ANDROID_HOME_PACKAGES
+        return not android_home_surface(top_package, top_component)
     if target_running:
         return True
     # A transient ActivityManager error is not evidence that the user left.
@@ -54,7 +87,8 @@ def android_tv_session_active(top_package, target_running=False, top_ok=True):
 
 
 def android_app_launch_visible(target_package, top_package,
-                               target_running=False, top_ok=True):
+                               target_running=False, top_ok=True,
+                               top_component=""):
     """Return whether a requested Android app has entered a visible app flow.
 
     A TV app can immediately delegate foreground to Android Settings,
@@ -68,7 +102,7 @@ def android_app_launch_visible(target_package, top_package,
     if top_ok and top_package:
         if top_package == target_package:
             return True
-        if top_package in ANDROID_HOME_PACKAGES:
+        if android_home_surface(top_package, top_component):
             return False
         return bool(target_running)
     return bool(target_running)
@@ -229,6 +263,16 @@ if action == "self-test":
     assert parse_android_top_package(
         "mResumedActivity: ActivityRecord{abc u0 com.android.settings/.Settings t42}"
     ) == "com.android.settings"
+    assert parse_android_top_component(
+        "  ACTIVITY com.android.settings/.FallbackHome b00149e pid=741"
+    ) == "com.android.settings/.FallbackHome"
+    assert android_home_surface(
+        "com.android.settings", "com.android.settings/.FallbackHome"
+    )
+    assert resolve_android_launcher_component(
+        "priority=0\norg.smarttube.stable/com.liskovsoft.tv.SplashActivity\n",
+        "org.smarttube.stable",
+    ) == "org.smarttube.stable/com.liskovsoft.tv.SplashActivity"
     assert android_tv_session_active(
         "com.android.settings", target_running=False, top_ok=True
     )
@@ -600,6 +644,61 @@ elif action == "waydroid-app-stop":
         out((p.stdout or "").strip() or "Android aplikaci nelze ukončit", 3)
     out("Android aplikace ukončena")
 
+elif action == "waydroid-app-launch":
+    package = str(payload.get("package", "")).strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
+        out("Neplatný Android package ID", 2)
+
+    component = ""
+    category = ""
+    diagnostics = []
+    for candidate_category in (
+        "android.intent.category.LEANBACK_LAUNCHER",
+        "android.intent.category.LAUNCHER",
+    ):
+        resolved = subprocess.run(
+            [
+                "waydroid", "shell", "cmd", "package", "resolve-activity",
+                "--brief", "--user", "0",
+                "-a", "android.intent.action.MAIN",
+                "-c", candidate_category,
+                package,
+            ],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=15, check=False,
+        )
+        diagnostics.append((resolved.stdout or "").strip())
+        if resolved.returncode == 0:
+            component = resolve_android_launcher_component(
+                resolved.stdout or "", package
+            )
+            if component:
+                category = candidate_category
+                break
+
+    if not component:
+        out(
+            "Android launcher Activity nenalezena: "
+            + " | ".join(x for x in diagnostics if x)[-800:],
+            4,
+        )
+
+    launched = subprocess.run(
+        [
+            "waydroid", "shell", "am", "start", "--user", "0", "-W",
+            "-a", "android.intent.action.MAIN",
+            "-c", category,
+            "-n", component,
+        ],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, timeout=30, check=False,
+    )
+    launch_text = (launched.stdout or "").strip()
+    if launched.returncode != 0 or re.search(
+            r"(?im)^\s*(?:error|exception):", launch_text):
+        out(launch_text or "Android Activity se nepodařilo spustit", 5)
+    out(f"launched:{component}")
+
 elif action == "waydroid-app-running":
     package = str(payload.get("package", "")).strip()
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", package):
@@ -634,9 +733,11 @@ elif action == "waydroid-app-session-active":
         text=True, timeout=6, check=False,
     )
     top_package = parse_android_top_package(top.stdout or "")
+    top_component = parse_android_top_component(top.stdout or "")
 
     if top.returncode == 0 and top_package:
-        if android_tv_session_active(top_package, top_ok=True):
+        if android_tv_session_active(
+                top_package, top_ok=True, top_component=top_component):
             out(f"active:{top_package}")
         out(f"Android Home je aktivní: {top_package}", 4)
 
@@ -651,7 +752,7 @@ elif action == "waydroid-app-session-active":
     target_running = p.returncode == 0 and bool((p.stdout or "").strip())
     if android_tv_session_active(
             top_package, target_running=target_running,
-            top_ok=(top.returncode == 0)):
+            top_ok=(top.returncode == 0), top_component=top_component):
         out("active:fallback")
 
     out("Android TV session už není aktivní", 4)
@@ -671,11 +772,13 @@ elif action == "waydroid-app-visible":
         text=True, timeout=5, check=False,
     )
     top_package = parse_android_top_package(top.stdout or "")
+    top_component = parse_android_top_component(top.stdout or "")
 
     if top.returncode == 0 and top_package == package:
         out(f"visible:{top_package}")
-    if top.returncode == 0 and top_package in ANDROID_HOME_PACKAGES:
-        out(f"Android Home je stále aktivní: {top_package}", 4)
+    if (top.returncode == 0 and
+            android_home_surface(top_package, top_component)):
+        out(f"Android Home je stále aktivní: {top_component or top_package}", 4)
 
     proc = subprocess.run(
         ["waydroid", "shell", "pidof", package],
@@ -687,7 +790,7 @@ elif action == "waydroid-app-visible":
     if android_app_launch_visible(
             package, top_package,
             target_running=target_running,
-            top_ok=(top.returncode == 0)):
+            top_ok=(top.returncode == 0), top_component=top_component):
         out(f"visible:{top_package or package}")
 
     out("Android aplikace zatím nevytvořila aktivní TV flow", 4)
