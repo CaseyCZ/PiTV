@@ -8,6 +8,7 @@ python3 "$HERE/enforce-codec2-payload-scope.py" "$STAGE"
 python3 "$HERE/check-codec2-payload-size.py" "$STAGE"
 python3 "$HERE/verify-codec2-metadata.py" "$STAGE"
 python3 "$HERE/codec2-payload-readiness.py" "$STAGE"
+python3 "$HERE/check-codec2-service-metadata.py" "$STAGE"
 TARGET_REPORT="$(mktemp)"
 trap 'rm -f "$TARGET_REPORT"' EXIT
 "$HERE/probe-waydroid-codec2-target.sh" >"$TARGET_REPORT"
