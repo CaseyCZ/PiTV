@@ -71,6 +71,15 @@ for g in video render input audio tty; do
   getent group "$g" >/dev/null && usermod -aG "$g" pitv || true
 done
 
+# Detect a live pre-1.5 TV session before replacing its boot mechanism.
+# Never stop it from inside the installer: this script may itself be a child of
+# that session during an in-UI self-update.
+PITV_LEGACY_LIVE=0
+if systemctl is-active --quiet getty@tty1.service &&
+   pgrep -u pitv -f '/opt/pitv/pitv/pitv.py' >/dev/null 2>&1; then
+  PITV_LEGACY_LIVE=1
+fi
+
 # Keep the pitv per-user systemd manager alive independently of the visual
 # shell. D-Bus, PipeWire and WirePlumber then survive a TV-shell recovery.
 loginctl enable-linger pitv >/dev/null 2>&1 || true
@@ -239,6 +248,14 @@ systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
 systemctl enable pitv-shell.service pitv-android-warm.service
 systemctl set-default pitv.target
+
+# A 1.4.x in-UI updater is still running inside getty@tty1 at this point.
+# Queue the hand-over in an independent transient systemd unit so the installer
+# can return successfully before the old session is stopped. Starting the new
+# shell automatically stops the conflicting getty and takes ownership of tty1.
+if [ "$PITV_LEGACY_LIVE" -eq 1 ]; then
+  systemd-run --quiet --collect     --unit="pitv-shell-migration-$$"     --on-active=3s     /usr/bin/systemctl restart pitv-shell.service >/dev/null 2>&1 || true
+fi
 
 # Older/manual PiTV repair sessions could leave duplicate vc4-kms-v3d overlays.
 # Keep the first vc4-kms-v3d line only; duplicate KMS overlays can confuse HDMI/CEC.
