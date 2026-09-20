@@ -10,7 +10,7 @@ import zipfile
 from pathlib import Path
 
 COMMIT_API = "https://api.github.com/repos/CaseyCZ/PiTV/commits/Master"
-USER_AGENT = "PiTV-Updater/1.4.10"
+USER_AGENT = "PiTV-Updater/1.4.27"
 MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 250 * 1024 * 1024
 
@@ -104,17 +104,44 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
     source = install.parent
     try:
         print("PiTV: spouštím instalaci…", flush=True)
+        env = os.environ.copy()
+        env["DEBIAN_FRONTEND"] = "noninteractive"
+        # install.sh also uses this value. Keep the updater explicit so old
+        # PiTV builds downloading a new installer receive the same safe wait.
+        env["APT_LOCK_TIMEOUT"] = "600"
         p = subprocess.run(
             ["bash", str(install)],
             cwd=str(source),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
             timeout=1800,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         fail("Aktualizace PiTV vypršela")
 
     if p.returncode != 0:
-        fail(f"Aktualizace PiTV selhala (kód {p.returncode})")
+        raw = (p.stdout or "").strip()
+        lines = [line.strip() for line in raw.splitlines() if line.strip()]
+        lock_error = any(
+            token in raw.lower()
+            for token in (
+                "could not get lock",
+                "unable to acquire the dpkg frontend lock",
+                "is another process using it",
+            )
+        )
+        if lock_error:
+            fail(
+                "APT je stále zaneprázdněné systémovou aktualizací. "
+                "PiTV na zámek čekalo 10 minut; zkus aktualizaci znovu později."
+            )
+        detail = " | ".join(lines[-4:])[-700:] if lines else ""
+        fail(
+            f"Aktualizace PiTV selhala (kód {p.returncode})"
+            + (f": {detail}" if detail else "")
+        )
 
     print(f"PiTV aktualizováno na {sha[:12]}", flush=True)
