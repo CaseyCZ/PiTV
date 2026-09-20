@@ -136,6 +136,14 @@ do
   sed -i "/^${key//./\\.}=/d" "$BUILD_PROP"
   printf '%s\n' "$kv" >>"$BUILD_PROP"
 done
+# Verify every staged file byte-for-byte inside the candidate vendor image.
+while IFS= read -r rel; do
+  [ -n "$rel" ] || continue
+  case "$rel" in vendor/*) dstrel="${rel#vendor/}";; *) dstrel="$rel";; esac
+  src="$STAGE/$rel"; dst="$MNT/$dstrel"
+  [ -f "$dst" ] || fail "installed payload file missing: $rel"
+  cmp -s "$src" "$dst" || fail "installed payload hash mismatch: $rel"
+done <"$STAGE/PITV-CODEC2-PAYLOAD.txt"
 sync
 umount "$MNT"; mounted=0
 cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
