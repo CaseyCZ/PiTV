@@ -38,6 +38,41 @@ jobs:
           bash -n system/pitv-launcher-run
           bash -n system/pitv-android-warm
           bash -n system/pitv-waydroid-launch
+          bash -n scripts/build-waydroid-rpi4-v4l2.sh
+          bash -n scripts/install-waydroid-rpi4-v4l2-image.sh
+          python3 - <<'PYV4L2'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          media = Path("android/waydroid-rpi4/media_codecs.xml")
+          root = ET.parse(media).getroot()
+          names = {
+              node.get("name")
+              for node in root.findall(".//MediaCodec")
+              if node.get("name")
+          }
+          assert "c2.v4l2.avc.decoder" in names
+          assert "c2.v4l2.vp9.decoder" not in names
+          assert "c2.v4l2.hevc.decoder" not in names
+
+          mk = Path("android/waydroid-rpi4/pitv-rpi4-v4l2.mk").read_text()
+          assert "android.hardware.media.c2@1.0-service-v4l2" in mk
+          assert "debug.stagefright.c2-poolmask=0x350000" in mk
+          assert "ro.vendor.v4l2_codec2.decode_concurrent_instances=4" in mk
+
+          build = Path("scripts/build-waydroid-rpi4-v4l2.sh").read_text()
+          assert "lineage_waydroid_arm64-userdebug" in build
+          assert "lineage-rpi/android_external_v4l2_codec2.git" in build
+          assert "c2.v4l2.avc.decoder" in build
+
+          installer = Path("scripts/install-waydroid-rpi4-v4l2-image.sh").read_text()
+          assert "restore_previous" in installer
+          assert "fail_and_restore" in installer
+          assert "c2.v4l2.avc.decoder" in installer
+          assert "android-hardware-media-c2-v4l2-hal-1-0" in installer
+
+          print("PiTV RPi4 V4L2 Codec2 static contract OK")
+          PYV4L2
           python3 - <<'PYWAYDROID'
           from pathlib import Path
           src = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
@@ -121,6 +156,8 @@ jobs:
           ! grep -q 'stremio_tv_apk' store/catalog.json
           ! grep -q 'stremio_tv_apk' pitv/store_backend.py
           grep -q 'waydroid-keyevent' system/pitv-helper
+          grep -q 'waydroid-hw-codec-status' system/pitv-helper
+          grep -q 'c2.v4l2.avc.decoder' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
           python3 system/pitv-inputd --self-test
