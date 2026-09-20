@@ -1,3 +1,5 @@
 #!/bin/sh
-export SDL_VIDEODRIVER=wayland
-/usr/local/bin/pitv-launcher-run >>/tmp/pitv-launcher-supervisor.log 2>&1 &
+# PiTV 1.5: applications are supervised by pitv-session/systemd.
+# labwc autostart deliberately starts nothing so recovery cannot create
+# a second launcher.
+exit 0
