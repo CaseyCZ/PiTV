@@ -31,6 +31,22 @@
   </desktops>
 
   <keyboard>
+    <!--
+      PiTV system remote: F13/F14 are private virtual keys emitted only by
+      pitv-inputd. labwc consumes them globally, so Home/long-Back work even
+      while Kodi or nested Cage/Android owns keyboard focus.
+    -->
+    <keybind key="F13">
+      <action name="Execute" command="/usr/local/libexec/pitv-global-action home" />
+      <action name="GoToDesktop" to="PiTV" />
+      <action name="HideCursor" />
+    </keybind>
+    <keybind key="F14">
+      <action name="Execute" command="/usr/local/libexec/pitv-global-action close" />
+      <action name="GoToDesktop" to="PiTV" />
+      <action name="HideCursor" />
+    </keybind>
+
     <keybind key="W-Home"><action name="Execute" command="wtype -k Home" /></keybind>
 
     <!-- Private PiTV compositor controls. PiTV sends these with wtype. -->
