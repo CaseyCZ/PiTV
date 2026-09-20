@@ -175,7 +175,8 @@ jobs:
           grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
           grep -q 'pitv-display.service' system/pitv.target
           grep -q '^Restart=always$' system/pitv-display.service
-          grep -q -- '--on --preferred --pos 0,0 --transform normal --scale 1' system/pitv-display-watch
+          grep -q -- '--on --pos 0,0 --transform normal --scale 1' system/pitv-display-watch
+          ! grep -q -- '--on --preferred' system/pitv-display-watch
           grep -q 'pitv-display-repair' system/pitv-display-watch
           grep -q 'pitv-display-repair' pitv/pitv.py
           grep -q '<reuseOutputMode>yes</reuseOutputMode>' system/labwc/rc.xml
