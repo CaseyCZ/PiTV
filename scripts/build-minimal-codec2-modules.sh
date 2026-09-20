@@ -35,32 +35,32 @@ m -j"$JOBS"   android.hardware.media.c2@1.0-service-v4l2   libc2plugin_store   a
 
 rm -rf "$OUT"; mkdir -p "$OUT"
 PRODUCT_OUT="${ANDROID_PRODUCT_OUT:?ANDROID_PRODUCT_OUT missing after lunch/build}"
-copy_match(){
-  base="$1"; required="${2:-yes}"
-  mapfile -t hits < <(find "$PRODUCT_OUT/vendor" -type f -name "$base" 2>/dev/null | sort -u)
-  if [ "${#hits[@]}" -eq 0 ]; then
-    [ "$required" = no ] && return 0
-    echo "missing build output: $base" >&2; exit 10
-  fi
-  for p in "${hits[@]}"; do
-    rel="${p#"$PRODUCT_OUT/"}"; mkdir -p "$OUT/$(dirname "$rel")"; cp -a "$p" "$OUT/$rel"
-  done
-}
-copy_match 'android.hardware.media.c2@1.0-service-v4l2'
-copy_match 'libc2plugin_store.so'
-copy_match 'android.hardware.media.c2@1.2-service-ffmpeg'
-copy_match 'libffmpeg_utils.so'
-copy_match 'libavcodec.so'
-copy_match 'libavutil.so'
-copy_match 'libswresample.so'
-copy_match 'libswscale.so'
-copy_match 'android.hardware.media.c2@1.0-service-v4l2.rc' no
-copy_match 'android.hardware.media.c2@1.0-service-v4l2.xml' no
-copy_match 'android.hardware.media.c2@1.2-service-ffmpeg.rc' no
-copy_match 'android.hardware.media.c2@1.2-service-ffmpeg.xml' no
-copy_match '*v4l2*policy*' no
-copy_match '*ffmpeg*policy*' no
-find "$OUT" -type f -printf '%P\n' | sort >"$OUT/PITV-CODEC2-PAYLOAD.txt"
+VENDOR_OUT="$PRODUCT_OUT/vendor"
+mapfile -t avc_roots < <(find "$VENDOR_OUT" -type f -name 'android.hardware.media.c2@1.0-service-v4l2' | sort)
+mapfile -t hevc_roots < <(find "$VENDOR_OUT" -type f -name 'android.hardware.media.c2@1.2-service-ffmpeg' | sort)
+[ "${#avc_roots[@]}" -eq 1 ] || { echo "expected one AVC service output" >&2; exit 10; }
+[ "${#hevc_roots[@]}" -eq 1 ] || { echo "expected one HEVC service output" >&2; exit 10; }
+roots=("${avc_roots[0]#"$VENDOR_OUT"/}" "${hevc_roots[0]#"$VENDOR_OUT"/}")
+python3 "$HERE/collect-codec2-prebuilt.py" "$VENDOR_OUT" "$OUT" "${roots[@]}"
+
+# ELF DT_NEEDED does not carry init/VINTF/seccomp metadata. Copy only metadata
+# installed by the two selected services, never the rest of donor vendor.
+for pattern in \
+  'android.hardware.media.c2@1.0-service-v4l2*.rc' \
+  'android.hardware.media.c2@1.0-service-v4l2*.xml' \
+  'android.hardware.media.c2@1.2-service-ffmpeg*.rc' \
+  'android.hardware.media.c2@1.2-service-ffmpeg*.xml' \
+  '*v4l2*policy*' '*ffmpeg*policy*'
+do
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    rel="${p#"$VENDOR_OUT"/}"
+    mkdir -p "$OUT/$(dirname "$rel")"
+    cp -a "$p" "$OUT/$rel"
+    printf '%s\n' "$rel" >>"$OUT/PITV-CODEC2-PAYLOAD.txt"
+  done < <(find "$VENDOR_OUT" -type f -name "$pattern" | sort)
+done
+sort -u "$OUT/PITV-CODEC2-PAYLOAD.txt" -o "$OUT/PITV-CODEC2-PAYLOAD.txt"
 python3 "$HERE/assemble-codec2-overlay.py" "$OUT" "$HERE/.."
 python3 "$HERE/validate-codec2-payload.py" "$OUT"
 echo "Minimal Codec2 build payload: $OUT"
