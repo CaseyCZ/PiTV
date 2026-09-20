@@ -15,8 +15,12 @@ MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 250 * 1024 * 1024
 
 
+def progress(percent, message):
+    print(f"PiTV [{percent:3d}%] {message}", flush=True)
+
+
 def fail(message):
-    print(message, flush=True)
+    print(f"PiTV [CHYBA] {message}", flush=True)
     raise SystemExit(1)
 
 
@@ -60,9 +64,10 @@ def validate_zip(z):
 if os.geteuid() != 0:
     fail("PiTV self updater musí běžet jako root")
 
+progress(5, "Kontroluji novou verzi…")
 sha = resolve_master_sha()
 archive_url = f"https://codeload.github.com/CaseyCZ/PiTV/zip/{sha}"
-print(f"PiTV: stahuji commit {sha[:12]}…", flush=True)
+progress(10, f"Stahuji commit {sha[:12]}…")
 
 with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
     td = Path(td_raw)
@@ -81,12 +86,17 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
                 if copied > MAX_ARCHIVE_BYTES:
                     fail("Aktualizační archiv překročil bezpečný limit")
                 out.write(chunk)
+                if length:
+                    pct = 10 + min(35, int(copied * 35 / length))
+                    print(f"\rPiTV [{pct:3d}%] Stahování {copied / 1048576:.1f}/{length / 1048576:.1f} MiB", end="", flush=True)
+            if length:
+                print(flush=True)
     except SystemExit:
         raise
     except Exception as e:
         fail(f"Stažení PiTV selhalo: {e}")
 
-    print("PiTV: staženo, kontroluji a rozbaluji aktualizaci…", flush=True)
+    progress(50, "Staženo. Kontroluji a rozbaluji aktualizaci…")
     try:
         with zipfile.ZipFile(archive) as z:
             validate_zip(z)
@@ -102,8 +112,9 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
 
     install = candidates[0]
     source = install.parent
+    progress(60, "Balíček je v pořádku.")
     try:
-        print("PiTV: spouštím instalaci…", flush=True)
+        progress(65, "Spouštím instalaci…")
         env = os.environ.copy()
         env["DEBIAN_FRONTEND"] = "noninteractive"
         # install.sh also uses this value. Keep the updater explicit so old
@@ -144,4 +155,22 @@ with tempfile.TemporaryDirectory(prefix="pitv-update-") as td_raw:
             + (f": {detail}" if detail else "")
         )
 
-    print(f"PiTV aktualizováno na {sha[:12]}", flush=True)
+    progress(95, "Instalace dokončena.")
+    # Restart the supervised TV shell only after this updater has returned.
+    # A transient root unit survives GUI/SSH caller teardown and avoids the old
+    # getty restart path, which is intentionally masked in PiTV 1.5.
+    if subprocess.run(
+        ["systemctl", "is-active", "--quiet", "pitv-shell.service"],
+        check=False,
+    ).returncode == 0:
+        subprocess.run(
+            [
+                "systemd-run", "--quiet", "--collect",
+                f"--unit=pitv-update-restart-{os.getpid()}",
+                "--on-active=2s",
+                "/usr/bin/systemctl", "restart", "pitv-shell.service",
+            ],
+            check=False,
+        )
+        progress(98, "Restart PiTV session naplánován…")
+    progress(100, f"Aktualizováno na {sha[:12]}")
