@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  home|close) ACTION="$1" ;;
+  *) exit 2 ;;
+esac
+
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+[ -d "$RUNTIME" ] || exit 3
+
+TARGET="$RUNTIME/pitv-global-action"
+TMP="$TARGET.$$"
+printf '%s\n' "$ACTION" >"$TMP"
+mv -f "$TMP" "$TARGET"
