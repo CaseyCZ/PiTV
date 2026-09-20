@@ -1738,31 +1738,70 @@ class PiTV:
         self.clear_operation_if_due()
         if not self.operation_text:
             return
-        f = self.font(self.h*.017, True)
+
+        f = self.font(self.h*.018, True)
         suffix = "" if self.operation_progress is None else f"  {self.operation_progress}%"
         label = self._fit_ui_text(
-            self.operation_text + suffix, f, int(self.w*.62)
+            self.operation_text + suffix, f, int(self.w*.72)
         )
-        surf = f.render(label, True,
-                        self.t["bad"] if self.operation_error else self.t["text"])
-        w = min(int(self.w*.70), max(int(self.w*.19), surf.get_width()+54))
-        h = int(self.h*.062)
-        r = pygame.Rect(self.w-w-int(self.w*.025), int(self.h*.025), w, h)
+        surf = f.render(
+            label, True,
+            self.t["bad"] if self.operation_error else self.t["text"],
+        )
+
+        # Consistent Google/Apple-TV-style transient status surface: centered
+        # at the top, visible from every PiTV page, never tied to Settings.
+        w = min(int(self.w*.78), max(int(self.w*.34), surf.get_width()+92))
+        h = int(self.h*.066)
+        r = pygame.Rect(0, int(self.h*.022), w, h)
+        r.centerx = self.w//2
+
+        shadow = pygame.Surface((r.w+12, r.h+12), pygame.SRCALPHA)
+        pygame.draw.rect(
+            shadow, (0, 0, 0, 105),
+            pygame.Rect(6, 6, r.w, r.h),
+            border_radius=h//2,
+        )
+        self.screen.blit(shadow, (r.x-6, r.y-6))
+
         pygame.draw.rect(self.screen, self.t["panel2"], r, border_radius=h//2)
-        pygame.draw.rect(self.screen, self.t["bad"] if self.operation_error else self.t["accent"],
-                         r, 2, border_radius=h//2)
-        if self.operation_progress is None:
-            # Indeterminate spinner.
+        pygame.draw.rect(
+            self.screen,
+            self.t["bad"] if self.operation_error else self.t["accent"],
+            r, 2, border_radius=h//2,
+        )
+
+        icon_x = r.x+27
+        if self.operation_progress is None or self.operation_progress < 100:
             angle = (time.monotonic()*300) % 360
-            center = (r.x+22, r.centery)
-            pygame.draw.arc(self.screen, self.t["accent"],
-                            pygame.Rect(center[0]-9, center[1]-9, 18, 18),
-                            angle*3.14159/180, (angle+250)*3.14159/180, 3)
+            pygame.draw.arc(
+                self.screen, self.t["accent"],
+                pygame.Rect(icon_x-10, r.centery-10, 20, 20),
+                angle*3.14159/180, (angle+250)*3.14159/180, 3,
+            )
         else:
-            bw = int((r.w-20) * self.operation_progress / 100)
-            pygame.draw.rect(self.screen, self.t["accent"],
-                             pygame.Rect(r.x+10, r.bottom-7, bw, 3), border_radius=2)
-        self.screen.blit(surf, (r.x+42, r.y+(r.h-surf.get_height())//2-1))
+            self.text(
+                "✓", icon_x-8, r.y+int(r.h*.20),
+                r.h*.35, self.t["good"], True,
+            )
+
+        self.screen.blit(
+            surf,
+            (r.x+52, r.y+(r.h-surf.get_height())//2-2),
+        )
+
+        if self.operation_progress is not None:
+            track = pygame.Rect(r.x+20, r.bottom-8, r.w-40, 3)
+            pygame.draw.rect(
+                self.screen, self.t["border"], track, border_radius=2
+            )
+            fill = pygame.Rect(
+                track.x, track.y,
+                int(track.w*self.operation_progress/100), track.h,
+            )
+            pygame.draw.rect(
+                self.screen, self.t["accent"], fill, border_radius=2
+            )
 
     def show_toast(self, message, seconds=2.4):
         self.toast = str(message)
@@ -4294,14 +4333,17 @@ class PiTV:
         elif self.toast:
             self.toast = ""
 
-        self.draw_operation()
-
         if self.keyboard_active:
             self.draw_keyboard()
         if self.confirm_active:
             self.draw_confirm()
         if self.choice_active:
             self.draw_choice()
+
+        # One global activity banner for the entire PiTV experience. Draw it
+        # last so installs, updates and app launches remain visible on Home,
+        # Store, Settings and above every modal overlay.
+        self.draw_operation()
 
         pygame.display.flip()
 
@@ -4499,13 +4541,24 @@ class PiTV:
             except Exception:
                 return False
         if key == "android":
+            package = str(app.get("package", "") or "").strip()
+            if package:
+                try:
+                    ok, _ = run_privileged(
+                        "waydroid-app-running", {"package": package}, 8
+                    )
+                    return bool(ok)
+                except Exception:
+                    return False
             try:
                 p = subprocess.run(
                     ["waydroid", "status"],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                     text=True, timeout=3, check=False,
                 )
-                return bool(re.search(r"^Session:\s*RUNNING\s*$", p.stdout or "", re.M | re.I))
+                return bool(re.search(
+                    r"^Session:\s*RUNNING\s*$", p.stdout or "", re.M | re.I
+                ))
             except Exception:
                 return False
         return False
@@ -4753,6 +4806,7 @@ class PiTV:
         # Reveal PiTV first. Cleanup continues off the render/input thread.
         # CEC is reopened immediately so the old TV remote never depends on
         # the foreground application's shutdown timing.
+        self.set_operation("Ukončuji aplikaci…", 20)
         self._return_to_launcher("Ukončuji aplikaci…")
 
         def worker():
@@ -4771,16 +4825,14 @@ class PiTV:
             self._terminate_known_external(app, force=force)
 
             if kind == "apk":
-                try:
-                    subprocess.run(
-                        ["waydroid", "session", "stop"],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        timeout=12,
-                        check=False,
-                    )
-                except Exception:
-                    pass
+                package = str(app.get("package", "") or "").strip()
+                if package:
+                    try:
+                        run_privileged(
+                            "waydroid-app-stop", {"package": package}, 15
+                        )
+                    except Exception:
+                        pass
 
             # A wrapper can exit while the real application survives (Kodi was
             # observed re-parented to PID 1). Give normal shutdown a moment,
@@ -4801,13 +4853,11 @@ class PiTV:
                     self._terminate_known_external(app, force=True)
 
             if kind == "apk":
-                # Full Back-hold exit means Android is finished, not merely
-                # hidden. Stop the container too so Pi 4 resources/GPU state
-                # are clean for the next launch.
-                run_privileged("waydroid-container-stop", {}, 90)
+                # Android TV-style lifecycle: close only the selected app.
+                # Cage/Waydroid stay prewarmed so the next app opens quickly.
                 self.apps = load_apps()
-                self.refresh_store_async()
 
+            self.finish_operation("Aplikace ukončena • PiTV", True, 2.0)
             self.show_toast("Aplikace ukončena • PiTV", 2.0)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -4835,6 +4885,10 @@ class PiTV:
         runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
         return Path(runtime) / "pitv-waydroid-app-ready"
 
+    def _android_runtime_ready_file(self):
+        runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+        return Path(runtime) / "pitv-waydroid-runtime-ready"
+
     def _clear_android_pending(self, proc=None):
         if proc is None or self.android_pending_proc is proc:
             self.android_pending_proc = None
@@ -4846,7 +4900,9 @@ class PiTV:
         ready_file = self._android_ready_file()
 
         def worker():
-            deadline = time.monotonic() + 95.0
+            started = time.monotonic()
+            deadline = started + 95.0
+            last_stage = ""
             while time.monotonic() < deadline:
                 rc = proc.poll()
                 if rc is not None:
@@ -4858,6 +4914,21 @@ class PiTV:
                     )
                     self.show_toast(f"{name} se nepodařilo spustit", 5)
                     return
+
+                elapsed = time.monotonic() - started
+                runtime_ready = self._android_runtime_ready_file().exists()
+                stage = (
+                    f"Startuji Android pro {name}…"
+                    if not runtime_ready else f"Spouštím {name}…"
+                )
+                if elapsed > 12 and not runtime_ready:
+                    stage = f"První start Androidu • {name}…"
+                if stage != last_stage:
+                    self.set_operation(
+                        stage,
+                        25 if not runtime_ready else 70,
+                    )
+                    last_stage = stage
 
                 try:
                     marker = ready_file.read_text(
@@ -4986,7 +5057,7 @@ class PiTV:
             except Exception:
                 pass
 
-            self.set_operation(f"Připravuji {name}…", 10)
+            self.set_operation(f"Spouštím {name}…", 10)
             proc = subprocess.Popen(
                 ["/usr/local/bin/pitv-waydroid-launch", package, apk_path],
                 env=env,
