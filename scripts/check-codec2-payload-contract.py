@@ -9,8 +9,11 @@ expected={
  "vendor/etc/media_codecs_ffmpeg_c2.xml":("c2.ffmpeg.hevc.decoder","video/hevc"),
 }
 for rel,pair in expected.items():
-    p=root/rel
-    if p.is_symlink() or not p.is_file(): raise SystemExit(f"missing codec XML: {rel}")
+    raw=root/rel
+    if raw.is_symlink() or not raw.is_file(): raise SystemExit(f"missing codec XML: {rel}")
+    p=raw.resolve()
+    try: p.relative_to(root)
+    except ValueError: raise SystemExit(f"codec XML escapes stage: {rel}")
     try: x=ET.parse(p).getroot()
     except ET.ParseError as e: raise SystemExit(f"invalid codec XML {rel}: {e}")
     found={(n.get("name"),n.get("type")) for n in x.iter("MediaCodec")}
