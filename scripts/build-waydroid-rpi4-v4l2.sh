@@ -82,6 +82,40 @@ checkout_external external/ffmpeg "$FFMPEG_REPO" "$RPI_ANDROID_BRANCH"
 checkout_external external/ffmpeg_codec2 "$FFMPEG_CODEC2_REPO" "$RPI_ANDROID_BRANCH"
 checkout_external external/libudev-zero "$LIBUDEV_ZERO_REPO" "$RPI_ANDROID_BRANCH"
 
+# Raspberry Pi 4 only has a useful stateful V4L2 hardware path for H.264 in
+# this Codec2 implementation. The upstream component store also advertises
+# VP8/VP9 unconditionally, which could make Android try non-existent Pi 4 HW
+# decoders. Keep the V4L2 store deliberately AVC-only; HEVC is provided by the
+# separate FFmpeg/rpivid Request-API path below.
+python3 - <<'PYV4L2STORE'
+from pathlib import Path
+
+store = Path("external/v4l2_codec2/components/V4L2ComponentStore.cpp")
+src = store.read_text(encoding="utf-8")
+old = """    std::vector<std::shared_ptr<const C2Component::Traits>> ret;
+    ret.push_back(GetTraits(V4L2ComponentName::kH264Encoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kH264Decoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kH264SecureDecoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kVP8Encoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kVP8Decoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kVP8SecureDecoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kVP9Encoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kVP9Decoder));
+    ret.push_back(GetTraits(V4L2ComponentName::kVP9SecureDecoder));
+    return ret;
+"""
+new = """    std::vector<std::shared_ptr<const C2Component::Traits>> ret;
+    // PiTV/RPi4: advertise only the stateful H.264 decoder. VP8/VP9 are not
+    // hardware-decoded by the Pi 4 through this Codec2 backend, and HEVC uses
+    // the separate stateless FFmpeg/rpivid Request API service.
+    ret.push_back(GetTraits(V4L2ComponentName::kH264Decoder));
+    return ret;
+"""
+if old not in src:
+    raise SystemExit("Unexpected V4L2ComponentStore::listComponents layout")
+store.write_text(src.replace(old, new, 1), encoding="utf-8")
+PYV4L2STORE
+
 rm -rf vendor/pitv/rpi4
 mkdir -p vendor/pitv/rpi4
 cp -a "$PITV_ROOT/android/waydroid-rpi4/." vendor/pitv/rpi4/
@@ -137,6 +171,7 @@ test -x "$OUT/vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg"
 test -s "$OUT/vendor/etc/seccomp_policy/codec2.vendor.ext.policy"
 grep -q 'c2.v4l2.avc.decoder' "$OUT/vendor/etc/media_codecs.xml"
 grep -q 'c2.ffmpeg.hevc.decoder' "$OUT/vendor/etc/media_codecs.xml"
+! grep -q 'c2.v4l2.vp9.decoder' "$OUT/vendor/etc/media_codecs.xml"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
