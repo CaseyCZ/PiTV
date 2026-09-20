@@ -118,11 +118,11 @@ launch_package() {
   local package="$1"
   waydroid app launch "$package" >>"$LOG" 2>&1 || return 1
 
-  # Waydroid can return successfully before the Android process/window becomes
-  # observable. Verify the package before reporting launch success.
-  for _ in $(seq 1 40); do
+  # Do not reveal Android just because its process exists. Wait until
+  # WindowManager/ActivityManager can actually see the requested app.
+  for _ in $(seq 1 60); do
     if printf '{"package":"%s"}' "$package" |
-        sudo -n /usr/local/libexec/pitv-helper waydroid-app-running >/dev/null 2>&1; then
+        sudo -n /usr/local/libexec/pitv-helper waydroid-app-visible >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.25
