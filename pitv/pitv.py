@@ -5474,6 +5474,17 @@ class PiTV:
                     # remotes. Backspace behaves as Back/Escape, matching the
                     # on-screen keyboard legend and common media-center UX.
                     key = normalize_input_key(event.key)
+                    # Under Wayland the hidden PiTV launcher cannot receive
+                    # keyboard input while an external client really owns
+                    # focus. If a system-routed TV key reaches PiTV while an
+                    # external task is still marked foreground, the compositor
+                    # has already returned focus to the launcher and that task
+                    # marker is stale. Recover immediately instead of leaving
+                    # a visible but non-rendering/frozen PiTV screen.
+                    if self.external_kind and system_input_managed():
+                        self._recover_external_focus()
+                        self.handle_key(key)
+                        continue
                     if (self.external_kind and key == pygame.K_ESCAPE and
                             self._keyboard_back_down_at <= 0):
                         self._keyboard_back_down_at = time.monotonic()
