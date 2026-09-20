@@ -72,7 +72,7 @@ jobs:
           ! grep -q 'monitor)' system/pitv-cec-control
           grep -q 'system/pitv-global-action /usr/local/libexec/pitv-global-action' install.sh
           grep -q 'system/pitv-inputd.service /etc/systemd/system/pitv-inputd.service' install.sh
-          grep -q 'systemctl enable pitv-inputd.service pitv-shell.service' install.sh
+          grep -q 'systemctl enable pitv-inputd.service pitv-displayd.service pitv-shell.service pitv-android-warm.service' install.sh
           grep -q 'pitv-inputd.service' system/pitv.target
           grep -q 'After=.*pitv-inputd.service' system/pitv-shell.service
           grep -q 'Wants=.*pitv-inputd.service' system/pitv-shell.service
