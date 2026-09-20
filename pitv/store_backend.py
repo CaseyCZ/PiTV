@@ -72,29 +72,34 @@ def apt_installed(package):
 
 
 def _waydroid_packages_state():
-    """Return (authoritative, packages) for the current Waydroid runtime.
+    """Return (authoritative, packages) from Android PackageManager.
 
-    An empty package set is meaningful only when the command itself succeeded.
-    If Waydroid is stopped/unavailable, receipts remain the fallback source so
-    Store does not randomly forget installed Android apps while Android sleeps.
+    Waydroid's desktop-facing `app list` is not an installation database and
+    can lag behind a successful APK install. PiTV therefore asks its validated
+    privileged helper for `pm list packages` inside Android.
     """
     if shutil.which("waydroid") is None:
         return False, set()
+    helper = Path("/usr/local/libexec/pitv-helper")
+    if not helper.is_file() or shutil.which("sudo") is None:
+        return False, set()
     try:
         p = subprocess.run(
-            ["waydroid", "app", "list"],
+            ["sudo", "-n", str(helper), "waydroid-packages"],
+            input="{}",
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=10, check=False,
+            text=True, timeout=25, check=False,
         )
         if p.returncode != 0:
             return False, set()
-        packages = set()
-        for line in p.stdout.splitlines():
-            m = re.search(r"package(?:Name)?\s*[:=]\s*([A-Za-z0-9_.]+)", line, re.I)
-            if m:
-                packages.add(m.group(1))
-            elif re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", line.strip()):
-                packages.add(line.strip())
+        packages = {
+            line.strip()
+            for line in (p.stdout or "").splitlines()
+            if re.fullmatch(
+                r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+",
+                line.strip(),
+            )
+        }
         return True, packages
     except Exception:
         return False, set()
@@ -158,8 +163,9 @@ def store_state(item):
     if kind in ("github_release_apk", "direct_apk"):
         receipt = read_receipt(item.get("id", ""))
         package = (
-            installer.get("expected_package", "")
-            or receipt.get("package", "")
+            receipt.get("package", "")
+            or installer.get("expected_package", "")
+            or next(iter(installer.get("expected_packages", []) or []), "")
         )
         authoritative, packages = _waydroid_packages_state()
 
