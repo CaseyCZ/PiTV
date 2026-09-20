@@ -1,0 +1,20 @@
+[Unit]
+Description=PiTV HDMI display recovery
+After=pitv-shell.service
+Wants=pitv-shell.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=pitv
+Group=pitv
+Environment=HOME=/home/pitv
+Environment=USER=pitv
+Environment=LOGNAME=pitv
+ExecStart=/usr/local/libexec/pitv-display-watch
+Restart=always
+RestartSec=2
+TimeoutStopSec=5
+
+[Install]
+WantedBy=pitv.target
