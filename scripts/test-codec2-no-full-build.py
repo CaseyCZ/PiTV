@@ -58,7 +58,9 @@ with tempfile.TemporaryDirectory() as td:
     run(py, str(repo / "scripts/validate-codec2-payload.py"), str(root), ok=False)
 
 with tempfile.TemporaryDirectory() as td:
-    payload=Path(td)/"payload"; payload.mkdir()
+    payload=Path(td)/"payload"; (payload/"vendor/etc").mkdir(parents=True)
+    (payload/"vendor/etc/media_codecs_ffmpeg_c2.xml").write_text('<MediaCodecs><Decoders><MediaCodec name="c2.ffmpeg.hevc.decoder" type="video/hevc"/></Decoders></MediaCodecs>')
+    (payload/"PITV-CODEC2-PAYLOAD.txt").write_text("vendor/etc/media_codecs_ffmpeg_c2.xml\n")
     run("bash",str(repo/"scripts/add-pitv-codec2-config-to-payload.sh"),str(payload))
     lines=(payload/"PITV-CODEC2-PAYLOAD.txt").read_text().splitlines()
     assert "vendor/etc/media_codecs_pitv_rpi4.xml" in lines
