@@ -5,7 +5,7 @@
 - PiTV už není navržené jako Linux desktop/tty autologin s launcherem navrch; novým základem je appliance model inspirovaný LibreELEC
 - přidán `pitv.target`, který stojí nad `multi-user.target`; SSH, Tailscale, Homebridge, Docker a ostatní serverové služby tak zůstávají nezávislé na TV rozhraní
 - přidán `pitv-shell.service`: systemd vlastní celou tty1/Wayland TV session, používá `Restart=always` a po pádu obnoví TV shell bez rebootu Raspberry Pi
-- shell používá přímo `labwc -S /usr/local/bin/pitv-launcher-run`; labwc spustí PiTV až po připravení Waylandu a při ukončení primary klienta ukončí i compositor, takže systemd vždy obnovuje celou čistou TV session
+- shell používá přímo `labwc -s /usr/local/bin/pitv-launcher-run`; labwc spustí PiTV až po připravení Waylandu a při ukončení primary klienta ukončí i compositor, takže systemd vždy obnovuje celou čistou TV session
 - hlavní Wayland compositor publikuje kanonický marker `pitv-wayland-display`; Kodi, nativní aplikace, SSH session helper a vnější Waydroid už nikdy nevybírají náhodný první `wayland-*` socket
 - pouze Cage client uvnitř Android runtime smí používat svůj zděděný nested Wayland socket; tím se odděluje PiTV obrazovka od Android compositoru
 - Android warm runtime vlastní výhradně `pitv-android-warm.service`; spuštění APK při cold startu službu požádá přes helper a nevytváří vlastní druhý warmer proces
