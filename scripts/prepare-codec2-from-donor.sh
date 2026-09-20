@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-DONOR="${1:?extracted vendor tree required}"
-OUT="${2:?payload output required}"
+DONOR="$(readlink -f "${1:?extracted vendor tree required}")"
+OUT="$(readlink -m "${2:?payload output required}")"
+[ -d "$DONOR" ] || { echo "donor tree missing" >&2; exit 2; }
+[ "$OUT" != "/" ] && [ "$OUT" != "$DONOR" ] || { echo "unsafe output directory" >&2; exit 2; }
+case "$OUT/" in "$DONOR/"*) echo "output must not be inside donor tree" >&2; exit 2;; esac
 HERE="$(cd "$(dirname "$0")" && pwd)"
 find_one(){
   mapfile -t hits < <(find "$DONOR" -type f -name "$1" | sort)
@@ -19,7 +22,7 @@ for pattern in \
   'android.hardware.media.c2@1.0-service-v4l2*.xml' \
   'android.hardware.media.c2@1.2-service-ffmpeg*.rc' \
   'android.hardware.media.c2@1.2-service-ffmpeg*.xml' \
-  '*v4l2*policy*' '*ffmpeg*policy*'
+  '*v4l2*policy*' '*ffmpeg*policy*' 'media_codecs_ffmpeg_c2.xml'
 do
   while IFS= read -r p; do
     [ -n "$p" ] || continue
