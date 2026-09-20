@@ -967,10 +967,31 @@ class PiTV:
                 # migration from racing SmartTube by creating its own container
                 # lifecycle while systemd is still preparing Waydroid.
                 deadline = time.monotonic() + 180.0
+                idle_since = 0.0
                 while time.monotonic() < deadline:
                     if marker.exists():
                         return
-                    if self._android_runtime_ready_file().exists():
+                    if not self._android_runtime_ready():
+                        idle_since = 0.0
+                        time.sleep(0.25)
+                        continue
+
+                    # Foreground/pending Android work always wins over cleanup.
+                    # Require two quiet seconds before removing PiTV's known
+                    # obsolete Stremio/Plex packages.
+                    android_busy = (
+                        (self.android_pending_proc is not None and
+                         self.android_pending_proc.poll() is None) or
+                        self.external_kind == "apk"
+                    )
+                    if android_busy:
+                        idle_since = 0.0
+                        time.sleep(0.5)
+                        continue
+
+                    if idle_since <= 0:
+                        idle_since = time.monotonic()
+                    if time.monotonic() - idle_since >= 2.0:
                         break
                     time.sleep(0.25)
                 else:
@@ -1064,28 +1085,10 @@ class PiTV:
         threading.Thread(target=worker, daemon=True).start()
 
     def legacy_android_migration_ready(self):
-        """Gate Android launch until PiTV's own obsolete packages are cleaned."""
-        if not waydroid_available():
-            return True
-        marker = MIGRATION_DIR / "legacy-android-media-v2.done"
-        if marker.exists():
-            return True
-        self.migrate_legacy_android_async()
-        if self._android_runtime_ready_file().exists():
-            self.show_toast(
-                "Dokončuji jednorázový úklid starých Android aplikací…", 4
-            )
-        else:
-            # Recovery only: ask systemd to restore its single warm service.
-            # Never spawn a second warmer from the UI process.
-            threading.Thread(
-                target=lambda: run_privileged(
-                    "waydroid-warm-start", {}, 30
-                ),
-                daemon=True,
-            ).start()
-            self.show_toast("Android se připravuje na pozadí…", 4)
-        return False
+        """Compatibility shim: maintenance must never block an app launch."""
+        if waydroid_available():
+            self.migrate_legacy_android_async()
+        return True
 
     @property
     def t(self):
@@ -4685,6 +4688,20 @@ class PiTV:
         runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
         return Path(runtime) / "pitv-waydroid-runtime-ready"
 
+    def _android_runtime_ready(self):
+        """Fast local proof that the systemd-owned warm client is alive."""
+        try:
+            raw = self._android_runtime_ready_file().read_text(
+                encoding="utf-8", errors="replace"
+            ).strip()
+            pid = int(raw)
+            if pid <= 1:
+                return False
+            os.kill(pid, 0)
+            return True
+        except (OSError, ValueError, TypeError):
+            return False
+
     def _clear_android_pending(self, proc=None):
         if proc is None or self.android_pending_proc is proc:
             self.android_pending_proc = None
@@ -4712,7 +4729,7 @@ class PiTV:
                     return
 
                 elapsed = time.monotonic() - started
-                runtime_ready = self._android_runtime_ready_file().exists()
+                runtime_ready = self._android_runtime_ready()
                 stage = (
                     f"Startuji Android pro {name}…"
                     if not runtime_ready else f"Spouštím {name}…"
