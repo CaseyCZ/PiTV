@@ -148,7 +148,7 @@ PiTV nejdřív používá oficiální `repo.waydro.id`. Pokud je nedostupné neb
 
 ### Raspberry Pi 4 — HW video decode ve Waydroidu
 
-Generický Waydroid ARM64 obraz na RPi4 může vidět hostitelská `/dev/video*` zařízení, ale přesto nabízet Android aplikacím jen softwarové kodeky. PiTV proto obsahuje samostatný **RPi4 V4L2 Codec2 profil** pro LineageOS 20 / Android 13, který přidává `c2.v4l2.avc.decoder`.
+Generický Waydroid ARM64 obraz na RPi4 může vidět hostitelská `/dev/video*` zařízení, ale přesto nabízet Android aplikacím jen softwarové kodeky. PiTV proto obsahuje vlastní **RPi4 HW video profil** pro LineageOS 20 / Android 13: H.264/AVC používá `c2.v4l2.avc.decoder`, zatímco HEVC/H.265 používá `c2.ffmpeg.hevc.decoder` přes stateless `rpivid` a V4L2 Media Request API. PiTV kvůli HEVC přidává do Waydroidu také průchod `/dev/media*`.
 
 Build a rollback-safe testovací instalace jsou v:
 
@@ -164,7 +164,7 @@ Stav na konkrétním Raspberry Pi lze ověřit příkazem:
 sudo /usr/local/libexec/pitv-helper waydroid-hw-codec-status
 ```
 
-První profil záměrně akceleruje pouze **H.264/AVC**; další kodeky se mají přidat až po fyzickém ověření jejich V4L2 podpory.
+Hardwarově se akcelerují **H.264/AVC a HEVC/H.265**. VP9 a AV1 zůstávají na Raspberry Pi 4 softwarové fallbacky a PiTV je neoznačuje jako HW kodeky.
 
 Vlastní APK:
 
