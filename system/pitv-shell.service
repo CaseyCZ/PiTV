@@ -1,7 +1,7 @@
 [Unit]
 Description=PiTV TV Shell
-After=systemd-user-sessions.service NetworkManager.service
-Wants=NetworkManager.service
+After=systemd-user-sessions.service NetworkManager.service pitv-inputd.service
+Wants=NetworkManager.service pitv-inputd.service
 Conflicts=getty@tty1.service
 StartLimitIntervalSec=0
 
