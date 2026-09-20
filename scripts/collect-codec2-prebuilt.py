@@ -18,7 +18,8 @@ if not readelf: raise SystemExit("readelf is required")
 allow={"libc.so","libdl.so","libm.so","liblog.so","libbase.so","libutils.so","libcutils.so",
 "libbinder.so","libhidlbase.so","libfmq.so","libhardware.so","libion.so","libsync.so","libui.so",
 "libgui.so","libnativewindow.so","libmedia.so","libmedia_omx.so","libstagefright_foundation.so",
-"libcodec2.so","libcodec2_vndk.so","libcodec2_hidl@1.0.so","libcodec2_soft_common.so",
+"libcodec2.so","libcodec2_vndk.so","libcodec2_hidl@1.0.so","libcodec2_hidl@1.2.so","libcodec2_soft_common.so",
+"android.hardware.media.c2@1.0.so","android.hardware.media.c2@1.1.so","android.hardware.media.c2@1.2.so","libavservices_minijail.so",
 "libbufferpool@2.0.so","libgralloctypes.so","libprocessgroup.so","libvndksupport.so","libz.so"}
 risky=re.compile(r"(gralloc|mapper|allocator|egl|gles|vulkan|camera|audio|wifi|bluetooth|rpi|bcm|vc4)",re.I)
 
