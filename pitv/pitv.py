@@ -746,6 +746,20 @@ def system_input_ready():
     return system_input_managed() and SYSTEM_INPUT_READY.exists()
 
 
+def system_input_cec_device():
+    if not system_input_managed():
+        return ""
+    try:
+        device = Path("/run/pitv/cec-device").read_text(
+            encoding="utf-8", errors="replace"
+        ).strip()
+    except Exception:
+        return ""
+    if re.fullmatch(r"/dev/cec[0-9]+", device) and Path(device).exists():
+        return device
+    return ""
+
+
 def cec_send(commands):
     """Send CEC output through the same kernel CEC stack used for input."""
     if not cec_available():
@@ -3072,11 +3086,16 @@ class PiTV:
 
     def cec_rows(self):
         if self.cfg.get("cec_enabled", True):
-            cec_state = (
-                "Zapnuto · systémový TV input"
-                if system_input_managed()
-                else "Zapnuto · kompatibilní režim"
-            )
+            if system_input_managed():
+                device = system_input_cec_device()
+                if device:
+                    cec_state = f"Zapnuto · systémový TV input · {device}"
+                elif system_input_ready():
+                    cec_state = "Zapnuto · čekám na HDMI‑CEC"
+                else:
+                    cec_state = "Zapnuto · TV input se spouští"
+            else:
+                cec_state = "Zapnuto · kompatibilní režim"
         else:
             cec_state = "Vypnuto"
         return [
@@ -5322,10 +5341,10 @@ class PiTV:
 
         self.mark_activity()
 
-        # PiTV owns HDMI-CEC. While an app is on top, short Back remains the
-        # app's Back. HOME is optional multitasking on remotes that have it;
-        # the guaranteed escape gesture is 3s Back, handled globally below,
-        # which fully closes the foreground app and returns to PiTV.
+        # PiTV 1.5 does not own ordinary remote navigation. pitv-inputd emits
+        # one Linux TV-remote device and labwc delivers it directly to whichever
+        # surface is focused. This branch is only PiTV state bookkeeping plus
+        # compatibility behavior for older installations.
         if self.external_kind:
             if key == pygame.K_HOME:
                 self.suspend_external()
