@@ -105,14 +105,19 @@ contract is the baseline for all future UI, Store and runtime changes.
   never be part of the normal TV experience.
 - HDMI/EDID disconnect/reconnect must restore PiTV to the full current output
   size without requiring an OS reboot.
-- Output geometry belongs below the UI. `pitv-display.service` monitors the
-  HDMI/wlroots state, preserves an already-valid current video mode and
-  normalizes the primary TV output to origin `0,0`, normal transform and
-  scale 1. Preferred mode is only a fallback when a disabled output must be
-  enabled again.
-- The display service publishes `pitv-display-repair` after normalization.
-  PiTV consumes that event on its main render thread and re-binds SDL
-  fullscreen even when width/height did not change.
+- Output geometry belongs below the UI. `pitv-displayd.service` is the only
+  HDMI/EDID recovery owner. It fingerprints the DRM connector, modes and EDID,
+  waits for reconnect state to settle, then normalizes the matching wlroots
+  output to origin `0,0`, normal transform and scale 1.
+- A valid current TV mode is preserved; preferred mode is selected only when a
+  genuinely reconnected output is disabled or has no current mode. Periodic
+  drift checks never wake a disabled/standby TV.
+- After a repair the daemon sends the normal appliance `display` action.
+  PiTV re-binds SDL fullscreen on its main render thread without killing the
+  foreground app. Repeated wlroots repair failure restarts only
+  `pitv-shell.service`, never the server OS.
+- Booting with the TV off is supported: the first later HDMI connection uses
+  the same recovery path.
 - labwc reuses an already-valid DRM mode when possible and TV window rules
   pin appliance surfaces to `0,0` before maximizing them.
 
