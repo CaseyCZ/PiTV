@@ -26,6 +26,7 @@ STOP = False
 RUNTIME_STATE = pathlib.Path("/run/pitv/display-state")
 SETTLE_SECONDS = 1.5
 POLL_SECONDS = 0.25
+DRIFT_CHECK_SECONDS = 2.0
 
 
 def output_name_from_connector(name):
@@ -80,6 +81,33 @@ def parse_wlr_outputs(text):
         if match:
             outputs.append(match.group(1))
     return outputs
+
+
+def wlr_output_block(text, output):
+    lines = text.splitlines()
+    captured = []
+    active = False
+    for line in lines:
+        match = re.match(r'^(\S+)\s+"', line)
+        if match:
+            if active:
+                break
+            active = match.group(1) == output
+        if active:
+            captured.append(line)
+    return "\n".join(captured)
+
+
+def wlr_output_state(text, output):
+    block = wlr_output_block(text, output)
+    return {
+        "block": block,
+        "enabled": "Enabled: yes" in block,
+        "current": bool(re.search(r"\([^\n)]*\bcurrent\b[^\n)]*\)", block)),
+        "position_ok": bool(re.search(r"^\s*Position:\s*0,0\s*$", block, re.M)),
+        "transform_ok": bool(re.search(r"^\s*Transform:\s*normal\s*$", block, re.M)),
+        "scale_ok": bool(re.search(r"^\s*Scale:\s*1(?:\.0+)?\s*$", block, re.M)),
+    }
 
 
 def pitv_context():
@@ -147,37 +175,62 @@ def choose_output(snapshot, available):
     return None
 
 
-def repair_output(snapshot):
+def repair_output(snapshot, *, force_notify=False, allow_enable=False):
+    """Normalize one TV output without unnecessary mode switching.
+
+    A valid current mode is preserved. Preferred mode is selected only when a
+    newly reconnected output is disabled or has no current mode.
+    """
     if not snapshot:
-        return False, "no connected HDMI output"
+        return False, "no connected HDMI output", False
     if shutil.which("wlr-randr") is None:
-        return False, "wlr-randr is not installed"
+        return False, "wlr-randr is not installed", False
 
     query = run_as_pitv(["wlr-randr"], timeout=5)
     if query is None or query.returncode != 0:
-        return False, "labwc output manager is not ready"
+        return False, "labwc output manager is not ready", False
 
-    available = parse_wlr_outputs(query.stdout or "")
+    state_text = query.stdout or ""
+    available = parse_wlr_outputs(state_text)
     output = choose_output(snapshot, available)
     if not output:
-        return False, f"no matching wlroots output: {available}"
+        return False, f"no matching wlroots output: {available}", False
 
-    command = [
-        "wlr-randr",
-        "--output", output,
-        "--on",
-        "--preferred",
+    state = wlr_output_state(state_text, output)
+    if not state["block"]:
+        return False, f"wlroots state missing for {output}", False
+
+    layout_ok = (
+        state["enabled"] and state["current"] and
+        state["position_ok"] and state["transform_ok"] and state["scale_ok"]
+    )
+    if layout_ok:
+        if force_notify:
+            notify_launcher()
+        return True, f"{output}: already normalized", False
+
+    # A TV in standby can keep HPD asserted while wlroots disables the head.
+    # Periodic drift checks must not fight that state. Only a real DRM/EDID
+    # reconnect is allowed to turn the output back on.
+    if not state["enabled"] and not allow_enable:
+        return True, f"{output}: disabled; waiting for reconnect", False
+
+    command = ["wlr-randr", "--output", output, "--on"]
+    if not state["enabled"] or not state["current"]:
+        command.append("--preferred")
+    command += [
         "--pos", "0,0",
         "--transform", "normal",
         "--scale", "1",
     ]
+
     result = run_as_pitv(command, timeout=8)
     if result is None or result.returncode != 0:
         message = (result.stdout or "").strip() if result else "command failed"
-        return False, message or "wlr-randr rejected configuration"
+        return False, message or "wlr-randr rejected configuration", False
 
     notify_launcher()
-    return True, output
+    return True, output, True
 
 
 def fallback_shell_restart():
@@ -223,6 +276,11 @@ DP-1 "Other"
   Enabled: no
 """
     assert parse_wlr_outputs(sample) == ["HDMI-A-1", "DP-1"]
+    state = wlr_output_state(sample, "HDMI-A-1")
+    assert state["enabled"] and state["current"]
+    assert state["position_ok"] and state["scale_ok"]
+    assert not state["transform_ok"]  # sample intentionally omits transform
+    assert wlr_output_block(sample, "DP-1").startswith('DP-1 "Other"')
     snapshot = {
         "card1-HDMI-A-1": {
             "output": "HDMI-A-1",
@@ -266,6 +324,7 @@ def main():
     pending_fp = ""
     pending_since = 0.0
     pending_snapshot = {}
+    last_drift_check = time.monotonic()
     write_state("connected" if previous else "disconnected", previous)
 
     while not STOP:
@@ -298,7 +357,11 @@ def main():
                     ok = False
                     detail = ""
                     for attempt in range(3):
-                        ok, detail = repair_output(pending_snapshot)
+                        ok, detail, _repaired = repair_output(
+                            pending_snapshot,
+                            force_notify=True,
+                            allow_enable=True,
+                        )
                         if ok:
                             break
                         time.sleep(0.6)
@@ -311,6 +374,22 @@ def main():
                     pending_fp = ""
                     pending_since = 0.0
                     pending_snapshot = {}
+                    last_drift_check = time.monotonic()
+
+            # TVs may keep HPD asserted in standby, so the DRM fingerprint can
+            # remain unchanged even if wlroots geometry drifts. Inspect the
+            # live enabled output periodically, but never wake a disabled head.
+            now = time.monotonic()
+            if (not pending_fp and
+                    now - last_drift_check >= DRIFT_CHECK_SECONDS):
+                last_drift_check = now
+                ok, detail, repaired = repair_output(
+                    current,
+                    force_notify=False,
+                    allow_enable=False,
+                )
+                if ok and repaired:
+                    write_state("repaired", current, detail)
 
         previous = current
         previous_fp = current_fp
