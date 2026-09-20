@@ -187,6 +187,7 @@ jobs:
           grep -q 'pid = int(raw)' pitv/pitv.py
           grep -q 'kill -0 "$pid"' system/pitv-waydroid-launch
           grep -q 'hidden Android TV runtime ready pid=' system/pitv-waydroid-launch
+          grep -Fq 'printf '\''%s\n'\'' "${BASHPID:-0}" >"$RUNTIME_READY"' system/pitv-waydroid-launch
           grep -q 'Never trust only the exit status' system/pitv-waydroid-launch
           grep -q 'maintenance must never block an app launch' pitv/pitv.py
           python3 - <<'PYLIFECYCLE'
