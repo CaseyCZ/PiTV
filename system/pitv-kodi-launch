@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -un)" != "pitv" ]; then
+  echo "Kodi musí běžet v TV session uživatele pitv." >&2
+  exit 10
+fi
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+RUNTIME="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="$RUNTIME"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+
+if [ ! -S "$RUNTIME/bus" ] || [ ! -S "$RUNTIME/pulse/native" ]; then
+  echo "PiTV TV session (D-Bus/PipeWire) není připravená." >&2
+  exit 11
+fi
+
+if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$RUNTIME/${WAYLAND_DISPLAY}" ]; then
+  WAYLAND_DISPLAY=""
+  for socket in "$RUNTIME"/wayland-*; do
+    if [ -S "$socket" ]; then
+      WAYLAND_DISPLAY="$(basename "$socket")"
+      export WAYLAND_DISPLAY
+      break
+    fi
+  done
+fi
+[ -n "${WAYLAND_DISPLAY:-}" ] || {
+  echo "PiTV Wayland není připravený." >&2
+  exit 12
+}
+
+command -v kodi >/dev/null 2>&1 || {
+  echo "Kodi není nainstalované." >&2
+  exit 3
+}
+
+LOG=/tmp/pitv-kodi.log
+touch "$LOG"
+
+find_kodi_bin() {
+  pgrep -n -u pitv -x kodi.bin 2>/dev/null || true
+}
+
+KODI_PID="$(find_kodi_bin)"
+KODI_WRAPPER_PID=""
+
+if [ -z "$KODI_PID" ]; then
+  kodi "$@" >>"$LOG" 2>&1 &
+  KODI_WRAPPER_PID=$!
+
+  # Ubuntu's kodi launcher can hand off to kodi.bin and exit. Track the real
+  # player, not only the short-lived shell wrapper.
+  for _ in $(seq 1 100); do
+    KODI_PID="$(find_kodi_bin)"
+    [ -n "$KODI_PID" ] && break
+    if ! kill -0 "$KODI_WRAPPER_PID" 2>/dev/null; then
+      # Give a just-spawned kodi.bin a short final window to appear even after
+      # the distro wrapper exits.
+      sleep 0.1
+    else
+      sleep 0.1
+    fi
+  done
+fi
+
+if [ -z "$KODI_PID" ]; then
+  echo "Kodi se nespustilo; viz $LOG" >&2
+  if [ -n "$KODI_WRAPPER_PID" ]; then
+    wait "$KODI_WRAPPER_PID" 2>/dev/null || true
+  fi
+  exit 4
+fi
+
+shutdown_kodi() {
+  # Prefer Kodi's own Quit when the optional event client is installed.
+  if command -v kodi-send >/dev/null 2>&1; then
+    kodi-send --action="Quit" >/dev/null 2>&1 || true
+  fi
+
+  if kill -0 "$KODI_PID" 2>/dev/null; then
+    kill -TERM "$KODI_PID" 2>/dev/null || true
+  fi
+
+  for _ in $(seq 1 20); do
+    kill -0 "$KODI_PID" 2>/dev/null || return 0
+    sleep 0.1
+  done
+
+  kill -KILL "$KODI_PID" 2>/dev/null || true
+}
+trap 'shutdown_kodi; exit 0' TERM INT HUP
+
+# Stay attached to the real kodi.bin for its whole lifetime. This makes PiTV's
+# external-process tracking reliable even when /usr/bin/kodi has already exited.
+while kill -0 "$KODI_PID" 2>/dev/null; do
+  sleep 0.25
+done
+
+if [ -n "$KODI_WRAPPER_PID" ]; then
+  wait "$KODI_WRAPPER_PID" 2>/dev/null || true
+fi
