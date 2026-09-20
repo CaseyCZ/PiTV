@@ -9,6 +9,7 @@ PY=(
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
+ scripts/make-codec2-rollback-manifest.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
