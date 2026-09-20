@@ -44,18 +44,31 @@ if [ ! -d .repo ]; then
     | bash
 fi
 
+echo "Resetting reusable Android workspace..."
+# Waydroid's patch helper and the PiTV product injection intentionally modify
+# repo-managed projects. A self-hosted builder reuses this large checkout, so
+# restore every project before sync; otherwise a second build would inherit the
+# previous run's device.mk/BoardConfig edits.
+repo forall -c 'git reset --hard HEAD >/dev/null 2>&1 || true; git clean -fd >/dev/null 2>&1 || true'
+
 echo "Syncing Android/Waydroid sources..."
-repo sync -c -j"$JOBS"
+repo sync -c -d --force-sync -j"$JOBS"
 
 # shellcheck disable=SC1091
 source build/envsetup.sh
 apply-waydroid-patches
 
-# The generic Lineage tree has a generic v4l2_codec2 implementation.  PiTV
-# deliberately uses the Raspberry-Pi-maintained Android 13 fork because this is
-# the implementation validated with bcm2835-codec style V4L2 devices.
-rm -rf external/v4l2_codec2
-git clone --depth 1 --branch "$V4L2_BRANCH" "$V4L2_REPO" external/v4l2_codec2
+# Keep the repo-managed worktree, but temporarily detach this one project at
+# the Raspberry-Pi-maintained Android 13 implementation. This avoids replacing
+# a repo worktree with an unrelated nested .git directory and remains safe for
+# the next repo sync --force-sync.
+test -e external/v4l2_codec2/.git || {
+  echo "Waydroid source tree is missing external/v4l2_codec2" >&2
+  exit 3
+}
+git -C external/v4l2_codec2 fetch --depth 1 "$V4L2_REPO" "$V4L2_BRANCH"
+git -C external/v4l2_codec2 checkout --detach FETCH_HEAD
+git -C external/v4l2_codec2 clean -fd
 
 rm -rf vendor/pitv/rpi4
 mkdir -p vendor/pitv/rpi4
