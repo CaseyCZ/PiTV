@@ -19,4 +19,5 @@ PRODUCT_PACKAGES += \
 # Android 13 Raspberry Pi device pattern and keeps media properties in vendor.
 
 PRODUCT_COPY_FILES += \
-    vendor/pitv/rpi4/codec2.vendor.ext.policy:$(TARGET_COPY_OUT_VENDOR)/etc/seccomp_policy/codec2.vendor.ext.policy
+    vendor/pitv/rpi4/codec2.vendor.ext.policy:$(TARGET_COPY_OUT_VENDOR)/etc/seccomp_policy/codec2.vendor.ext.policy \
+    vendor/pitv/rpi4/hwdecode.env:$(TARGET_COPY_OUT_VENDOR)/etc/pitv-hwdecode.env
