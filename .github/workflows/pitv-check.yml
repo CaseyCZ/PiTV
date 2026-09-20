@@ -78,6 +78,21 @@ jobs:
           grep -q 'pitv-waydroid-app-ready' system/pitv-waydroid-launch
           grep -q 'pitv-waydroid-runtime-ready' system/pitv-waydroid-launch
           grep -q 'pitv-waydroid-launch --warm' system/pitv-android-warm
+          ! grep -q '^sleep 2$' system/pitv-android-warm
+          grep -q '_android_runtime_ready_file().exists()' pitv/pitv.py
+          python3 - <<'PYLIFECYCLE'
+          from pathlib import Path
+          helper = Path("system/pitv-helper").read_text(encoding="utf-8")
+          block = helper.split('elif action == "waydroid-clean-legacy":', 1)[1]
+          block = block.split('elif action == "waydroid-app-uninstall":', 1)[0]
+          assert '"container", "start"' not in block
+          assert '"container", "stop"' not in block
+          wrapper = Path("system/pitv-waydroid-launch").read_text(encoding="utf-8")
+          warm = wrapper.split('if [ "$TARGET" = "--warm" ]; then', 1)[1]
+          warm = warm.split('MODE="command"', 1)[0]
+          assert 'waydroid session stop' not in warm
+          print("PiTV 1.5 warm lifecycle OK")
+          PYLIFECYCLE
           grep -q 'waydroid-app-visible' system/pitv-waydroid-launch
           grep -q 'waydroid-app-visible' system/pitv-helper
           grep -q 'waydroid-app-stop' system/pitv-helper
