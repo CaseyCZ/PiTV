@@ -497,15 +497,9 @@ elif action == "waydroid-install":
             out("Waydroid instalátor PiTV není nainstalovaný", 2)
         run([installer], timeout=1800)
 
-    # Android is an optional system service in PiTV 1.5. If Waydroid was not
-    # present at boot, start its warm runtime now instead of waiting for reboot.
-    subprocess.run(
-        ["systemctl", "restart", "pitv-android-warm.service"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        timeout=30,
-        check=False,
-    )
+    # Android starts on demand with the selected TV app. Do not prewarm an
+    # idle Waydroid user session here; physical Pi 4 testing showed that such
+    # sessions can exit later and race the next app launch.
     out("Waydroid + Google Play připraven")
 
 elif action == "waydroid-open-play-store":
@@ -522,19 +516,11 @@ elif action == "waydroid-open-play-store":
     out("Google Play detail otevřen")
 
 elif action == "waydroid-warm-start":
+    # Compatibility API for older launcher builds. Current PiTV deliberately
+    # has no persistent warm Android session; the app wrapper owns its runtime.
     if shutil.which("waydroid") is None:
         out("Waydroid není nainstalovaný", 2)
-    p = subprocess.run(
-        ["systemctl", "start", "pitv-android-warm.service"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-    if p.returncode != 0:
-        out((p.stdout or "").strip() or "Android warm službu nelze spustit", 3)
-    out("Android warm služba spuštěna")
+    out("Android běží na vyžádání")
 
 elif action == "waydroid-container-start":
     if shutil.which("waydroid") is None:
