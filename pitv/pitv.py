@@ -2564,7 +2564,7 @@ class PiTV:
             "Síť": ["Ethernet a Wi‑Fi", "IP adresa", "Výběr Wi‑Fi sítě"],
             "Zvuk": ["HDMI výstup", "CEC hlasitost", "Test zvuku"],
             "HDMI / CEC": ["TV ovladač", "Aktivní HDMI vstup", "Power / standby"],
-            "Aplikace": ["Zobrazit / skrýt", "Odinstalovat", "PiTV Store"],
+            "Aplikace": ["Zobrazení aplikací", "Odinstalovat aplikaci", "PiTV Store"],
             "Server Store": ["Homebridge", "Tailscale", "Docker", "ATVLoadly"],
             "Android / APK": ["Waydroid", "APK aplikace", "Google Play"],
             "Aktualizace": ["PiTV", "Store katalog", "Ubuntu"],
@@ -2603,7 +2603,7 @@ class PiTV:
                   self.h*.025, self.t["text"], True)
         help_lines = {
             "Vzhled": ["Upravte vzhled PiTV.", "Volby se otevírají jako", "viditelný seznam – stejně jako v Kodi."],
-            "Aplikace": ["Spravujte aplikace přímo z TV.", "Zobrazení, skrytí i bezpečné", "odinstalování na jednom místě."],
+            "Aplikace": ["Spravujte aplikace přes seznamy.", "OK otevře další nabídku.", "Žádné skryté akce na pravé šipce."],
         }.get(name, ["Stiskněte OK pro otevření.", "Back se vrátí o úroveň zpět."])
         hy = preview.bottom+int(self.h*.072)
         for line in help_lines:
@@ -2673,17 +2673,17 @@ class PiTV:
                 shown_value = self._fit_ui_text(value, vf, maxw)
                 vs = vf.render(shown_value, True,
                                self.t["accent"] if active else self.t["muted"])
-                chev = self.font(rr.h*.29, True).render(
-                    "›", True, self.t["accent"] if active else self.t["muted"]
+                ok_hint = self.font(rr.h*.19, True).render(
+                    "OK", True, self.t["accent"] if active else self.t["muted"]
                 )
                 self.screen.blit(
-                    chev,
-                    (rr.right-chev.get_width()-9,
-                     rr.y+(rr.h-chev.get_height())//2),
+                    ok_hint,
+                    (rr.right-ok_hint.get_width()-10,
+                     rr.y+(rr.h-ok_hint.get_height())//2),
                 )
                 self.screen.blit(
                     vs,
-                    (rr.right-chev.get_width()-vs.get_width()-22,
+                    (rr.right-ok_hint.get_width()-vs.get_width()-24,
                      rr.y+(rr.h-vs.get_height())//2),
                 )
 
@@ -3129,16 +3129,38 @@ class PiTV:
         threading.Thread(target=worker, daemon=True).start()
 
     def app_items(self):
-        hidden = set(self.cfg.get("hidden_apps", []))
-        rows = [{"name": "PiTV Store", "store": True, "visible": True}]
-        for a in self.apps:
-            rows.append({
-                "name": a["name"],
-                "visible": a["name"] not in hidden,
-                "app": a,
-            })
-        rows.append({"name": "Obnovit seznam aplikací", "refresh": True, "visible": True})
-        return rows
+        """High-level application management menu.
+
+        Settings never overloads Right with destructive actions. Every
+        configuration path is opened explicitly with OK and, where a value or
+        target must be chosen, uses the same visible choice list.
+        """
+        uninstallable = [a for a in self.apps if self.app_can_uninstall(a)]
+        return [
+            {
+                "kind": "store",
+                "name": "PiTV Store",
+                "detail": "Instalovat a spravovat aplikace",
+            },
+            {
+                "kind": "visibility",
+                "name": "Zobrazení aplikací",
+                "detail": f"{len(self.apps)} aplikací · vybrat ze seznamu",
+            },
+            {
+                "kind": "uninstall",
+                "name": "Odinstalovat aplikaci",
+                "detail": (
+                    f"{len(uninstallable)} aplikací · vybrat ze seznamu"
+                    if uninstallable else "Žádná aplikace k odinstalování"
+                ),
+            },
+            {
+                "kind": "refresh",
+                "name": "Obnovit seznam aplikací",
+                "detail": "Načíst aktuální stav",
+            },
+        ]
 
     def set_app_visibility(self, name, visible):
         hidden = set(self.cfg.get("hidden_apps", []))
@@ -3152,7 +3174,8 @@ class PiTV:
 
     def open_app_visibility_choice(self, item):
         name = item.get("name", "Aplikace")
-        visible = bool(item.get("visible", True))
+        hidden = set(self.cfg.get("hidden_apps", []))
+        visible = name not in hidden
         self.open_choice(
             name,
             [
@@ -3165,33 +3188,62 @@ class PiTV:
             ),
         )
 
+    def open_app_visibility_list(self):
+        options = [
+            (
+                (
+                    f"{app.get('name','Aplikace')}  ·  "
+                    f"{'Na ploše' if app.get('name','') not in set(self.cfg.get('hidden_apps', [])) else 'Skryto'}"
+                ),
+                dict(app),
+            )
+            for app in self.apps
+        ]
+        if not options:
+            self.show_toast("Nejsou nalezené žádné aplikace", 4)
+            return
+        self.open_choice(
+            "Zobrazení aplikací",
+            options,
+            None,
+            self.open_app_visibility_choice,
+        )
+
+    def _confirm_uninstall_app(self, app):
+        app = dict(app or {})
+        name = app.get("name", "aplikaci")
+        self.open_confirm(
+            f"Odinstalovat {name}",
+            "Opravdu aplikaci odinstalovat z PiTV?",
+            lambda selected=app: self.uninstall_app_async(selected),
+        )
+
+    def open_app_uninstall_list(self):
+        apps = [dict(app) for app in self.apps if self.app_can_uninstall(app)]
+        if not apps:
+            self.show_toast("Žádná aplikace není dostupná k odinstalování", 4)
+            return
+        self.open_choice(
+            "Odinstalovat aplikaci",
+            [(app.get("name", "Aplikace"), app) for app in apps],
+            None,
+            self._confirm_uninstall_app,
+        )
+
     def draw_apps_settings(self):
         items = self.app_items()
         self.apps_selected = max(0, min(self.apps_selected, max(0, len(items)-1)))
-        rows = []
-        for x in items:
-            if x.get("store"):
-                rows.append((x["name"], "Instalace jedním OK"))
-            elif x.get("refresh"):
-                rows.append((x["name"], "OK"))
-            else:
-                state = "Na ploše" if x["visible"] else "Skryto"
-                if self.app_can_uninstall(x.get("app")):
-                    state += " · → Odinstalovat"
-                rows.append((x["name"], state))
-
-        visible = 8
-        start = max(0, min(self.apps_selected-visible//2, max(0, len(rows)-visible)))
-        subset = rows[start:start+visible]
-        selected = self.apps_selected-start if subset else 0
+        rows = [(item["name"], item["detail"]) for item in items]
         self.draw_rows(
-            "Aplikace", "Store + aplikace dostupné PiTV", subset, selected,
-            "↑/↓ vybere • OK otevře volby • → odinstalovat • Back návrat",
+            "Aplikace", "Správa aplikací pomocí jednotných seznamových nabídek",
+            rows, self.apps_selected,
+            "↑/↓ vybere • OK otevře • Back návrat",
             settings_index=5,
             info_lines=[
-                "OK zobrazí nebo skryje aplikaci na ploše.",
-                "Šipka doprava nabídne bezpečné odinstalování.",
-                "PiTV Store otevře katalog dalších aplikací.",
+                "OK vždy otevře vybranou nabídku.",
+                "Zobrazení aplikací vybere aplikaci ze seznamu.",
+                "Odinstalování má vlastní seznam a následné potvrzení.",
+                "Pravá šipka v Nastavení nespouští žádnou akci.",
             ],
         )
 
@@ -3674,7 +3726,7 @@ class PiTV:
         self.draw_rows(
             "Android / APK", "APK inspector · aapt/apktool · Waydroid",
             rows[start:start+visible], self.android_selected-start,
-            "OK = spustit/akce • → = odinstalovat vybrané APK • Back návrat",
+            "OK = otevřít / provést akci • Back návrat",
             settings_index=7,
             info_lines=[
                 "Waydroid zajišťuje Android TV aplikace.",
@@ -4973,7 +5025,7 @@ class PiTV:
                 self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN:
                 self.sub_selected = min(len(rows)-1, self.sub_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 self.open_appearance_choice(self.sub_selected)
             elif key == pygame.K_LEFT:
                 self.settings_context = False
@@ -4985,7 +5037,7 @@ class PiTV:
                 self.sub_selected = max(0, self.sub_selected-1)
             elif key == pygame.K_DOWN:
                 self.sub_selected = min(5, self.sub_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.sub_selected == 5:
                     self.screensaver_preview = True
                     self.screensaver_stage = (
@@ -5017,7 +5069,7 @@ class PiTV:
                 self.network_selected = max(0, self.network_selected-1)
             elif key == pygame.K_DOWN:
                 self.network_selected = min(len(items)-1, self.network_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 item = items[self.network_selected]
                 kind = item["kind"]
                 if kind == "wifi-toggle":
@@ -5045,7 +5097,7 @@ class PiTV:
                 else:
                     self.focus_sidebar("audio")
                 return
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 action = items[self.audio_selected]["action"]
                 if action == "port":
                     self.open_audio_port_choice()
@@ -5073,7 +5125,7 @@ class PiTV:
                 self.cec_selected = max(0, self.cec_selected-1)
             elif key == pygame.K_DOWN:
                 self.cec_selected = min(len(rows)-1, self.cec_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.cec_selected < 2:
                     self.open_cec_choice(self.cec_selected)
                 else:
@@ -5091,35 +5143,30 @@ class PiTV:
                     self.focus_sidebar("apps")
                 return
             items = self.app_items()
+            self.apps_selected = min(self.apps_selected, max(0, len(items)-1))
             if key == pygame.K_UP:
                 self.apps_selected = max(0, self.apps_selected-1)
             elif key == pygame.K_DOWN:
                 self.apps_selected = min(len(items)-1, self.apps_selected+1)
-            elif key == pygame.K_RIGHT:
-                item = items[self.apps_selected]
-                app = item.get("app")
-                if app and self.app_can_uninstall(app):
-                    name = app.get("name", "aplikaci")
-                    self.open_confirm(
-                        f"Odinstalovat {name}",
-                        "Opravdu aplikaci odinstalovat z PiTV?",
-                        lambda selected=dict(app): self.uninstall_app_async(selected),
-                    )
-                elif app:
-                    self.show_toast("Tuto aplikaci nelze bezpečně odinstalovat", 4)
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 item = items[self.apps_selected]
-                if item.get("store"):
+                kind = item.get("kind")
+                if kind == "store":
+                    self.settings_context = False
                     self.page = "store"
                     self.store_return_page = "apps"
                     self.store_selected = 0
                     self.refresh_store_async()
-                elif item.get("refresh"):
+                elif kind == "visibility":
+                    self.open_app_visibility_list()
+                elif kind == "uninstall":
+                    self.open_app_uninstall_list()
+                elif kind == "refresh":
                     self.apps = load_apps()
-                    self.apps_selected = min(self.apps_selected, max(0, len(self.app_items())-1))
+                    self.apps_selected = min(
+                        self.apps_selected, max(0, len(self.app_items())-1)
+                    )
                     self.show_toast("Seznam aplikací obnoven")
-                else:
-                    self.open_app_visibility_choice(item)
 
         elif self.page == "store":
             items = self.store_catalog
@@ -5151,7 +5198,7 @@ class PiTV:
                     self.server_store_selected = min(
                         max(0, len(items)-1), self.server_store_selected+1
                     )
-                elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT) and items:
+                elif key in (pygame.K_RETURN, pygame.K_KP_ENTER) and items:
                     self.install_server_store_item(items[self.server_store_selected])
             else:
                 cols = 2
@@ -5190,17 +5237,6 @@ class PiTV:
                 self.android_selected = max(0, self.android_selected-1)
             elif key == pygame.K_DOWN:
                 self.android_selected = min(len(rows)-1, self.android_selected+1)
-            elif key == pygame.K_RIGHT and self.android_selected >= 6:
-                apks = [a for a in self.apps if a.get("kind") == "apk"]
-                apk_index = self.android_selected - 6
-                if 0 <= apk_index < len(apks):
-                    app = apks[apk_index]
-                    name = app.get("name", "APK")
-                    self.open_confirm(
-                        f"Odinstalovat {name}",
-                        "Odebrat Android aplikaci a její PiTV APK soubor?",
-                        lambda selected=dict(app): self.uninstall_app_async(selected),
-                    )
             elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.android_selected == 0 and not waydroid_available():
                     self.open_confirm(
@@ -5254,7 +5290,7 @@ class PiTV:
                 self.updates_selected = max(0, self.updates_selected-1)
             elif key == pygame.K_DOWN:
                 self.updates_selected = min(len(rows)-1, self.updates_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.updates_selected == 0:
                     self.open_confirm(
                         "Aktualizovat vše",
@@ -5286,7 +5322,7 @@ class PiTV:
                 self.system_selected = max(0, self.system_selected-1)
             elif key == pygame.K_DOWN:
                 self.system_selected = min(len(rows)-1, self.system_selected+1)
-            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_RIGHT):
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                 if self.system_selected == 7:
                     self.page = "updates"
                     self.settings_context = True
