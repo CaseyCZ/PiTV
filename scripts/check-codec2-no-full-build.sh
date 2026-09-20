@@ -255,3 +255,7 @@ grep -q 'unsafe backup vendor path' scripts/rollback-codec2-overlay.sh
 ! grep -q '^waydroid init -f$' scripts/rollback-codec2-overlay.sh
 grep -q 'refusing immutable/unsupported Waydroid vendor image path' scripts/install-codec2-overlay.sh
 grep -q 'active_vendor_path=' scripts/codec2-no-full-build.sh
+grep -q '^persist.ffmpeg_codec2.v4l2.h265=1$' android/waydroid-rpi4/vendor.prop
+grep -q 'FFmpeg HEVC V4L2 Request property not active' scripts/install-codec2-overlay.sh
+grep -q 'ffmpeg_hevc_v4l2_request=' scripts/verify-codec2-runtime.sh
+grep -q 'ffmpeg_hevc_v4l2_request_property' scripts/accept-codec2-overlay-runtime.sh
