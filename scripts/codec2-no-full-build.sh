@@ -14,6 +14,7 @@ case "$cmd" in
   install) exec bash "$HERE/install-codec2-overlay.sh" "$@";;
   rollback) exec bash "$HERE/rollback-codec2-overlay.sh" "$@";;
   verify) exec bash "$HERE/verify-codec2-runtime.sh" "$@";;
+  accept) exec bash "$HERE/accept-codec2-overlay-runtime.sh" "$@";;
   check) exec bash "$HERE/check-codec2-no-full-build.sh" "$@";;
   status)
     state=/var/lib/pitv/codec2-experiment
