@@ -33,6 +33,7 @@ case "$cmd" in
     [ -f "$state/last-rollback" ] && echo "last_rollback=$(cat "$state/last-rollback")" || echo "last_rollback="
     [ -f "$state/current-stage" ] && echo "current_stage=$(cat "$state/current-stage")" || echo "current_stage="
     [ -f "$state/last-evidence" ] && echo "last_evidence=$(cat "$state/last-evidence")" || echo "last_evidence="
+    [ -f "$state/active-vendor-path" ] && echo "active_vendor_path=$(cat "$state/active-vendor-path")" || echo "active_vendor_path="
     [ -f "$state/active-vendor.sha256" ] && cat "$state/active-vendor.sha256" || true
     ;;
   help|*)
