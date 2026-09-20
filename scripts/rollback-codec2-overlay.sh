@@ -2,6 +2,7 @@
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 2; }
 STATE=/var/lib/pitv/codec2-experiment
+mkdir -p "$STATE"
 BACKUP="${1:-}"
 if [ -z "$BACKUP" ] && [ -f "$STATE/last-backup" ]; then BACKUP="$(cat "$STATE/last-backup")"; fi
 [ -n "$BACKUP" ] && [ -s "$BACKUP/system.img" ] && [ -s "$BACKUP/vendor.img" ] || {
@@ -16,7 +17,9 @@ systemctl stop waydroid-container.service >/dev/null 2>&1 || true
 mkdir -p "$EXTRA"
 cp --reflink=auto --sparse=always "$BACKUP/system.img" "$EXTRA/system.img"
 cp --reflink=auto --sparse=always "$BACKUP/vendor.img" "$EXTRA/vendor.img"
-if command -v pitv-waydroid-device-patch >/dev/null 2>&1; then
+if [ -x /usr/local/libexec/pitv-waydroid-device-patch ]; then
+  /usr/local/libexec/pitv-waydroid-device-patch --remove || true
+elif command -v pitv-waydroid-device-patch >/dev/null 2>&1; then
   pitv-waydroid-device-patch --remove || true
 fi
 waydroid init -f
