@@ -79,6 +79,7 @@ LABEL_CODES = {
 }
 
 READY = pathlib.Path("/run/pitv/inputd.ready")
+CEC_DEVICE_FILE = pathlib.Path("/run/pitv/cec-device")
 STOP = False
 
 
@@ -264,6 +265,7 @@ def pick_device():
 
 
 def monitor_once(translator, device):
+    CEC_DEVICE_FILE.write_text(str(device) + "\n", encoding="utf-8")
     command = [
         "cec-ctl", "-d", str(device),
         "--no-rc-passthrough",
@@ -301,6 +303,11 @@ def monitor_once(translator, device):
             except subprocess.TimeoutExpired:
                 proc.kill()
         translator._release()
+        try:
+            if CEC_DEVICE_FILE.read_text(encoding="utf-8").strip() == str(device):
+                CEC_DEVICE_FILE.unlink()
+        except (FileNotFoundError, OSError):
+            pass
 
 
 def self_test():
