@@ -307,10 +307,17 @@ if os.geteuid() != 0:
     out("PiTV helper musí běžet jako root", 1)
 
 action = sys.argv[1] if len(sys.argv) > 1 else ""
-try:
-    payload = json.loads(sys.stdin.read() or "{}")
-except Exception:
+
+# Most PiTV callers pipe a small JSON payload into this helper, but recovery and
+# diagnostics are also intentionally usable directly from an interactive SSH
+# shell. Never block forever waiting for EOF on a TTY.
+if sys.stdin.isatty():
     payload = {}
+else:
+    try:
+        payload = json.loads(sys.stdin.read() or "{}")
+    except Exception:
+        payload = {}
 
 if action == "self-test":
     # Regression for Waydroid 1.6.x argparse: option-looking Android arguments
