@@ -5,7 +5,7 @@ PY=(
  scripts/collect-codec2-prebuilt.py
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
- scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py scripts/preflight-codec2-overlay.py
+ scripts/verify-staged-codec2-payload.py scripts/make-codec2-rollback-manifest.py scripts/preflight-codec2-overlay.py scripts/test-codec2-no-full-build.py
  scripts/fetch-minimal-codec2-sources.py
  scripts/check-minimal-codec2-source-lock.py
  scripts/audit-codec2-payload-deps.py
@@ -53,7 +53,7 @@ python3 scripts/validate-codec2-payload.py "$tmp/payload" >/dev/null
 python3 scripts/verify-staged-codec2-payload.py "$tmp/payload" >/dev/null
 bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null
 grep -q 'COPY vendor/lib64/libfixture.so -> /vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
-echo "Codec2 no-full-build helper checks OK"
+python3 scripts/test-codec2-no-full-build.py\necho "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
 bash scripts/codec2-no-full-build.sh help | grep -q 'build-modules'
 grep -q '"backup_required":True\|"backup_required": True' scripts/make-codec2-rollback-manifest.py
