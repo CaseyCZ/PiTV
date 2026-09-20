@@ -238,7 +238,11 @@ jobs:
           from pathlib import Path
 
           from apk_backend import inspect_apk
-          from store_backend import download_direct_apk, download_github_apk
+          from store_backend import (
+              download_direct_apk,
+              download_github_apk,
+              download_stremio_tv_apk,
+          )
 
           catalog = json.loads(Path("store/catalog.json").read_text(encoding="utf-8"))
           tested = []
@@ -250,21 +254,34 @@ jobs:
                   path, version = download_github_apk(item)
               elif kind == "direct_apk":
                   path, version = download_direct_apk(item)
+              elif kind == "stremio_tv_apk":
+                  path, version = download_stremio_tv_apk(item)
               else:
                   continue
 
               meta = inspect_apk(path)
               expected = installer.get("expected_package", "")
-              print(item["name"], "version", version, "package", meta.get("package"), "file", path)
+              expected_abi = installer.get("expected_abi", "")
+              print(
+                  item["name"], "version", version,
+                  "package", meta.get("package"),
+                  "abis", meta.get("abis"),
+                  "file", path,
+              )
               assert Path(path).is_file() and Path(path).stat().st_size > 100000
               assert meta.get("package"), f"{item['name']}: APK package not detected"
               if expected:
                   assert meta["package"] == expected, (
                       f"{item['name']}: {meta['package']} != {expected}"
                   )
+              if expected_abi:
+                  assert expected_abi in (meta.get("abis") or []), (
+                      f"{item['name']}: {meta.get('abis')} missing {expected_abi}"
+                  )
               tested.append(item["id"])
 
           assert "smarttube" in tested
+          assert "stremio" in tested
 
           play_entries = {
               x["id"]: x["installer"].get("package")
@@ -276,8 +293,9 @@ jobs:
 
           by_id = {x["id"]: x for x in catalog["apps"]}
           stremio = by_id["stremio"]["installer"]
-          assert stremio["type"] == "flatpak"
-          assert stremio["app_id"] == "com.stremio.Stremio"
+          assert stremio["type"] == "stremio_tv_apk"
+          assert stremio["expected_package"] == "com.stremio.one"
+          assert stremio["expected_abi"] == "arm64-v8a"
 
           plex = by_id["plex"]["installer"]
           assert plex["type"] == "kodi_addon"
