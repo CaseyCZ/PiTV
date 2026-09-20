@@ -8,7 +8,7 @@ payload=Path(sys.argv[1]).resolve(); repo=Path(sys.argv[2]).resolve()
 manifest=payload/"PITV-CODEC2-PAYLOAD.txt"
 if not manifest.is_file(): raise SystemExit("missing collected payload manifest")
 owned={
- "android/waydroid-rpi4/media_codecs.xml":"vendor/etc/media_codecs.xml",
+ "android/waydroid-rpi4/media_codecs.xml":"vendor/etc/media_codecs_pitv_rpi4.xml",
  "android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml":"vendor/etc/media_codecs_ffmpeg_c2.xml",
  "android/waydroid-rpi4/codec2.vendor.ext.policy":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
  "android/waydroid-rpi4/hwdecode.env":"vendor/etc/pitv-hwdecode.env",
