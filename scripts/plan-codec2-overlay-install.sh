@@ -3,7 +3,10 @@ set -euo pipefail
 # Generate a dry-run installation plan from a verified stage. No files outside
 # the stage are changed.
 STAGE="${1:?stage required}"
-python3 "$(dirname "$0")/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
+HERE="$(cd "$(dirname "$0")" && pwd)"
+python3 "$HERE/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
+python3 "$HERE/enforce-codec2-payload-scope.py" "$STAGE" >/dev/null
+python3 "$HERE/codec2-payload-readiness.py" "$STAGE" >/dev/null
 PLAN="$STAGE/PITV-CODEC2-INSTALL-PLAN.txt"
 {
   echo "# PiTV Codec2 experimental install plan"
