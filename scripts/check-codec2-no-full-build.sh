@@ -18,6 +18,7 @@ PY=(
  scripts/evaluate-codec2-target.py
  scripts/enforce-codec2-payload-scope.py
  scripts/codec2-payload-readiness.py
+ scripts/verify-codec2-metadata.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -93,3 +94,5 @@ bash scripts/codec2-no-full-build.sh help | grep -q 'readiness PAYLOAD'
 grep -q 'codec2-payload-readiness.py' scripts/install-codec2-overlay.sh
 grep -q 'codec2-payload-readiness.py' scripts/stage-codec2-payload.sh
 grep -q 'enforce-codec2-payload-scope.py' scripts/stage-codec2-payload.sh
+grep -q 'verify-codec2-metadata.py' scripts/prepare-codec2-overlay.sh
+grep -q 'codec2-payload-readiness.py' scripts/plan-codec2-overlay-install.sh
