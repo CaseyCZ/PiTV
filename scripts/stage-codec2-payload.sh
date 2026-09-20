@@ -23,6 +23,7 @@ mkdir -p "$STATE/staged"
 [ ! -e "$dest" ] || dest="$STATE/staged/${stamp}-$"
 mkdir "$dest"
 cp -a "$PAYLOAD/." "$dest/"
+find "$dest" -type l -print -quit | grep -q . && { echo "staged payload contains symlink" >&2; exit 3; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
 python3 "$HERE/verify-staged-codec2-payload.py" "$dest" >/dev/null
 python3 "$HERE/make-codec2-rollback-manifest.py" "$dest" >/dev/null
