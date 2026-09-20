@@ -9,7 +9,7 @@ required={
  "checksums":"PITV-CODEC2-SHA256.json",
  "inventory":"PITV-CODEC2-INVENTORY.json",
  "rollback":"PITV-CODEC2-ROLLBACK.json",
- "avc_xml":"vendor/etc/media_codecs.xml",
+ "avc_xml":"vendor/etc/media_codecs_pitv_rpi4.xml",
  "hevc_xml":"vendor/etc/media_codecs_ffmpeg_c2.xml",
  "properties":"vendor/etc/pitv-codec2.prop",
  "backend_marker":"vendor/etc/pitv-hwdecode.env",
