@@ -128,7 +128,9 @@ class RecordingSink:
 
 
 class CECTranslator:
-    DUPLICATE_WINDOW = 0.075
+    # Match the physically proven PiTV 1.4 navigation feel: one short press is
+    # one step, while a held arrow repeats only after a deliberate delay.
+    REPEAT_WINDOW = 0.45
     BACK_CONTINUITY = 0.80
     LONG_BACK_SECONDS = 3.0
 
@@ -137,6 +139,7 @@ class CECTranslator:
         self.awaiting_ui_cmd = False
         self.last_code = None
         self.last_code_at = 0.0
+        self.key_down_code = None
         self.back_started = 0.0
         self.back_last_seen = 0.0
         self.back_physical_down = False
@@ -153,11 +156,15 @@ class CECTranslator:
 
     def _press(self, code, now=None):
         now = time.monotonic() if now is None else now
+        same_hold = self.key_down_code == code
 
         if code in HOME_CODES:
-            if not (self.last_code == code and
-                    now - self.last_code_at < self.DUPLICATE_WINDOW):
+            # Home is an appliance action, never a repeating navigation key.
+            # The raw + decoded cec-ctl lines for one physical press therefore
+            # collapse to one F13 until USER_CONTROL_RELEASED arrives.
+            if not same_hold:
                 self.sink.tap(KEY_F13)
+            self.key_down_code = code
             self.last_code = code
             self.last_code_at = now
             return
@@ -178,6 +185,7 @@ class CECTranslator:
             if not self.back_short_sent:
                 self.sink.tap(KEY_ESC)
                 self.back_short_sent = True
+            self.key_down_code = code
             self.last_code = code
             self.last_code_at = now
             return
@@ -185,8 +193,15 @@ class CECTranslator:
         key = CODE_KEYS.get(code)
         if key is None:
             return
-        if self.last_code == code and now - self.last_code_at < self.DUPLICATE_WINDOW:
+
+        # cec-ctl can print both a raw frame and a decoded ui-cmd for the same
+        # physical press. It can also emit repeated Press frames while a key is
+        # held. Treat both as the same held key and use the 1.4-proven 450 ms
+        # repeat cadence. A real Release clears key_down_code below, so a quick
+        # second physical press is accepted immediately.
+        if same_hold and now - self.last_code_at < self.REPEAT_WINDOW:
             return
+        self.key_down_code = code
         self.last_code = code
         self.last_code_at = now
         self.sink.tap(key)
@@ -196,6 +211,9 @@ class CECTranslator:
         self.back_physical_down = False
         if self.back_started:
             self.back_last_seen = now
+        self.key_down_code = None
+        self.last_code = None
+        self.last_code_at = 0.0
         self.awaiting_ui_cmd = False
 
     def tick(self, now=None):
@@ -321,12 +339,29 @@ def self_test():
     assert sink.events == [KEY_ENTER], sink.events
     tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.03)
 
+    # Raw+decoded duplicate and aggressive hold repeats must not skip menu
+    # rows. Release makes the next real physical press immediate.
     tr.feed("> 01:44:01\n", t + 0.20)
-    tr.feed("> 01:44:02\n", t + 0.40)
-    assert sink.events[-2:] == [KEY_UP, KEY_DOWN]
+    tr.feed("  ui-cmd: up (0x01)\n", t + 0.21)
+    tr.feed("> 01:44:01\n", t + 0.35)
+    assert sink.events[-1] == KEY_UP
+    up_count = sink.events.count(KEY_UP)
+    tr.feed("> 01:44:01\n", t + 0.70)
+    assert sink.events.count(KEY_UP) == up_count + 1
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.72)
+    tr.feed("> 01:44:01\n", t + 0.75)
+    assert sink.events.count(KEY_UP) == up_count + 2
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.76)
+    tr.feed("> 01:44:02\n", t + 0.80)
+    assert sink.events[-1] == KEY_DOWN
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.81)
 
-    tr.feed("> 01:44:0a\n", t + 0.60)
+    tr.feed("> 01:44:0a\n", t + 0.90)
+    tr.feed("  ui-cmd: setup menu (0x0a)\n", t + 0.91)
     assert sink.events[-1] == KEY_F13
+    home_count = sink.events.count(KEY_F13)
+    assert home_count == 1
+    tr.feed("USER_CONTROL_RELEASED (0x45)\n", t + 0.92)
 
     before = len(sink.events)
     tr.feed("> 01:44:0d\n", t + 1.0)
