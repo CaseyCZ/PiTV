@@ -176,3 +176,5 @@ grep -q 'unsafe output directory' scripts/prepare-codec2-overlay.sh
 grep -q 'dynamic/super donor image detected' scripts/extract-codec2-donor-image.sh
 grep -q 'backup must be inside' scripts/rollback-codec2-overlay.sh
 grep -q 'restored vendor image mismatch' scripts/rollback-codec2-overlay.sh
+grep -q 'android.hardware.media.c2@1.0-service-v4l2-64' scripts/build-minimal-codec2-modules.sh
+grep -q 'output must not be inside build/source tree' scripts/build-minimal-codec2-modules.sh
