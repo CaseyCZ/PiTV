@@ -53,6 +53,17 @@ jobs:
           grep -q 'exec cage -d' system/pitv-waydroid-launch
           grep -q 'labwc cage wtype' install.sh
           grep -q 'identifier="wlroots"' system/labwc/rc.xml
+          grep -q '<name>PiTV</name>' system/labwc/rc.xml
+          grep -q '<name>Kodi</name>' system/labwc/rc.xml
+          grep -q '<name>Stremio</name>' system/labwc/rc.xml
+          grep -q '<name>Android</name>' system/labwc/rc.xml
+          grep -q 'GoToDesktop" to="PiTV"' system/labwc/rc.xml
+          grep -q '"127".*KEYCODE_MEDIA_PAUSE' system/pitv-helper
+          python3 - <<'PYXML'
+          import xml.etree.ElementTree as ET
+          ET.parse("system/labwc/rc.xml")
+          print("labwc rc.xml OK")
+          PYXML
           grep -q 'flatpak-uninstall' system/pitv-helper
           grep -q 'apt-remove' system/pitv-helper
           grep -q 'pitv-session-run' install.sh
@@ -155,6 +166,20 @@ jobs:
           assert native_item
           assert native_item["installer"]["type"] == "flatpak"
           assert app.app_can_uninstall(native_stremio)
+
+          # Built-in media runtimes have stable multitasking slots.
+          kodi_app = {"name":"Kodi", "kind":"linux", "command":"kodi"}
+          plex_app = {"name":"Plex Player", "kind":"linux",
+                      "command":"/usr/local/bin/pitv-kodi-addon run script.plexmod"}
+          android_app = {"name":"SmartTube", "kind":"apk",
+                         "package":"com.teamsmart.videomanager.tv"}
+          assert app._task_key(kodi_app, "linux") == "kodi"
+          assert app._task_key(plex_app, "linux") == "kodi"
+          assert app._task_key(native_stremio, "linux") == "stremio"
+          assert app._task_key(android_app, "apk") == "android"
+          assert app._workspace_for_app(kodi_app, "linux") == "Kodi"
+          assert app._workspace_for_app(native_stremio, "linux") == "Stremio"
+          assert app._workspace_for_app(android_app, "apk") == "Android"
 
           # Settings values are visible Kodi-style lists, not blind
           # left/right cycling. Open Tile Size at Large, move to Extra large,
