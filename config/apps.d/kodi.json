@@ -2,6 +2,6 @@
   "name": "Kodi",
   "subtitle": "Média",
   "icon": "▶",
-  "command": "kodi",
+  "command": "/usr/local/bin/pitv-kodi-launch",
   "requires": "kodi"
 }
