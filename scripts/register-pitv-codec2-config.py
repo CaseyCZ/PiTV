@@ -6,7 +6,7 @@ if len(sys.argv)!=2: raise SystemExit("usage: register-pitv-codec2-config.py PAY
 root=Path(sys.argv[1]).resolve()
 manifest=root/"PITV-CODEC2-PAYLOAD.txt"
 required=[
-"vendor/etc/media_codecs.xml",
+"vendor/etc/media_codecs_pitv_rpi4.xml",
 "vendor/etc/media_codecs_ffmpeg_c2.xml",
 "vendor/etc/pitv-codec2.prop",
 "vendor/etc/pitv-hwdecode.env",
