@@ -17,13 +17,19 @@ def needed(p):
     except subprocess.CalledProcessError: return []
     return re.findall(r"\(NEEDED\).*?\[([^\]]+)\]",s)
 index={}
+def safe_tree(root):
+    for raw in root.rglob("*"):
+        if raw.is_symlink(): continue
+        p=raw.resolve()
+        try: p.relative_to(root)
+        except ValueError: continue
+        yield p
 for root in [payload,*targets]:
     if not root.is_dir(): continue
-    for p in root.rglob("*"):
-        if p.is_symlink(): continue
+    for p in safe_tree(root):
         if p.is_file() and iself(p): index.setdefault(p.name,[]).append(p)
 bad=[]; checked=0
-for p in payload.rglob("*"):
+for p in safe_tree(payload):
     if not p.is_file(): continue
     try:
         hdr=subprocess.check_output([readelf,"-h",str(p)],stderr=subprocess.DEVNULL,text=True)
@@ -36,6 +42,11 @@ for p in payload.rglob("*"):
         if "/" in dep: bad.append(f"ABSOLUTE_NEEDED {p.relative_to(payload)} -> {dep}")
         candidates=index.get(name,[])
         if not candidates: bad.append(f"MISSING {p.relative_to(payload)} -> {name}")
+        elif len(candidates)>1:
+            # Multiple copies are acceptable only when byte-identical.
+            import hashlib
+            hashes={hashlib.sha256(x.read_bytes()).hexdigest() for x in candidates}
+            if len(hashes)>1: bad.append(f"AMBIGUOUS {p.relative_to(payload)} -> {name} ({len(candidates)} providers)")
 print(f"AUDITED_ELF={checked}")
 for x in bad: print(x)
 if checked==0: raise SystemExit("payload contains no AArch64 ELF files")
