@@ -1,0 +1,17 @@
+name: Codec2 No Full Build Check
+
+on:
+  push:
+    branches: [experiment/rpi4-codec2-no-full-build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate no-full-build helpers
+        run: bash scripts/check-codec2-no-full-build.sh
