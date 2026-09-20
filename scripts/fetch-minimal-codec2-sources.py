@@ -10,6 +10,12 @@ for item in lock["sources"]:
     dst=out/item["name"]
     if not dst.exists():
         subprocess.run(["git","clone","--filter=blob:none","--no-checkout",item["url"],str(dst)],check=True)
+    elif not (dst/".git").exists():
+        raise SystemExit(f"existing path is not a git checkout: {dst}")
+    origin=subprocess.check_output(["git","-C",str(dst),"remote","get-url","origin"],text=True).strip()
+    if origin!=item["url"]: raise SystemExit(f"refusing source with unexpected origin: {item['name']} {origin}")
+    dirty=subprocess.check_output(["git","-C",str(dst),"status","--porcelain"],text=True)
+    if dirty.strip(): raise SystemExit(f"refusing dirty source checkout: {item['name']}")
     subprocess.run(["git","-C",str(dst),"fetch","--depth=1","origin",item["commit"]],check=True)
     subprocess.run(["git","-C",str(dst),"checkout","--detach",item["commit"]],check=True)
     got=subprocess.check_output(["git","-C",str(dst),"rev-parse","HEAD"],text=True).strip()
