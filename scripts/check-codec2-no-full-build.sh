@@ -249,3 +249,7 @@ grep -q 'v4l2_seccomp_base' scripts/codec2-payload-readiness.py
 grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/build-minimal-codec2-modules.sh
 grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/prepare-codec2-from-donor.sh
 grep -q 'V4L2 Codec2 seccomp contract missing' scripts/verify-minimal-codec2-sources.py
+grep -q 'active-vendor-path' scripts/install-codec2-overlay.sh
+grep -q 'backup vendor path missing' scripts/rollback-codec2-overlay.sh
+grep -q 'unsafe backup vendor path' scripts/rollback-codec2-overlay.sh
+! grep -q '^waydroid init -f$' scripts/rollback-codec2-overlay.sh
