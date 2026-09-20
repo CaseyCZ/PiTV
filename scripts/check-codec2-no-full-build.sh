@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Static self-test for the no-full-build helper scripts. Does not need Android.
-python3 -m py_compile scripts/probe-codec2-prebuilt.py scripts/collect-codec2-prebuilt.py scripts/validate-codec2-payload.py scripts/verify-staged-codec2-payload.py\nbash -n scripts/probe-waydroid-codec2-target.sh
+python3 -m py_compile scripts/probe-codec2-prebuilt.py scripts/collect-codec2-prebuilt.py scripts/validate-codec2-payload.py scripts/verify-staged-codec2-payload.py
+bash -n scripts/probe-waydroid-codec2-target.sh
 bash -n scripts/guard-codec2-build-workspace.sh
 bash -n scripts/stage-codec2-payload.sh
 bash -n scripts/plan-codec2-overlay-install.sh
