@@ -21,7 +21,8 @@ jobs:
             pitv/update_backend.py \
             system/pitv-helper \
             system/pitv-self-update \
-            system/pitv-inputd
+            system/pitv-inputd \
+            system/pitv-displayd
 
       - name: Shell syntax
         run: |
@@ -35,7 +36,6 @@ jobs:
           bash -n system/pitv-kodi-launch
           bash -n system/pitv-kodi-addon
           bash -n system/pitv-cec-control
-          bash -n system/pitv-display-watch
           ! grep -q 'dbus-run-session' system/pitv-session
           ! grep -q 'SDL_AUDIODRIVER=alsa' system/labwc/autostart
           grep -q 'RUNTIME="/run/user/$(id -u)"' system/pitv-session
@@ -58,6 +58,7 @@ jobs:
           grep -q 'tv-runtime-reset' system/pitv-helper
           grep -q 'tv-runtime-reset' system/pitv-session
           python3 system/pitv-inputd --self-test
+          python3 system/pitv-displayd --self-test
           ! grep -q 'class CECReader' pitv/pitv.py
           ! grep -q 'cec_queue' pitv/pitv.py
           ! grep -q '_CEC_MANAGER' pitv/pitv.py
@@ -164,14 +165,28 @@ jobs:
           grep -q '^Restart=always$' system/pitv-shell.service
           grep -q '^WantedBy=pitv.target$' system/pitv-shell.service
           grep -q 'wlr-randr' install.sh
-          grep -q 'system/pitv-display-watch /usr/local/libexec/pitv-display-watch' install.sh
-          grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
-          grep -q 'pitv-display.service' system/pitv.target
-          grep -q '^Restart=always$' system/pitv-display.service
-          grep -q -- '--on --pos 0,0 --transform normal --scale 1' system/pitv-display-watch
-          ! grep -q -- '--on --preferred' system/pitv-display-watch
-          grep -q 'pitv-display-repair' system/pitv-display-watch
-          grep -q 'pitv-display-repair' pitv/pitv.py
+          grep -q 'system/pitv-displayd /usr/local/libexec/pitv-displayd' install.sh
+          grep -q 'system/pitv-displayd.service /etc/systemd/system/pitv-displayd.service' install.sh
+          grep -q 'pitv-displayd.service' system/pitv.target
+          ! grep -q 'pitv-display.service' system/pitv.target
+          grep -q 'After=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q 'Wants=.*pitv-displayd.service' system/pitv-shell.service
+          grep -q '^Restart=always$' system/pitv-displayd.service
+          grep -q 'connector_snapshot' system/pitv-displayd
+          grep -q 'snapshot_fingerprint' system/pitv-displayd
+          grep -q 'DRIFT_CHECK_SECONDS' system/pitv-displayd
+          grep -q '"--preferred"' system/pitv-displayd
+          grep -q '"--pos", "0,0"' system/pitv-displayd
+          grep -q 'force_notify=True' system/pitv-displayd
+          grep -q 'allow_enable=False' system/pitv-displayd
+          grep -q 'try-restart.*pitv-shell.service' system/pitv-displayd
+          grep -q 'home|close|display' system/pitv-global-action
+          grep -q 'action == "display"' pitv/pitv.py
+          ! grep -q 'pitv-display-repair' pitv/pitv.py
+          ! test -e system/pitv-display-watch
+          ! test -e system/pitv-display.service
+          ! grep -q 'system/pitv-display-watch /usr/local/libexec/pitv-display-watch' install.sh
+          ! grep -q 'system/pitv-display.service /etc/systemd/system/pitv-display.service' install.sh
           grep -q '<reuseOutputMode>yes</reuseOutputMode>' system/labwc/rc.xml
           grep -q '<action name="MoveTo" x="0" y="0" />' system/labwc/rc.xml
           grep -q '^Wants=pitv-shell.service$' system/pitv-android-warm.service
@@ -441,15 +456,21 @@ jobs:
           assert app.operation_text == "Globální test"
           assert app.operation_progress == 42
 
-          # PiTV 1.4.31 HDMI recovery contract. Dummy rendering must not try
-          # to touch a real KMS/Wayland output, but the geometry helpers must
-          # be present and safe.
+          # PiTV 1.5 HDMI recovery contract. Output recovery lives below
+          # the UI; the daemon notifies PiTV through the global appliance
+          # action channel and SDL rebind stays main-thread safe.
           assert isinstance(app._desktop_size(), tuple)
           assert len(app._desktop_size()) == 2
           assert app._repair_fullscreen(force=True) is False
-          assert app._display_repair_event_file().name == "pitv-display-repair"
-          assert isinstance(app._display_repair_event_token(), int)
-          assert hasattr(app, "_last_display_repair_event")
+          assert not hasattr(app, "_display_repair_event_file")
+          app._fullscreen_repair_requested = False
+          pitv_module.GLOBAL_ACTION_FILE.write_text("display\n", encoding="utf-8")
+          app._consume_global_tv_action()
+          assert app._fullscreen_repair_requested
+          try:
+              pitv_module.GLOBAL_ACTION_FILE.unlink()
+          except FileNotFoundError:
+              pass
           assert hasattr(app, "android_pending_proc")
           assert app._android_ready_file().name == "pitv-waydroid-app-ready"
 
