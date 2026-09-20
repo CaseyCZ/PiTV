@@ -188,20 +188,33 @@ def ensure_apk_installed(app):
         return True, 'APK je už nainstalované'
     if not apk or not Path(apk).is_file():
         return False, 'APK soubor nebyl nalezen'
-    rc, out = _run(['waydroid', 'app', 'install', apk], timeout=120)
+
+    # The official Waydroid app installer requires a running user session.
+    # PiTV keeps Android off while idle, so install through the same hidden
+    # Cage/session lifecycle used for Android TV launches instead of invoking
+    # "waydroid app install" against a stopped session.
+    wrapper = Path('/usr/local/bin/pitv-waydroid-launch')
+    if package and wrapper.is_file():
+        rc, out = _run(
+            [str(wrapper), '--install-only', package, apk],
+            timeout=360,
+        )
+    else:
+        # Development fallback for non-installed PiTV checkouts.
+        rc, out = _run(['waydroid', 'app', 'install', apk], timeout=120)
     if rc != 0:
         return False, out[-250:] if out else 'Instalace APK selhala'
 
-    # waydroid app install may return before Android PackageManager has
-    # published the new package. Poll the authoritative PackageManager for up
-    # to 30 seconds; return immediately once the package becomes visible.
     if package:
-        for _ in range(60):
+        # The install-only wrapper already waits for PackageManager, but keep
+        # this authoritative verification so callers never trust exit status
+        # alone (Waydroid installApp is asynchronous).
+        for _ in range(20):
             if waydroid_package_installed(package):
                 return True, f"{app.get('name','APK')} nainstalováno"
             time.sleep(0.5)
         return False, (
-            f"{app.get('name','APK')}: Android package po 30 s stále chybí"
+            f"{app.get('name','APK')}: Android package po instalaci stále chybí"
         )
 
     return True, f"{app.get('name','APK')} nainstalováno"
