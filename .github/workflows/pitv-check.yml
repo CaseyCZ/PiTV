@@ -367,7 +367,7 @@ jobs:
               "store", "visibility", "uninstall", "refresh"
           ]
           assert app_menu[1]["name"] == "Zobrazení aplikací"
-          assert app_menu[2]["name"] == "Odinstalovat aplikaci"
+          assert app_menu[2]["name"] == "Odinstalovat aplikace"
 
           app.handle_key(pygame.K_RIGHT)
           assert not app.choice_active
@@ -385,7 +385,7 @@ jobs:
           app.apps_selected = 2
           app.handle_key(pygame.K_RETURN)
           assert app.choice_active
-          assert app.choice_title == "Odinstalovat aplikaci"
+          assert app.choice_title == "Odinstalovat aplikace"
           assert len(app.choice_options) >= 1
           app.handle_key(pygame.K_ESCAPE)
           assert not app.choice_active
