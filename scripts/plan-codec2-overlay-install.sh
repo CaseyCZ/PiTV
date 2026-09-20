@@ -6,6 +6,9 @@ STAGE="${1:?stage required}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 python3 "$HERE/verify-staged-codec2-payload.py" "$STAGE" >/dev/null
 python3 "$HERE/enforce-codec2-payload-scope.py" "$STAGE" >/dev/null
+python3 "$HERE/check-codec2-manifest-closure.py" "$STAGE" >/dev/null
+python3 "$HERE/check-codec2-payload-size.py" "$STAGE" >/dev/null
+python3 "$HERE/verify-codec2-metadata.py" "$STAGE" >/dev/null
 python3 "$HERE/codec2-payload-readiness.py" "$STAGE" >/dev/null
 PLAN="$STAGE/PITV-CODEC2-INSTALL-PLAN.txt"
 {
