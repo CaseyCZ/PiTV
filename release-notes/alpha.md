@@ -9,6 +9,8 @@
 - hlavní Wayland compositor publikuje kanonický marker `pitv-wayland-display`; Kodi, nativní aplikace, SSH session helper a vnější Waydroid už nikdy nevybírají náhodný první `wayland-*` socket
 - pouze Cage client uvnitř Android runtime smí používat svůj zděděný nested Wayland socket; tím se odděluje PiTV obrazovka od Android compositoru
 - Android warm runtime vlastní výhradně `pitv-android-warm.service`; spuštění APK při cold startu službu požádá přes helper a nevytváří vlastní druhý warmer proces
+- jednorázová migrace starých Android balíčků už nikdy nestartuje ani nezastavuje Waydroid; počká na hotový warm runtime, takže nemůže závodit s prvním spuštěním SmartTube
+- odstraněna umělá 2s prodleva před Android prewarmem a redundantní `waydroid session stop`; po připravení hlavního Waylandu začíná Android warm-up okamžitě
 - starý boot řetězec `getty → autologin → .bash_profile → labwc` se při instalaci 1.5.0 odstraňuje; tty1 je vyhrazená supervised TV shellu
 - kompatibilní příkaz `sudo systemctl restart pitv-launcher` zůstává, ale nově restartuje celý `pitv-shell.service`
 - Android warm runtime je oddělený do `pitv-android-warm.service`; Home obrazovka není jeho rodič ani na něj při startu nečeká
