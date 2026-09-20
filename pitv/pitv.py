@@ -754,7 +754,7 @@ def cec_send(commands):
             return False, f"Nepodporovaný CEC příkaz: {command}"
         try:
             p = subprocess.run(
-                ["sudo", "-n", "/usr/local/libexec/pitv-cec-monitor", device, mode],
+                ["sudo", "-n", "/usr/local/libexec/pitv-cec-control", device, mode],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
