@@ -6,8 +6,9 @@ ALLOWED_STORE_APT = {"kodi", "kodi-eventclients-kodi-send"}
 ALLOWED_PLAY_PACKAGES = {"com.google.android.youtube.tv", "com.spotify.tv.android"}
 ALLOWED_STORE_FLATPAK = {"com.stremio.Stremio"}
 LEGACY_PITV_ANDROID_PACKAGES = {
-    # PiTV still migrates the obsolete Android Plex package. Stremio returned
-    # to the supported Android TV path and must never be removed as legacy.
+    # Native Linux Stremio is the supported PiTV path. Remove only the exact
+    # historical PiTV Android package IDs during one-time migration.
+    "com.stremio.one",
     "com.plexapp.android",
 }
 PROTECTED_ANDROID_PREFIXES = (
