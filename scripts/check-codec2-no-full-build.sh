@@ -243,3 +243,5 @@ grep -q 'lpunpack required for dynamic/super donor image' scripts/extract-codec2
 grep -q 'super image must contain exactly one vendor image' scripts/extract-codec2-donor-image.sh
 grep -q 'restore_sources' scripts/build-minimal-codec2-modules.sh
 grep -q 'pitv-codec2-src-backup' scripts/build-minimal-codec2-modules.sh
+grep -q 'MODIFIED=()' scripts/build-minimal-codec2-modules.sh
+grep -q 'MODIFIED+=("$dst")' scripts/build-minimal-codec2-modules.sh
