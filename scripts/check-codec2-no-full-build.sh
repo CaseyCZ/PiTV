@@ -221,3 +221,6 @@ grep -q 'payload path is a symlink' scripts/enforce-codec2-payload-scope.py
 grep -q '@1.0::IComponentStore/v4l2' scripts/check-codec2-service-metadata.py
 grep -q 'missing upstream FFmpeg Codec2 media registry' scripts/assemble-codec2-overlay.py
 ! grep -q '"android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml":"vendor/etc/media_codecs_ffmpeg_c2.xml"' scripts/assemble-codec2-overlay.py
+grep -q 'staged payload contains symlink' scripts/stage-codec2-payload.sh
+grep -q 'invalid rollback manifest schema' scripts/preflight-codec2-overlay.py
+grep -q 'duplicate preflight target' scripts/plan-codec2-backup.py
