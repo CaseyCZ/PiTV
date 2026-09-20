@@ -1,4 +1,4 @@
-name: PiTV Check
+name: PiTV Full Regression Check
 
 on:
   workflow_dispatch:
