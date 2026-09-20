@@ -89,3 +89,5 @@ grep -q 'enforce-codec2-payload-scope.py' scripts/install-codec2-overlay.sh
 grep -q 'forbidden donor HAL surface' scripts/enforce-codec2-payload-scope.py
 grep -q 'PAYLOAD_READY_FOR_TARGET_PREFLIGHT' scripts/codec2-payload-readiness.py
 grep -q 'codec2-payload-readiness.py' scripts/prepare-codec2-overlay.sh
+bash scripts/codec2-no-full-build.sh help | grep -q 'readiness PAYLOAD'
+grep -q 'codec2-payload-readiness.py' scripts/install-codec2-overlay.sh
