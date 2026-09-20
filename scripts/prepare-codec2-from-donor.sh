@@ -26,8 +26,9 @@ for pattern in \
 do
   while IFS= read -r p; do
     [ -n "$p" ] || continue
-    rel="${p#"$DONOR"/}"; mkdir -p "$OUT/$(dirname "$rel")"; cp -a "$p" "$OUT/$rel"
-    printf '%s\n' "$rel" >>"$OUT/PITV-CODEC2-PAYLOAD.txt"
+    rel="${p#"$DONOR"/}"; payload_rel="vendor/$rel"
+    mkdir -p "$OUT/$(dirname "$payload_rel")"; cp -a "$p" "$OUT/$payload_rel"
+    printf '%s\n' "$payload_rel" >>"$OUT/PITV-CODEC2-PAYLOAD.txt"
   done < <(find "$DONOR" -type f -name "$pattern" | sort)
 done
 sort -u "$OUT/PITV-CODEC2-PAYLOAD.txt" -o "$OUT/PITV-CODEC2-PAYLOAD.txt"
