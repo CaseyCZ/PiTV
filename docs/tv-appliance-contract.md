@@ -70,6 +70,10 @@ contract is the baseline for all future UI, Store and runtime changes.
 - `pitv-inputd.service` starts before `pitv-shell.service`, owns the one CEC
   monitor for the appliance, reconnects independently of launcher/app crashes
   and publishes its active adapter in `/run/pitv/cec-device`.
+- The PiTV GUI contains no CEC wire parser or second monitor. CEC input has one
+  owner only: `pitv-inputd`. TV output commands are separate, short-lived and
+  allowlisted through `pitv-cec-control` (Power, Standby, Active Source,
+  Volume and Mute only).
 - Raw + decoded representations of one CEC press collapse to one navigation
   step. Held arrows repeat only after a deliberate delay; a real release makes
   the next physical press immediate.
