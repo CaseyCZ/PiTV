@@ -15,7 +15,8 @@ case "${ID:-}" in
 esac
 
 ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
-echo "Architektura: $ARCH"\necho "PITV_PROGRESS 67 Kontroluji balíčky a systém…"
+echo "Architektura: $ARCH"
+echo "PITV_PROGRESS 67 Kontroluji balíčky a systém…"
 
 # Ubuntu can start unattended-upgrades in the background shortly after boot.
 # Never fail a PiTV update just because APT/DPKG is temporarily busy. apt-get waits
@@ -43,7 +44,8 @@ apt_run install -y \
 # Netplan override deliberately hands the same persistent Netplan definitions
 # to NetworkManager. Netplan supports this renderer switch and merges later
 # YAML files over earlier cloud-init files.
-echo "PITV_PROGRESS 72 Základní balíčky jsou připravené."\napt_run install -y network-manager
+echo "PITV_PROGRESS 72 Základní balíčky jsou připravené."
+apt_run install -y network-manager
 
 cat >/etc/netplan/90-pitv-network-manager.yaml <<'EOF'
 network:
@@ -56,7 +58,8 @@ netplan generate
 netplan apply
 
 # Remote administration is a supported PiTV recovery path.
-echo "PITV_PROGRESS 76 Nastavuji síť a SSH…"\nsystemctl enable --now ssh.service
+echo "PITV_PROGRESS 76 Nastavuji síť a SSH…"
+systemctl enable --now ssh.service
 
 # Once NetworkManager owns the configured interfaces, the old networkd
 # wait-online gate must not delay TV startup. Do not disable networkd itself.
@@ -84,7 +87,8 @@ fi
 # shell. D-Bus, PipeWire and WirePlumber then survive a TV-shell recovery.
 loginctl enable-linger pitv >/dev/null 2>&1 || true
 
-echo "PITV_PROGRESS 80 Připravuji PiTV adresáře a data…"\ninstall -d -m 0755 /opt/pitv /etc/pitv/apps.d /etc/pitv/store /etc/pitv/kodi
+echo "PITV_PROGRESS 80 Připravuji PiTV adresáře a data…"
+install -d -m 0755 /opt/pitv /etc/pitv/apps.d /etc/pitv/store /etc/pitv/kodi
 install -d -m 0775 -o pitv -g pitv /var/lib/pitv /var/lib/pitv/apks /var/lib/pitv/backups
 install -d -m 0775 -o pitv -g pitv /home/pitv/PiTV /home/pitv/PiTV/APKs
 
@@ -107,7 +111,8 @@ fi
 # Replace only the PiTV runtime tree. User settings, Kodi, Waydroid and Media
 # live outside /opt/pitv and are intentionally preserved across updates.
 # Keep one previous runtime so a failed update still has a rollback copy.
-echo "PITV_PROGRESS 84 Instaluji nový PiTV runtime…"\nrm -rf /opt/pitv/pitv.new
+echo "PITV_PROGRESS 84 Instaluji nový PiTV runtime…"
+rm -rf /opt/pitv/pitv.new
 cp -a pitv /opt/pitv/pitv.new
 rm -rf /opt/pitv/pitv.prev
 if [ -d /opt/pitv/pitv ]; then
@@ -118,7 +123,8 @@ if ! mv /opt/pitv/pitv.new /opt/pitv/pitv; then
   exit 1
 fi
 
-echo "PITV_PROGRESS 87 Instaluji konfiguraci a systémové nástroje…"\ninstall -m 0644 config/config.json /etc/pitv/config.json
+echo "PITV_PROGRESS 87 Instaluji konfiguraci a systémové nástroje…"
+install -m 0644 config/config.json /etc/pitv/config.json
 install -m 0644 store/catalog.json /etc/pitv/store/catalog.json
 install -m 0644 store/server_catalog.json /etc/pitv/store/server_catalog.json
 install -m 0644 system/kodi/appliance.xml /etc/pitv/kodi-appliance.xml
@@ -189,7 +195,8 @@ fi
 rm -f /usr/local/libexec/pitv-cec-monitor
 install -m 0755 scripts/install-waydroid.sh /usr/local/libexec/pitv-install-waydroid
 
-echo "PITV_PROGRESS 90 Nastavuji launcher a labwc…"\ninstall -d -o pitv -g pitv /home/pitv/.config/pitv
+echo "PITV_PROGRESS 90 Nastavuji launcher a labwc…"
+install -d -o pitv -g pitv /home/pitv/.config/pitv
 install -d -o pitv -g pitv /home/pitv/.config/labwc
 cp -a system/labwc/. /home/pitv/.config/labwc/
 chown -R pitv:pitv /home/pitv/.config/labwc
@@ -237,7 +244,8 @@ systemctl disable --now pitv-display.service >/dev/null 2>&1 || true
 rm -f /etc/systemd/system/pitv-display.service
 rm -f /usr/local/libexec/pitv-display-watch
 
-echo "PITV_PROGRESS 93 Aktivuji PiTV služby…"\nsystemctl daemon-reload
+echo "PITV_PROGRESS 93 Aktivuji PiTV služby…"
+systemctl daemon-reload
 systemctl disable pitv-launcher.service >/dev/null 2>&1 || true
 systemctl enable pitv-inputd.service pitv-displayd.service pitv-shell.service pitv-android-warm.service
 systemctl set-default pitv.target
@@ -269,6 +277,7 @@ if [ -n "$BOOTCFG" ]; then
   rm -f "$BOOTCFG.pitv"
 fi
 
+echo "PITV_PROGRESS 95 Instalace PiTV je dokončena."
 echo
 echo "PiTV je nainstalováno."
 echo "Po restartu se na HDMI automaticky spustí PiTV."
