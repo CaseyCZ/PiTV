@@ -173,3 +173,6 @@ grep -q 'android_video_nodes' scripts/accept-codec2-overlay-runtime.sh
 grep -q 'v4l2_instances=' scripts/verify-codec2-runtime.sh
 grep -q '/dev/video not visible in Android' scripts/install-codec2-overlay.sh
 grep -q 'unsafe output directory' scripts/prepare-codec2-overlay.sh
+grep -q 'dynamic/super donor image detected' scripts/extract-codec2-donor-image.sh
+grep -q 'backup must be inside' scripts/rollback-codec2-overlay.sh
+grep -q 'restored vendor image mismatch' scripts/rollback-codec2-overlay.sh
