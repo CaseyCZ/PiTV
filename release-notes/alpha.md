@@ -1,5 +1,16 @@
 # PiTV Alpha
 
+### PiTV 1.4.23 · 3s Back = vždy zpět do PiTV
+- starší TV bez tlačítka Home už nejsou závislé na Home pro opuštění externí aplikace
+- krátké Zpět zůstává normální Back uvnitř Kodi, Stremia, SmartTube a dalších aplikací
+- podržení Zpět po dobu 3 sekund vždy ukončí právě běžící externí aplikaci a vrátí launcher PiTV
+- při držení Back se CEC repeat framy neposílají opakovaně do aplikace; aplikace dostane pouze první krátký Back a PiTV samostatně měří dobu držení
+- Android/Waydroid se při nouzovém návratu ukončí včetně Cage session a explicitního `waydroid session stop`
+- Kodi/Plex mají tvrdý fallback pro odpojený `kodi.bin`, který se na fyzickém Pi už jednou reparentoval pod PID 1
+- nativní Linux Stremio používá při návratu cílený `flatpak kill com.stremio.Stremio`
+- stejné 3s gesto funguje i přes USB klávesnici Back/Escape jako servisní fallback
+
+
 ### PiTV 1.4.22 · Waydroid fullscreen isolation
 - Android aplikace se už nespouštějí přímo do hlavního labwc compositoru; PiTV používá dokumentovaný Waydroid kiosk/fullscreen model přes nested Cage
 - Cage běží jako jediný fullscreen Android povrch uvnitř PiTV a po ukončení aplikace se celý Android compositor/session zavře a vrátí se launcher
