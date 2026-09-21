@@ -8,7 +8,7 @@ except Exception as e: raise SystemExit(f"invalid source lock: {e}")
 if d.get("android")!=13 or d.get("arch")!="arm64": raise SystemExit("source lock must target Android 13 arm64")
 if not d.get("verified_at") or not d.get("verified_note"): raise SystemExit("source lock verification metadata missing")
 expected={
-"v4l2_codec2":"https://github.com/android-rpi/external_v4l2_codec2.git",
+"v4l2_codec2":"https://github.com/raspberry-vanilla/android_external_v4l2_codec2.git",
 "ffmpeg":"https://github.com/raspberry-vanilla/android_external_ffmpeg.git",
 "ffmpeg_codec2":"https://github.com/raspberry-vanilla/android_external_ffmpeg_codec2.git",
 "libudev_zero":"https://github.com/raspberry-vanilla/android_external_libudev-zero.git",
