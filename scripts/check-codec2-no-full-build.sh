@@ -94,6 +94,10 @@ printf 'vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg\n' >"$tmp/hev
 python3 scripts/merge-codec2-component-payloads.py "$tmp/avc" "$tmp/hevc" "$tmp/merged" >/dev/null
 grep -q 'service-v4l2-64' "$tmp/merged/PITV-CODEC2-PAYLOAD.txt"
 grep -q 'service-ffmpeg' "$tmp/merged/PITV-CODEC2-PAYLOAD.txt"
+if python3 scripts/merge-codec2-component-payloads.py "$tmp/avc" "$tmp/hevc" "$tmp" >/dev/null 2>&1; then
+  echo "unsafe parent merge output unexpectedly accepted" >&2
+  exit 1
+fi
 python3 scripts/test-codec2-no-full-build.py
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
