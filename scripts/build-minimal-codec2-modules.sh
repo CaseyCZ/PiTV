@@ -23,7 +23,13 @@ fi
 
 SRC_BACKUP="$(mktemp -d /tmp/pitv-codec2-src-backup.XXXXXX)"
 MODIFIED=()
+SOURCES_RESTORED=0
 restore_sources(){
+  [ "$SOURCES_RESTORED" -eq 0 ] || return 0
+  SOURCES_RESTORED=1
+  # TERM/INT can be followed by EXIT. Disable all restore traps before
+  # mutating paths so the original source tree cannot be removed twice.
+  trap - EXIT INT TERM
   for dst in "${MODIFIED[@]}"; do
     target="$TREE/$dst"; key="${dst//\//__}"
     rm -rf "$target"
