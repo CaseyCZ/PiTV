@@ -272,3 +272,5 @@ grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/prepare-c
 grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-overlay.sh
 grep -q 'has_head=' scripts/fetch-minimal-codec2-sources.py
 grep -q 'checkout","--detach","--force"' scripts/fetch-minimal-codec2-sources.py
+
+# build-trigger: pinned source checkout fix
