@@ -10,6 +10,6 @@ def codecs(root): return {(x.get("name"),x.get("type")) for x in root.iter("Medi
 ac=codecs(a); hc=codecs(h)
 if ("c2.v4l2.avc.decoder","video/avc") not in ac: raise SystemExit("AVC Codec2 XML contract missing")
 if ("c2.ffmpeg.hevc.decoder","video/hevc") not in hc: raise SystemExit("HEVC Codec2 XML contract missing")
-incs={x.get("href") for x in a.iter("Include")}
-if "media_codecs_ffmpeg_c2.xml" not in incs: raise SystemExit("HEVC Codec2 XML is not included")
+if list(a.iter("Include")): raise SystemExit("AVC fragment must not include other codec registries")
+if len(hc)!=1: raise SystemExit("FFmpeg fragment must advertise HEVC only")
 print("CODEC_XML_CONTRACT_OK=1")
