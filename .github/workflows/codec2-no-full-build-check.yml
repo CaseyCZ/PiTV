@@ -30,6 +30,8 @@ jobs:
       TREE: ${{ github.workspace }}/android13
       SOURCES: ${{ github.workspace }}/codec2-sources
       OUT: ${{ github.workspace }}/codec2-payload
+      PITV_CODEC2_LUNCH: aosp_rpi4_tv-userdebug
+      PITV_CODEC2_JOBS: 2
     steps:
       - uses: actions/checkout@v4
       - name: Install Android build prerequisites
