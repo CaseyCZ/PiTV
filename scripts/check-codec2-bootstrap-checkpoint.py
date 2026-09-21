@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -79,20 +81,60 @@ if normalize:
         st = path.stat()
         os.utime(path, ns=(st.st_atime_ns, source_epoch_ns))
 
-    # bootstrap.ninja uses the prebuilt Go compiler/linker as implicit inputs
-    # to many edges, but bootstrap.ninja.d does not list those tool binaries.
-    # A fresh repo sync gives them a new checkout mtime, which makes every
-    # restored Go archive look stale even when the source manifest is identical.
-    go_toolchain = tree / "prebuilts/go/linux-x86"
-    if go_toolchain.is_dir():
-        normalized_tools = 0
-        for path in go_toolchain.rglob("*"):
-            if path.is_symlink() or not path.is_file():
-                continue
+    # bootstrap.ninja.d tracks inputs used to generate the Ninja manifest, but
+    # it does not contain every input of the bootstrap build edges themselves.
+    # Ask Ninja for the complete dependency closure of soong_build and normalize
+    # those paths too. This covers Go sources plus implicit compile/link tools
+    # without touching the entire Android checkout.
+    bundled_ninja = tree / "prebuilts/build-tools/linux-x86/bin/ninja"
+    ninja_exe = str(bundled_ninja) if bundled_ninja.is_file() else shutil.which("ninja")
+    if not ninja_exe:
+        raise SystemExit("ninja executable unavailable for bootstrap dependency closure")
+    try:
+        proc = subprocess.run(
+            [
+                ninja_exe,
+                "-f",
+                "out/soong/bootstrap.ninja",
+                "-t",
+                "inputs",
+                "out/host/linux-x86/bin/soong_build",
+            ],
+            cwd=tree,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        raise SystemExit(f"cannot enumerate soong_build bootstrap inputs: {detail}") from exc
+
+    closure: list[str] = []
+    for rel in proc.stdout.splitlines():
+        rel = rel.strip()
+        if not rel:
+            continue
+        candidate = Path(rel)
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise SystemExit(f"unsafe soong_build bootstrap input path: {rel}")
+        path = tree / candidate
+        if path.is_symlink() and not path.exists():
+            raise SystemExit(f"soong_build bootstrap input is a broken symlink: {rel}")
+        if not path.exists():
+            raise SystemExit(f"soong_build bootstrap input missing: {rel}")
+        resolved = path.resolve(strict=True)
+        try:
+            resolved.relative_to(tree)
+        except ValueError as exc:
+            raise SystemExit(
+                f"soong_build bootstrap input escapes tree: {rel} -> {resolved}"
+            ) from exc
+        if path.is_file():
             st = path.stat()
             os.utime(path, ns=(st.st_atime_ns, source_epoch_ns))
-            normalized_tools += 1
-        print(f"CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED={normalized_tools}")
+            closure.append(rel)
+    print(f"CODEC2_BOOTSTRAP_INPUT_MTIMES_NORMALIZED={len(closure)}")
 
     if not ninja_log.is_file() or ninja_log.is_symlink():
         raise SystemExit(f"missing/unsafe ninja log: {ninja_log}")
