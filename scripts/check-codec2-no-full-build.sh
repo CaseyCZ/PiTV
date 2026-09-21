@@ -317,3 +317,15 @@ grep -q 'Minimal Codec2 $COMPONENT component payload' scripts/build-minimal-code
 grep -q 'build-avc:' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'build-hevc:' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'merge-codec2-component-payloads.py' .github/workflows/codec2-no-full-build-check.yml
+
+# Resilient pipeline adds a second graph checkpoint before the final graph pass.
+grep -q 'codec2-graph-warmup:' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'timeout --signal=TERM --kill-after=15s 180s env PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'name: pitv-codec2-graph-warmup-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'Restore warmed Soong graph' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'needs: [static, codec2-graph-warmup]' .github/workflows/codec2-no-full-build-check.yml
+grep -q -- 'tar --zstd --touch -xf codec2-graph-warmup-checkpoint/codec2-graph-warmup-state.tar.zst' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq "tar -I 'zstd -1 -T0' -cf \"\${GITHUB_WORKSPACE}/codec2-bootstrap-state.tar.zst\"" .github/workflows/codec2-no-full-build-check.yml
+grep -Fq "tar -I 'zstd -1 -T0' -cf \"\${GITHUB_WORKSPACE}/codec2-graph-warmup-state.tar.zst\"" .github/workflows/codec2-no-full-build-check.yml
+grep -Fq "tar -I 'zstd -1 -T0' -cf \"\${GITHUB_WORKSPACE}/codec2-graph-state.tar.zst\"" .github/workflows/codec2-no-full-build-check.yml
+test "$(grep -c 'compression-level: 0' .github/workflows/codec2-no-full-build-check.yml)" -ge 3
