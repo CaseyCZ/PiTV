@@ -2,7 +2,7 @@ name: Codec2 No Full Build Check
 
 on:
   push:
-    branches: [experiment/rpi4-codec2-no-full-build]
+    branches: [experiment/rpi4-codec2-no-full-build, experiment/rpi4-codec2-runner24-test]
   pull_request:
     paths:
       - 'scripts/*codec2*'
@@ -30,7 +30,7 @@ jobs:
   codec2-bootstrap:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
     needs: [static]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       TREE: ${{ github.workspace }}/android13
@@ -83,7 +83,7 @@ jobs:
   codec2-graph:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
     needs: [static, codec2-bootstrap]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       TREE: ${{ github.workspace }}/android13
@@ -141,7 +141,7 @@ jobs:
   reduced-build:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
     needs: [static, codec2-graph]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
       TREE: ${{ github.workspace }}/android13
@@ -160,7 +160,7 @@ jobs:
       - name: Install reduced-build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y git-core flex bison build-essential curl zlib1g-dev libc6-dev-i386 libncurses5-dev lib32z1-dev libxml2-utils xsltproc unzip python3 bc ninja-build pkg-config
+          sudo apt-get install -y git-core flex bison build-essential curl zlib1g-dev libc6-dev-i386 libncurses-dev lib32z1-dev libxml2-utils xsltproc unzip python3 bc ninja-build pkg-config
           mkdir -p "$HOME/bin"
           curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
           chmod +x "$HOME/bin/repo"
