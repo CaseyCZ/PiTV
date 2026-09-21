@@ -15,7 +15,9 @@ out = Path(sys.argv[3]).resolve()
 for root, label in ((avc, "AVC"), (hevc, "HEVC")):
     if not root.is_dir():
         raise SystemExit(f"{label} payload directory missing: {root}")
-if (out == Path("/") or out in (avc, hevc) or avc in out.parents or hevc in out.parents\n        or out in avc.parents or out in hevc.parents):\n    raise SystemExit("unsafe merged payload output path")
+if (out == Path("/") or out in (avc, hevc) or avc in out.parents or hevc in out.parents
+        or out in avc.parents or out in hevc.parents):
+    raise SystemExit("unsafe merged payload output path")
 
 expected = {
     avc: "vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64",
