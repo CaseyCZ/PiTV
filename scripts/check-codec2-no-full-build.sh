@@ -396,3 +396,5 @@ grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows
 # [build-codec2] retry after checkpoint quiescence fix
 
 # [build-codec2] retry with exact Ninja mtime restore
+
+# [build-codec2] retry after idempotent source restore fix
