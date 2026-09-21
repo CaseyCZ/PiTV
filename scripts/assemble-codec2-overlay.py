@@ -9,6 +9,7 @@ manifest=payload/"PITV-CODEC2-PAYLOAD.txt"
 if not manifest.is_file(): raise SystemExit("missing collected payload manifest")
 owned={
  "android/waydroid-rpi4/media_codecs.xml":"vendor/etc/media_codecs_pitv_rpi4.xml",
+ "android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml":"vendor/etc/media_codecs_ffmpeg_c2.xml",
  "android/waydroid-rpi4/codec2.vendor.ext.policy":"vendor/etc/seccomp_policy/codec2.vendor.ext.policy",
  "android/waydroid-rpi4/hwdecode.env":"vendor/etc/pitv-hwdecode.env",
  "android/waydroid-rpi4/vendor.prop":"vendor/etc/pitv-codec2.prop",
@@ -19,8 +20,5 @@ for source,rel in owned.items():
     if not src.is_file(): raise SystemExit(f"missing PiTV config: {source}")
     dst=payload/rel; dst.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(src,dst)
     if rel not in lines: lines.append(rel)
-ffmpeg=payload/"vendor/etc/media_codecs_ffmpeg_c2.xml"
-if not ffmpeg.is_file():
-    raise SystemExit("missing upstream FFmpeg Codec2 media registry")
 manifest.write_text("\n".join(sorted(set(lines)))+"\n",encoding="utf-8")
 print(f"OVERLAY_FILES={len(set(lines))}")
