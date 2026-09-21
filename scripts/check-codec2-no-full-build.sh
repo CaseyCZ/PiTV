@@ -329,3 +329,9 @@ grep -Fq "tar -I 'zstd -1 -T0' -cf \"\${GITHUB_WORKSPACE}/codec2-bootstrap-state
 grep -Fq "tar -I 'zstd -1 -T0' -cf \"\${GITHUB_WORKSPACE}/codec2-graph-warmup-state.tar.zst\"" .github/workflows/codec2-no-full-build-check.yml
 grep -Fq "tar -I 'zstd -1 -T0' -cf \"\${GITHUB_WORKSPACE}/codec2-graph-state.tar.zst\"" .github/workflows/codec2-no-full-build-check.yml
 test "$(grep -c 'compression-level: 0' .github/workflows/codec2-no-full-build-check.yml)" -ge 3
+
+# Heavy jobs reclaim optional hosted-runner toolchains before the Android sync/build.
+grep -q '/opt/hostedtoolcache' .github/workflows/codec2-no-full-build-check.yml
+grep -q '/usr/share/swift' .github/workflows/codec2-no-full-build-check.yml
+grep -q '/usr/local/share/boost' .github/workflows/codec2-no-full-build-check.yml
+test "$(grep -c '/opt/hostedtoolcache' .github/workflows/codec2-no-full-build-check.yml)" -ge 5
