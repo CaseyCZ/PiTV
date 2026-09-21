@@ -294,3 +294,8 @@ grep -q 'PITV_CODEC2_PHASE' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_GRAPH_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q -- '--skip-ninja' scripts/build-minimal-codec2-modules.sh
 grep -q -- 'tar --zstd --touch -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'codec2-bootstrap:' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'name: pitv-codec2-bootstrap-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'Restore warmed Soong bootstrap' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml
