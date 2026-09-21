@@ -300,7 +300,12 @@ grep -q 'codec2-bootstrap:' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'name: pitv-codec2-bootstrap-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'Restore warmed Soong bootstrap' .github/workflows/codec2-no-full-build-check.yml
-grep -Fq 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml
+test "$(grep -Fc 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml)" -eq 1
+grep -Fq 'needs: [static, codec2-graph-warmup]' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'codec2-graph-warmup:' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'timeout --signal=TERM --kill-after=15s 180s env PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'name: pitv-codec2-graph-warmup-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'Restore warmed Soong graph' .github/workflows/codec2-no-full-build-check.yml
 
 
 # A restored bootstrap must keep pinned build definitions older than the
@@ -310,11 +315,11 @@ grep -q "name 'Android.bp'" scripts/build-minimal-codec2-modules.sh
 grep -q 'check-codec2-bootstrap-checkpoint.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'SOURCES_RESTORED=0' scripts/build-minimal-codec2-modules.sh
 grep -q 'trap - EXIT INT TERM' scripts/build-minimal-codec2-modules.sh
-test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
-test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
-test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
+test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
+test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
+test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 5
 grep -Fq 'cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml
-test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
 grep -q 'all|graph|modules|diagnose' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_BOOTSTRAP_DIAGNOSE_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -Fq '"$NINJA" -d explain -n' scripts/build-minimal-codec2-modules.sh
