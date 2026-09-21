@@ -43,6 +43,6 @@
       ]
     }
   ],
-  "verified_at": "2026-09-20",
-  "verified_note": "All four pinned commits resolved through GitHub before reduced-build use."
+  "verified_at": "2026-09-21",
+  "verified_note": "Android 13 RPi4 codec stack pinned consistently to Raspberry Vanilla sources; commits and FFmpeg HEVC V4L2 Request configuration verified."
 }
