@@ -115,7 +115,7 @@ jobs:
       - name: Restore Soong graph checkpoint
         run: |
           test -f codec2-graph-checkpoint/codec2-graph-state.tar.zst
-          tar --zstd -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst -C "$TREE"
+          tar --zstd --touch -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst -C "$TREE"
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
           du -sh "$TREE/out"
       - name: Build pinned Codec2 modules and payload
