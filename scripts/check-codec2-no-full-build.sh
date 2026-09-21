@@ -323,3 +323,25 @@ if python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ok" >/de
   echo "newer bootstrap dependency unexpectedly accepted" >&2
   exit 1
 fi
+
+# AOSP may use symlinked Android.bp inputs (for example the tree root).
+# Permit symlinks only when their resolved target remains inside the Android tree.
+mkdir -p "$tmp/bootstrap-link/out/soong" "$tmp/bootstrap-link/out/host/linux-x86/bin" "$tmp/bootstrap-link/build/soong"
+printf 'root\n' >"$tmp/bootstrap-link/build/soong/root.bp"
+ln -s build/soong/root.bp "$tmp/bootstrap-link/Android.bp"
+printf 'out/soong/bootstrap.ninja: Android.bp\n' >"$tmp/bootstrap-link/out/soong/bootstrap.ninja.d"
+printf 'ninja\n' >"$tmp/bootstrap-link/out/soong/bootstrap.ninja"
+printf '#!/bin/sh\n' >"$tmp/bootstrap-link/out/host/linux-x86/bin/soong_build"
+chmod +x "$tmp/bootstrap-link/out/host/linux-x86/bin/soong_build"
+touch -d '@946684800' "$tmp/bootstrap-link/build/soong/root.bp"
+touch -d '@946684900' "$tmp/bootstrap-link/out/soong/bootstrap.ninja" "$tmp/bootstrap-link/out/soong/bootstrap.ninja.d" "$tmp/bootstrap-link/out/host/linux-x86/bin/soong_build"
+python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-link" >/dev/null
+
+printf 'outside\n' >"$tmp/outside-Android.bp"
+ln -s "$tmp/outside-Android.bp" "$tmp/bootstrap-link/escape.bp"
+printf 'out/soong/bootstrap.ninja: escape.bp\n' >"$tmp/bootstrap-link/out/soong/bootstrap.ninja.d"
+if python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-link" >/dev/null 2>&1; then
+  echo "bootstrap dependency symlink escaping tree unexpectedly accepted" >&2
+  exit 1
+fi
+grep -q 'bootstrap dependency escapes tree' scripts/check-codec2-bootstrap-checkpoint.py
