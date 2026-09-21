@@ -382,6 +382,15 @@ p=root/"out/obj/fixture.a"; st=p.stat(); os.utime(p, ns=(st.st_atime_ns, 9466851
     encoding="utf-8",
 )
 PYNINJA
+# Fresh repo sync also refreshes AOSP Go tool mtimes. These tools are implicit
+# bootstrap edge inputs and are not listed by bootstrap.ninja.d.
+mkdir -p "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64"
+printf '#!/bin/sh\n' >"$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
+chmod +x "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
+touch -d '@946685500' "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
+PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED=1'
+test "$(stat -c %Y "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile")" -eq 946684800
+
 PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_NINJA_MTIMES_VERIFIED=1'
 python3 - "$tmp/bootstrap-ninja/out/obj/fixture.a" <<'PYMTIME'
 import sys
@@ -406,3 +415,6 @@ grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows
 # [build-codec2] retry after idempotent source restore fix
 
 # [diagnose-codec2] explain restored bootstrap dirtiness
+
+# Go toolchain mtimes must be normalized because Ninja treats them as implicit bootstrap inputs.
+grep -q 'CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED' scripts/check-codec2-bootstrap-checkpoint.py
