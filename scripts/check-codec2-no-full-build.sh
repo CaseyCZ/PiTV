@@ -461,3 +461,5 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 test "$(grep -c '^  codec2-graph-warmup:$' .github/workflows/codec2-no-full-build-check.yml)" -eq 1
 test "$(grep -c '^  codec2-graph-warmup-2:$' .github/workflows/codec2-no-full-build-check.yml)" -eq 1
 test "$(grep -Fc 'codec2-graph-warmup-2-checkpoint/codec2-graph-warmup-2-state.tar.zst' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
+
+# [build-codec2] retry with two staged graph checkpoints
