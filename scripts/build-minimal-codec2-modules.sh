@@ -126,11 +126,11 @@ if [ "$PHASE" = "graph" ]; then
   # Generate and validate the complete Soong/Kati graph without compiling target
   # modules. The workflow persists TREE/out as a permission-preserving tarball,
   # so a later runner can resume after this expensive global bootstrap.
-  m --skip-soong-tests --skip-ninja -j"$JOBS" "${targets[@]}"
+  m --soong-only --skip-soong-tests --skip-ninja -j"$JOBS" "${targets[@]}"
   echo "CODEC2_GRAPH_READY=1"
   exit 0
 fi
-m --skip-soong-tests -j"$JOBS" "${targets[@]}"
+m --soong-only --skip-soong-tests -j"$JOBS" "${targets[@]}"
 
 TREE="$(readlink -f "$TREE")"; SOURCES="$(readlink -f "$SOURCES")"; OUT="$(readlink -m "$OUT")"
 [ "$OUT" != "/" ] && [ "$OUT" != "$TREE" ] && [ "$OUT" != "$SOURCES" ] || { echo "unsafe output directory" >&2; exit 2; }
