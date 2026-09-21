@@ -88,6 +88,7 @@ jobs:
             sleep 1
           fi
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          (cd "$TREE" && repo manifest -r > out/soong/pitv-source-manifest.xml)
           du -sh "$TREE/out"
           tar --exclude='out/.path_interposer_log' --zstd -cf "${GITHUB_WORKSPACE}/codec2-bootstrap-state.tar.zst" -C "$TREE" out
           ls -lh "${GITHUB_WORKSPACE}/codec2-bootstrap-state.tar.zst"
@@ -111,6 +112,7 @@ jobs:
       PITV_CODEC2_JOBS: 2
       PITV_CODEC2_REQUIRED_GB: 10
       PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
+      PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk
@@ -138,8 +140,11 @@ jobs:
       - name: Restore warmed Soong bootstrap
         run: |
           test -f codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst
-          tar --zstd --touch -xf codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst -C "$TREE"
+          tar --zstd -xf codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst -C "$TREE"
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          test -f "$TREE/out/soong/pitv-source-manifest.xml"
+          (cd "$TREE" && repo manifest -r > /tmp/pitv-current-source-manifest.xml)
+          cmp "$TREE/out/soong/pitv-source-manifest.xml" /tmp/pitv-current-source-manifest.xml
           du -sh "$TREE/out"
       - name: Generate resumable Soong graph checkpoint
         run: |
@@ -169,6 +174,7 @@ jobs:
       PITV_CODEC2_JOBS: 2
       PITV_CODEC2_REQUIRED_GB: 10
       PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
+      PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk
@@ -200,8 +206,11 @@ jobs:
       - name: Restore Soong graph checkpoint
         run: |
           test -f codec2-graph-checkpoint/codec2-graph-state.tar.zst
-          tar --zstd --touch -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst -C "$TREE"
+          tar --zstd -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst -C "$TREE"
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          test -f "$TREE/out/soong/pitv-source-manifest.xml"
+          (cd "$TREE" && repo manifest -r > /tmp/pitv-current-source-manifest.xml)
+          cmp "$TREE/out/soong/pitv-source-manifest.xml" /tmp/pitv-current-source-manifest.xml
           du -sh "$TREE/out"
       - name: Build pinned Codec2 modules and payload
         run: |
