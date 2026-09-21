@@ -317,7 +317,7 @@ grep -Fq 'cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pit
 test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
 grep -q 'all|graph|modules|diagnose' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_BOOTSTRAP_DIAGNOSE_READY=1' scripts/build-minimal-codec2-modules.sh
-grep -q 'ninja.*-d explain.*-n' scripts/build-minimal-codec2-modules.sh
+grep -Fq '"$NINJA" -d explain -n' scripts/build-minimal-codec2-modules.sh
 grep -q 'codec2-reuse-diagnose:' .github/workflows/codec2-no-full-build-check.yml
 grep -q "contains(github.event.head_commit.message, '\[diagnose-codec2\]')" .github/workflows/codec2-no-full-build-check.yml
 grep -q 'run-id: 35591736044' .github/workflows/codec2-no-full-build-check.yml
