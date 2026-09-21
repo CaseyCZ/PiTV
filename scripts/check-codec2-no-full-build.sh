@@ -27,6 +27,7 @@ PY=(
  scripts/check-codec2-manifest-closure.py
  scripts/verify-minimal-codec2-sources.py
  scripts/check-codec2-xml-contract.py
+ scripts/check-codec2-bootstrap-checkpoint.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -299,3 +300,26 @@ grep -q 'timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph'
 grep -Fq 'name: pitv-codec2-bootstrap-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'Restore warmed Soong bootstrap' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml
+
+
+# A restored bootstrap must keep pinned build definitions older than the
+# checkpoint manifest, otherwise Soong recompiles all bootstrap Go tools.
+grep -q 'PITV_CODEC2_SOURCE_EPOCH' scripts/build-minimal-codec2-modules.sh
+grep -q "name 'Android.bp'" scripts/build-minimal-codec2-modules.sh
+grep -q 'check-codec2-bootstrap-checkpoint.py' scripts/build-minimal-codec2-modules.sh
+test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
+
+mkdir -p "$tmp/bootstrap-ok/out/soong" "$tmp/bootstrap-ok/out/host/linux-x86/bin" "$tmp/bootstrap-ok/external/v4l2_codec2"
+printf 'x\n' >"$tmp/bootstrap-ok/external/v4l2_codec2/Android.bp"
+printf 'out/soong/bootstrap.ninja: external/v4l2_codec2/Android.bp\n' >"$tmp/bootstrap-ok/out/soong/bootstrap.ninja.d"
+printf 'ninja\n' >"$tmp/bootstrap-ok/out/soong/bootstrap.ninja"
+printf '#!/bin/sh\n' >"$tmp/bootstrap-ok/out/host/linux-x86/bin/soong_build"
+chmod +x "$tmp/bootstrap-ok/out/host/linux-x86/bin/soong_build"
+touch -d '@946684800' "$tmp/bootstrap-ok/external/v4l2_codec2/Android.bp"
+touch -d '@946684900' "$tmp/bootstrap-ok/out/soong/bootstrap.ninja" "$tmp/bootstrap-ok/out/soong/bootstrap.ninja.d" "$tmp/bootstrap-ok/out/host/linux-x86/bin/soong_build"
+python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ok" >/dev/null
+touch -d '@946685000' "$tmp/bootstrap-ok/external/v4l2_codec2/Android.bp"
+if python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ok" >/dev/null 2>&1; then
+  echo "newer bootstrap dependency unexpectedly accepted" >&2
+  exit 1
+fi
