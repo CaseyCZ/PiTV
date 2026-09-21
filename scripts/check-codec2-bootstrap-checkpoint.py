@@ -79,6 +79,21 @@ if normalize:
         st = path.stat()
         os.utime(path, ns=(st.st_atime_ns, source_epoch_ns))
 
+    # bootstrap.ninja uses the prebuilt Go compiler/linker as implicit inputs
+    # to many edges, but bootstrap.ninja.d does not list those tool binaries.
+    # A fresh repo sync gives them a new checkout mtime, which makes every
+    # restored Go archive look stale even when the source manifest is identical.
+    go_toolchain = tree / "prebuilts/go/linux-x86"
+    if go_toolchain.is_dir():
+        normalized_tools = 0
+        for path in go_toolchain.rglob("*"):
+            if path.is_symlink() or not path.is_file():
+                continue
+            st = path.stat()
+            os.utime(path, ns=(st.st_atime_ns, source_epoch_ns))
+            normalized_tools += 1
+        print(f"CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED={normalized_tools}")
+
     if not ninja_log.is_file() or ninja_log.is_symlink():
         raise SystemExit(f"missing/unsafe ninja log: {ninja_log}")
 
