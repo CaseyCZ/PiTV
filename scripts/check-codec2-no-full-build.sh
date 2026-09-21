@@ -404,3 +404,5 @@ grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows
 # [build-codec2] retry with exact Ninja mtime restore
 
 # [build-codec2] retry after idempotent source restore fix
+
+# [diagnose-codec2] explain restored bootstrap dirtiness
