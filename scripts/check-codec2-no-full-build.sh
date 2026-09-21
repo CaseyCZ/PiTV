@@ -418,3 +418,5 @@ grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows
 
 # Go toolchain mtimes must be normalized because Ninja treats them as implicit bootstrap inputs.
 grep -q 'CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED' scripts/check-codec2-bootstrap-checkpoint.py
+
+# [diagnose-codec2] verify Go toolchain mtime normalization
