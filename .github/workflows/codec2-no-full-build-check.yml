@@ -91,7 +91,8 @@ jobs:
       OUT: ${{ github.workspace }}/codec2-payload
       PITV_CODEC2_LUNCH: aosp_rpi4_tv-userdebug
       PITV_CODEC2_JOBS: 2
-      PITV_CODEC2_REQUIRED_GB: 10\n      PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
+      PITV_CODEC2_REQUIRED_GB: 10
+      PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk
@@ -148,7 +149,8 @@ jobs:
       OUT: ${{ github.workspace }}/codec2-payload
       PITV_CODEC2_LUNCH: aosp_rpi4_tv-userdebug
       PITV_CODEC2_JOBS: 2
-      PITV_CODEC2_REQUIRED_GB: 10\n      PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
+      PITV_CODEC2_REQUIRED_GB: 10
+      PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
     steps:
       - uses: actions/checkout@v4
       - name: Free runner disk
