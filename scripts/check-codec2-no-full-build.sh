@@ -346,4 +346,9 @@ if python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-link" >/
 fi
 grep -q 'bootstrap dependency escapes tree' scripts/check-codec2-bootstrap-checkpoint.py
 
+# Bootstrap timeout cleanup must quiesce Soong before checkpointing.
+grep -q 'pgrep -x soong_ui' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'pkill -KILL -x ninja' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows/codec2-no-full-build-check.yml
+
 # [build-codec2] retry Ubuntu 24.04 checkpoint after safe symlink validation
