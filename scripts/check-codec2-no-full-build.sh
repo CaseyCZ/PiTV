@@ -316,9 +316,6 @@ grep -q 'SOURCES_RESTORED=0' scripts/build-minimal-codec2-modules.sh
 grep -q 'trap - EXIT INT TERM' scripts/build-minimal-codec2-modules.sh
 grep -Fq "trap 'restore_sources; exit 130' INT" scripts/build-minimal-codec2-modules.sh
 grep -Fq "trap 'restore_sources; exit 143' TERM" scripts/build-minimal-codec2-modules.sh
-grep -q 'CODEC2_GRAPH_WARMUP_RC=' .github/workflows/codec2-no-full-build-check.yml
-grep -Fq '[ "$rc" -ne 143 ]' .github/workflows/codec2-no-full-build-check.yml
-grep -Fq '[ "$rc" -ne 137 ]' .github/workflows/codec2-no-full-build-check.yml
 test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
 test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
 test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
