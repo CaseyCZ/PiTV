@@ -294,7 +294,8 @@ grep -q -- '--skip-soong-tests' scripts/build-minimal-codec2-modules.sh
 grep -q 'PITV_CODEC2_PHASE' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_GRAPH_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q -- '--skip-ninja' scripts/build-minimal-codec2-modules.sh
-grep -q -- 'tar --zstd --touch -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst' .github/workflows/codec2-no-full-build-check.yml
+grep -q -- 'tar --zstd -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst' .github/workflows/codec2-no-full-build-check.yml
+! grep -q -- 'tar --zstd --touch -xf' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'codec2-bootstrap:' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'name: pitv-codec2-bootstrap-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
@@ -308,6 +309,9 @@ grep -q 'PITV_CODEC2_SOURCE_EPOCH' scripts/build-minimal-codec2-modules.sh
 grep -q "name 'Android.bp'" scripts/build-minimal-codec2-modules.sh
 grep -q 'check-codec2-bootstrap-checkpoint.py' scripts/build-minimal-codec2-modules.sh
 test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
+test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
+grep -q 'repo manifest -r > out/soong/pitv-source-manifest.xml' .github/workflows/codec2-no-full-build-check.yml
+test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
 
 mkdir -p "$tmp/bootstrap-ok/out/soong" "$tmp/bootstrap-ok/out/host/linux-x86/bin" "$tmp/bootstrap-ok/external/v4l2_codec2"
 printf 'x\n' >"$tmp/bootstrap-ok/external/v4l2_codec2/Android.bp"
@@ -345,6 +349,39 @@ if python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-link" >/
   exit 1
 fi
 grep -q 'bootstrap dependency escapes tree' scripts/check-codec2-bootstrap-checkpoint.py
+
+# Restored Ninja outputs must recover the exact nanosecond mtimes recorded in
+# .ninja_log while bootstrap inputs are normalized to a safe older epoch.
+mkdir -p "$tmp/bootstrap-ninja/out/soong" "$tmp/bootstrap-ninja/out/host/linux-x86/bin" "$tmp/bootstrap-ninja/out/obj" "$tmp/bootstrap-ninja/src"
+printf 'source\n' >"$tmp/bootstrap-ninja/src/Android.bp"
+printf 'out/soong/bootstrap.ninja: src/Android.bp\n' >"$tmp/bootstrap-ninja/out/soong/bootstrap.ninja.d"
+printf 'ninja\n' >"$tmp/bootstrap-ninja/out/soong/bootstrap.ninja"
+printf '#!/bin/sh\n' >"$tmp/bootstrap-ninja/out/host/linux-x86/bin/soong_build"
+printf 'object\n' >"$tmp/bootstrap-ninja/out/obj/fixture.a"
+chmod +x "$tmp/bootstrap-ninja/out/host/linux-x86/bin/soong_build"
+python3 - "$tmp/bootstrap-ninja" <<'PYNINJA'
+import os, sys
+from pathlib import Path
+root=Path(sys.argv[1])
+manifest_ns=946684900_000_000_000
+recorded_ns=946684950_123_456_789
+for rel in ("out/soong/bootstrap.ninja","out/soong/bootstrap.ninja.d","out/host/linux-x86/bin/soong_build"):
+    p=root/rel; st=p.stat(); os.utime(p, ns=(st.st_atime_ns, manifest_ns))
+p=root/"out/obj/fixture.a"; st=p.stat(); os.utime(p, ns=(st.st_atime_ns, 946685100_000_000_000))
+(root/"out/.ninja_log").write_text(
+    "# ninja log v5\n0\t1\t946684950123456789\tout/obj/fixture.a\tdeadbeef\n",
+    encoding="utf-8",
+)
+PYNINJA
+PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_NINJA_MTIMES_VERIFIED=1'
+python3 - "$tmp/bootstrap-ninja/out/obj/fixture.a" <<'PYMTIME'
+import sys
+from pathlib import Path
+expected=946684950123456789
+actual=Path(sys.argv[1]).stat().st_mtime_ns
+if actual != expected:
+    raise SystemExit(f"fixture Ninja mtime mismatch: expected={expected} actual={actual}")
+PYMTIME
 
 # Bootstrap timeout cleanup must quiesce Soong before checkpointing.
 grep -q 'pgrep -x soong_ui' .github/workflows/codec2-no-full-build-check.yml
