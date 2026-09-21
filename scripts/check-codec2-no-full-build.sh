@@ -345,3 +345,5 @@ if python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-link" >/
   exit 1
 fi
 grep -q 'bootstrap dependency escapes tree' scripts/check-codec2-bootstrap-checkpoint.py
+
+# [build-codec2] retry Ubuntu 24.04 checkpoint after safe symlink validation
