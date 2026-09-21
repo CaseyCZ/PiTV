@@ -19,6 +19,9 @@
 - FFmpeg HEVC Request API runtime property is explicitly enabled and verified;
 - CI/static self-tests green at the current branch tip.
 
+## CI payload build
+The branch workflow can now perform a shallow Raspberry Vanilla Android 13 r75 sync and build only the selected Codec2 modules using `aosp_rpi4_tv-userdebug`. Superseded runs are cancelled automatically.
+
 ## External gate before physical install
 1. Produce the actual ARM64 payload from the pinned sources in an existing compatible Android 13 build tree, or supply a compatible Android 13 RPi4 donor image.
 2. Run the dependency audit against the exact PiTV Waydroid system/vendor on the Raspberry Pi.
