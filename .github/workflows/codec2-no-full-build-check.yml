@@ -71,13 +71,14 @@ jobs:
           fi
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
           du -sh "$TREE/out"
-          tar --zstd -cf "${GITHUB_WORKSPACE}/codec2-bootstrap-state.tar.zst" -C "$TREE" out
+          tar -I 'zstd -1 -T0' -cf "${GITHUB_WORKSPACE}/codec2-bootstrap-state.tar.zst" -C "$TREE" out
           ls -lh "${GITHUB_WORKSPACE}/codec2-bootstrap-state.tar.zst"
       - uses: actions/upload-artifact@v4
         with:
           name: pitv-codec2-bootstrap-${{ github.sha }}
           path: codec2-bootstrap-state.tar.zst
           if-no-files-found: error
+          compression-level: 0
           retention-days: 2
 
   codec2-graph:
@@ -128,13 +129,14 @@ jobs:
           PITV_CODEC2_PHASE=graph bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
           du -sh "$TREE/out"
-          tar --zstd -cf "${GITHUB_WORKSPACE}/codec2-graph-state.tar.zst" -C "$TREE" out
+          tar -I 'zstd -1 -T0' -cf "${GITHUB_WORKSPACE}/codec2-graph-state.tar.zst" -C "$TREE" out
           ls -lh "${GITHUB_WORKSPACE}/codec2-graph-state.tar.zst"
       - uses: actions/upload-artifact@v4
         with:
           name: pitv-codec2-graph-${{ github.sha }}
           path: codec2-graph-state.tar.zst
           if-no-files-found: error
+          compression-level: 0
           retention-days: 2
 
   reduced-build:
