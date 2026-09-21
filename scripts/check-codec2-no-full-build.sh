@@ -449,3 +449,12 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 # [build-codec2] retry with two staged graph checkpoints
 
 # [build-codec2] retry with Soong-only graph generation
+
+
+# Narrow Soong experiment: generate a Codec2-focused Android.bp list first.
+grep -q 'all|graph|modules|diagnose|narrow-list' scripts/build-minimal-codec2-modules.sh
+grep -q 'pitv-codec2.Android.bp.list' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_BP_SELECTED=' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_LIST_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q 'external/v4l2_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
+grep -q 'external/ffmpeg_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
