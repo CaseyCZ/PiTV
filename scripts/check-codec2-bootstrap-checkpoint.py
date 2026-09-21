@@ -50,11 +50,19 @@ for rel in deps:
     if candidate.is_absolute() or ".." in candidate.parts:
         raise SystemExit(f"unsafe bootstrap dependency path: {rel}")
     path = tree / candidate
-    if path.is_symlink():
-        raise SystemExit(f"bootstrap dependency is a symlink: {rel}")
+    if path.is_symlink() and not path.exists():
+        raise SystemExit(f"bootstrap dependency is a broken symlink: {rel}")
     if not path.exists():
         missing.append(rel)
         continue
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise SystemExit(f"cannot resolve bootstrap dependency: {rel}: {exc}") from exc
+    try:
+        resolved.relative_to(tree)
+    except ValueError as exc:
+        raise SystemExit(f"bootstrap dependency escapes tree: {rel} -> {resolved}") from exc
     delta = path.stat().st_mtime_ns - manifest_mtime
     if delta > 0:
         newer.append((delta, rel))
