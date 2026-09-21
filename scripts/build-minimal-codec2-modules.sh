@@ -102,7 +102,7 @@ if [ "$PHASE" = "diagnose" ]; then
   NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
   [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
   echo "CODEC2_BOOTSTRAP_NINJA=${NINJA}"
-  "$NINJA" -d explain -n -j1 -f out/soong/bootstrap.ninja 2>&1 | tee /tmp/pitv-codec2-ninja-explain.log
+  "$NINJA" -d explain -n -j1 -f out/soong/bootstrap.ninja out/host/linux-x86/bin/soong_build 2>&1 | tee /tmp/pitv-codec2-ninja-explain.log
   echo "CODEC2_BOOTSTRAP_DIAGNOSE_READY=1"
   exit 0
 fi
