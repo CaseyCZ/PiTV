@@ -303,7 +303,10 @@ grep -q 'Restore warmed Soong bootstrap' .github/workflows/codec2-no-full-build-
 test "$(grep -Fc 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml)" -eq 1
 grep -Fq 'needs: [static, codec2-graph-warmup]' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'codec2-graph-warmup:' .github/workflows/codec2-no-full-build-check.yml
-grep -q 'timeout --signal=TERM --kill-after=15s 180s env PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'setsid env PITV_CODEC2_PHASE=graph bash scripts/build-minimal-codec2-modules.sh' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'CODEC2_GRAPH_WARMUP_BOUNDARY=120s' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'kill -TERM -- "-$warm_pid"' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'kill -KILL -- "-$warm_pid"' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'name: pitv-codec2-graph-warmup-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'Restore warmed Soong graph' .github/workflows/codec2-no-full-build-check.yml
 
@@ -319,6 +322,7 @@ grep -Fq "trap 'restore_sources; exit 130' INT" scripts/build-minimal-codec2-mod
 grep -Fq "trap 'restore_sources; exit 143' TERM" scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_GRAPH_WARMUP_RC=' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq '[ "$rc" -ne 143 ]' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq '[ "$rc" -ne 137 ]' .github/workflows/codec2-no-full-build-check.yml
 test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
 test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
 test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 5
