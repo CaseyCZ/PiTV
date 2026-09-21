@@ -37,7 +37,9 @@ restore_sources(){
   done
   rm -rf "$SRC_BACKUP"
 }
-trap restore_sources EXIT INT TERM
+trap restore_sources EXIT
+trap 'restore_sources; exit 130' INT
+trap 'restore_sources; exit 143' TERM
 install_src(){
   src="$1"; dst="$2"
   target="$(readlink -m "$TREE/$dst")"
