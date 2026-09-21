@@ -299,3 +299,5 @@ grep -q 'timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph'
 grep -Fq 'name: pitv-codec2-bootstrap-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'Restore warmed Soong bootstrap' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq "tar -I 'zstd -1 -T0' -cf" .github/workflows/codec2-no-full-build-check.yml
+grep -q 'compression-level: 0' .github/workflows/codec2-no-full-build-check.yml
