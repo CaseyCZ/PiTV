@@ -9,7 +9,7 @@ OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
 SOURCE_EPOCH="${PITV_CODEC2_SOURCE_EPOCH:-946684800}"
-case "$PHASE" in all|graph|modules|diagnose) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
+case "$PHASE" in all|graph|modules|diagnose|narrow-list) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -122,6 +122,56 @@ targets=(
   android.hardware.media.c2@1.2-ffmpeg.policy
   media_codecs_ffmpeg_c2.xml
 )
+if [ "$PHASE" = "narrow-list" ]; then
+  # AOSP soong_ui normally feeds soong_build every Android.bp in the tree via
+  # out/.module_paths/Android.bp.list.  Build a conservative Codec2-focused
+  # candidate list for the next direct-soong probe without mutating that file.
+  FULL_LIST="$TREE/out/.module_paths/Android.bp.list"
+  NARROW_LIST="$TREE/out/.module_paths/pitv-codec2.Android.bp.list"
+  [ -s "$FULL_LIST" ] || { echo "missing Soong Android.bp.list checkpoint" >&2; exit 12; }
+  python3 - "$FULL_LIST" "$NARROW_LIST" <<'PYNARROW'
+import sys
+from pathlib import Path
+src, dst = map(Path, sys.argv[1:3])
+prefixes = (
+    "Android.bp",
+    "build/",
+    "bionic/",
+    "device/brcm/",
+    "external/ffmpeg/",
+    "external/ffmpeg_codec2/",
+    "external/libudev-zero/",
+    "external/v4l2_codec2/",
+    "frameworks/av/",
+    "frameworks/native/",
+    "hardware/interfaces/",
+    "hardware/libhardware/",
+    "hardware/libhardware_legacy/",
+    "system/core/",
+    "system/libbase/",
+    "system/libfmq/",
+    "system/libhidl/",
+    "system/logging/",
+    "system/media/",
+    "system/memory/",
+)
+lines = [x.strip() for x in src.read_text().splitlines() if x.strip()]
+selected = sorted({x for x in lines if x == "Android.bp" or x.startswith(prefixes[1:])})
+required = (
+    "external/v4l2_codec2/Android.bp",
+    "external/ffmpeg_codec2/Android.bp",
+)
+missing = [x for x in required if x not in selected]
+if missing:
+    raise SystemExit("narrow Soong list missing required roots: " + ", ".join(missing))
+dst.write_text("\n".join(selected) + "\n")
+print(f"CODEC2_NARROW_BP_TOTAL={len(lines)}")
+print(f"CODEC2_NARROW_BP_SELECTED={len(selected)}")
+print(f"CODEC2_NARROW_BP_LIST={dst}")
+PYNARROW
+  echo "CODEC2_NARROW_LIST_READY=1"
+  exit 0
+fi
 if [ "$PHASE" = "graph" ]; then
   # Generate and validate the complete Soong/Kati graph without compiling target
   # modules. The workflow persists TREE/out as a permission-preserving tarball,
