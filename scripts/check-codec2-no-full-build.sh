@@ -274,3 +274,5 @@ grep -q 'has_head=' scripts/fetch-minimal-codec2-sources.py
 grep -q 'checkout","--detach","--force"' scripts/fetch-minimal-codec2-sources.py
 
 # build-trigger: pinned source checkout fix
+
+# [build-codec2] rerun with fresh-clone fix
