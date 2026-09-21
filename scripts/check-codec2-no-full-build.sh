@@ -288,3 +288,8 @@ grep -Fq 'bash "$HERE/guard-codec2-build-workspace.sh" "$TREE"' scripts/build-mi
 # [build-codec2] retry after portable guard invocation
 
 grep -q -- '--skip-soong-tests' scripts/build-minimal-codec2-modules.sh
+
+# Reduced build can checkpoint the global Soong/Kati graph before module compilation.
+grep -q 'PITV_CODEC2_PHASE' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_GRAPH_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q -- '--skip-ninja' scripts/build-minimal-codec2-modules.sh
