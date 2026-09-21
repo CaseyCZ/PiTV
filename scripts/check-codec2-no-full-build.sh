@@ -293,3 +293,4 @@ grep -q -- '--skip-soong-tests' scripts/build-minimal-codec2-modules.sh
 grep -q 'PITV_CODEC2_PHASE' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_GRAPH_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q -- '--skip-ninja' scripts/build-minimal-codec2-modules.sh
+grep -q -- 'tar --zstd --touch -xf codec2-graph-checkpoint/codec2-graph-state.tar.zst' .github/workflows/codec2-no-full-build-check.yml
