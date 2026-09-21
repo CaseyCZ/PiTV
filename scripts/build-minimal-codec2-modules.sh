@@ -12,7 +12,7 @@ for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 python3 "$HERE/verify-minimal-codec2-sources.py" "$SOURCES"
 python3 "$HERE/check-codec2-xml-contract.py"
-"$HERE/guard-codec2-build-workspace.sh" "$TREE"
+bash "$HERE/guard-codec2-build-workspace.sh" "$TREE"
 release_file="$TREE/build/make/core/version_defaults.mk"
 if [ -f "$release_file" ] && ! grep -Eq 'PLATFORM_VERSION.*13|PLATFORM_VERSION_LAST_STABLE.*13' "$release_file"; then
   echo "build tree does not look like Android 13" >&2; exit 3
