@@ -444,3 +444,5 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 # [build-codec2] retry after full soong_build dependency normalization
 
 # [build-codec2] retry with graph warmup checkpoint
+
+# [build-codec2] retry clean graph warmup checkpoint boundary
