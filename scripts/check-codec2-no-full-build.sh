@@ -447,3 +447,5 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 # [build-codec2] retry 120s process-group graph checkpoint
 
 # [build-codec2] retry with two staged graph checkpoints
+
+# [build-codec2] retry with Soong-only graph generation
