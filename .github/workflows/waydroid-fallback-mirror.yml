@@ -98,7 +98,7 @@ jobs:
         run: |
           set -euo pipefail
           if git diff --quiet -- vendor/waydroid/noble && \
-             git status --porcelain -- vendor/waydroid/noble | grep -qv .; then
+             [ -z "$(git status --porcelain -- vendor/waydroid/noble)" ]; then
             echo "Fallback snapshot is already current."
             exit 0
           fi
