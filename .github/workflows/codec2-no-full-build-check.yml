@@ -83,7 +83,7 @@ jobs:
 
   codec2-graph-warmup:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
-    needs: [static, codec2-graph-warmup]
+    needs: [static, codec2-bootstrap]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     env:
@@ -146,7 +146,7 @@ jobs:
 
   codec2-graph:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
-    needs: [static, codec2-bootstrap]
+    needs: [static, codec2-graph-warmup]
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     env:
