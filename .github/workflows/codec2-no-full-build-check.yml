@@ -43,8 +43,9 @@ jobs:
       - name: Sync shallow Raspberry Vanilla Android 13 tree
         run: |
           mkdir -p "$TREE" && cd "$TREE"
-          repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r35 --depth=1
-          git clone --depth=1 --branch android-13.0 https://github.com/raspberry-vanilla/android_local_manifest .repo/local_manifests
+          repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
+          curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
+          curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
           repo sync -c --no-tags --no-clone-bundle -j4
       - name: Fetch and build pinned Codec2 modules
         run: |
