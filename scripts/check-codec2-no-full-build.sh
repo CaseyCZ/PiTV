@@ -310,11 +310,17 @@ grep -q "name 'Android.bp'" scripts/build-minimal-codec2-modules.sh
 grep -q 'check-codec2-bootstrap-checkpoint.py' scripts/build-minimal-codec2-modules.sh
 grep -q 'SOURCES_RESTORED=0' scripts/build-minimal-codec2-modules.sh
 grep -q 'trap - EXIT INT TERM' scripts/build-minimal-codec2-modules.sh
-test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
-test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
-test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
 grep -Fq 'cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml
-test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
+test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+grep -q 'all|graph|modules|diagnose' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_BOOTSTRAP_DIAGNOSE_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q 'ninja.*-d explain.*-n' scripts/build-minimal-codec2-modules.sh
+grep -q 'codec2-reuse-diagnose:' .github/workflows/codec2-no-full-build-check.yml
+grep -q "contains(github.event.head_commit.message, '\[diagnose-codec2\]')" .github/workflows/codec2-no-full-build-check.yml
+grep -q 'run-id: 35591736044' .github/workflows/codec2-no-full-build-check.yml
 
 mkdir -p "$tmp/bootstrap-ok/out/soong" "$tmp/bootstrap-ok/out/host/linux-x86/bin" "$tmp/bootstrap-ok/external/v4l2_codec2"
 printf 'x\n' >"$tmp/bootstrap-ok/external/v4l2_codec2/Android.bp"
