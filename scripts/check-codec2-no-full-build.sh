@@ -219,8 +219,7 @@ grep -q 'service-v4l2-64' scripts/prepare-codec2-from-donor.sh
 grep -q "name 'android.hardware.media.c2@1.0-service-v4l2-64'" scripts/build-minimal-codec2-modules.sh
 grep -q 'payload path is a symlink' scripts/enforce-codec2-payload-scope.py
 grep -q '@1.0::IComponentStore/v4l2' scripts/check-codec2-service-metadata.py
-grep -q 'missing upstream FFmpeg Codec2 media registry' scripts/assemble-codec2-overlay.py
-! grep -q '"android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml":"vendor/etc/media_codecs_ffmpeg_c2.xml"' scripts/assemble-codec2-overlay.py
+grep -q '"android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml":"vendor/etc/media_codecs_ffmpeg_c2.xml"' scripts/assemble-codec2-overlay.py
 grep -q 'staged payload contains symlink' scripts/stage-codec2-payload.sh
 grep -q 'invalid rollback manifest schema' scripts/preflight-codec2-overlay.py
 grep -q 'duplicate preflight target' scripts/plan-codec2-backup.py
@@ -268,7 +267,6 @@ grep -q 'unexpected V4L2 Codec2 component store' scripts/build-minimal-codec2-mo
 grep -q 'payload_rel=Path("vendor")/rel' scripts/collect-codec2-prebuilt.py
 grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-from-donor.sh
 grep -q 'payload_rel="vendor/$rel"' scripts/build-minimal-codec2-modules.sh
-grep -q 'upstream FFmpeg Codec2 registry missing' scripts/add-pitv-codec2-config-to-payload.sh
-! grep -q '^copy android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml' scripts/add-pitv-codec2-config-to-payload.sh
+grep -q '^copy android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml vendor/etc/media_codecs_ffmpeg_c2.xml' scripts/add-pitv-codec2-config-to-payload.sh
 grep -q 'android.hardware.media.c2@1.2-default-seccomp_policy' scripts/prepare-codec2-overlay.sh
 grep -q 'payload_rel="vendor/$rel"' scripts/prepare-codec2-overlay.sh
