@@ -2,7 +2,8 @@
 
 ## Completed gates
 - isolated experiment branch; Master and Alpha remain untouched;
-- exact pinned Android 13 ARM64 V4L2/FFmpeg Codec2 source lock, commit/origin/dirty-tree verification;
+- exact pinned Android 13 ARM64 Raspberry Vanilla V4L2/FFmpeg Codec2 source lock, commit/origin/dirty-tree verification;
+- source stack now matches the Raspberry Vanilla Android 13 RPi4 manifest (including V4L2 instance `IComponentStore/v4l2`);
 - verified FFmpeg HEVC V4L2 Request support and the upstream V4L2 seccomp contract;
 - exact 64-bit V4L2 service plus FFmpeg HEVC service metadata/VINTF validation;
 - H.264-only V4L2 store and HEVC-only reduced FFmpeg store for the reduced-build path;
@@ -24,6 +25,6 @@
 3. Install the staged overlay only after those checks pass.
 4. Validate SmartTube H.264/HEVC playback, CPU load, A/V sync, reboot/session recovery and rollback.
 
-The previously published KonstaKANG Android 13 RPi4 builds documented the required H.264 V4L2 and HEVC V4L2 Request implementation, but the Android 13 download is discontinued. The experiment therefore does not depend on that donor being available and keeps the pinned reduced-source build as the reproducible path.
+The previously published KonstaKANG Android 13 RPi4 builds explicitly documented H.264 V4L2 Codec2 plus FFmpeg HEVC `hevc_v4l2request`, but the Android 13 download is discontinued. The experiment therefore does not depend on that donor being available and keeps the pinned reduced-source build as the reproducible path.
 
 A full Android image build is not part of this experiment path.
