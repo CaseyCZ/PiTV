@@ -364,7 +364,12 @@ grep -q 'bootstrap dependency escapes tree' scripts/check-codec2-bootstrap-check
 mkdir -p "$tmp/bootstrap-ninja/out/soong" "$tmp/bootstrap-ninja/out/host/linux-x86/bin" "$tmp/bootstrap-ninja/out/obj" "$tmp/bootstrap-ninja/src"
 printf 'source\n' >"$tmp/bootstrap-ninja/src/Android.bp"
 printf 'out/soong/bootstrap.ninja: src/Android.bp\n' >"$tmp/bootstrap-ninja/out/soong/bootstrap.ninja.d"
-printf 'ninja\n' >"$tmp/bootstrap-ninja/out/soong/bootstrap.ninja"
+cat >"$tmp/bootstrap-ninja/out/soong/bootstrap.ninja" <<'NINJAFIXTURE'
+rule fixture
+  command = cp $in $out
+build out/obj/fixture.a: fixture src/Android.bp | prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile
+build out/host/linux-x86/bin/soong_build: phony out/obj/fixture.a
+NINJAFIXTURE
 printf '#!/bin/sh\n' >"$tmp/bootstrap-ninja/out/host/linux-x86/bin/soong_build"
 printf 'object\n' >"$tmp/bootstrap-ninja/out/obj/fixture.a"
 chmod +x "$tmp/bootstrap-ninja/out/host/linux-x86/bin/soong_build"
@@ -388,8 +393,9 @@ mkdir -p "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64"
 printf '#!/bin/sh\n' >"$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
 chmod +x "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
 touch -d '@946685500' "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
-PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED=1'
+PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_BOOTSTRAP_INPUT_MTIMES_NORMALIZED=2'
 test "$(stat -c %Y "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile")" -eq 946684800
+test "$(stat -c %Y "$tmp/bootstrap-ninja/src/Android.bp")" -eq 946684800
 
 PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_NINJA_MTIMES_VERIFIED=1'
 python3 - "$tmp/bootstrap-ninja/out/obj/fixture.a" <<'PYMTIME'
@@ -416,7 +422,10 @@ grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows
 
 # [diagnose-codec2] explain restored bootstrap dirtiness
 
-# Go toolchain mtimes must be normalized because Ninja treats them as implicit bootstrap inputs.
-grep -q 'CODEC2_GO_TOOLCHAIN_MTIMES_NORMALIZED' scripts/check-codec2-bootstrap-checkpoint.py
+# The exact soong_build dependency closure must be normalized. It includes both
+# fresh source files and implicit Go compile/link tools from the new checkout.
+grep -q 'CODEC2_BOOTSTRAP_INPUT_MTIMES_NORMALIZED' scripts/check-codec2-bootstrap-checkpoint.py
+grep -q '"-t",' scripts/check-codec2-bootstrap-checkpoint.py
+grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 
 # [diagnose-codec2] verify Go toolchain mtime normalization
