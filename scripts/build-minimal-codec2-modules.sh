@@ -7,6 +7,8 @@ TREE="$(readlink -f "${1:?Android 13 build tree required}")"
 SOURCES="$(readlink -f "${2:?directory from fetch-minimal-codec2-sources.py required}")"
 OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
+PHASE="${PITV_CODEC2_PHASE:-all}"
+case "$PHASE" in all|graph|modules) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -85,12 +87,22 @@ set +u
 # shellcheck disable=SC1091
 source build/envsetup.sh
 lunch "${PITV_CODEC2_LUNCH:-lineage_waydroid_arm64-userdebug}"
-m --skip-soong-tests -j"$JOBS" \
-  android.hardware.media.c2@1.0-service-v4l2-64 \
-  libc2plugin_store \
-  android.hardware.media.c2@1.2-service-ffmpeg \
-  android.hardware.media.c2@1.2-ffmpeg.policy \
+targets=(
+  android.hardware.media.c2@1.0-service-v4l2-64
+  libc2plugin_store
+  android.hardware.media.c2@1.2-service-ffmpeg
+  android.hardware.media.c2@1.2-ffmpeg.policy
   media_codecs_ffmpeg_c2.xml
+)
+if [ "$PHASE" = "graph" ]; then
+  # Generate and validate the complete Soong/Kati graph without compiling target
+  # modules. The workflow persists TREE/out as a permission-preserving tarball,
+  # so a later runner can resume after this expensive global bootstrap.
+  m --skip-soong-tests --skip-ninja -j"$JOBS" "${targets[@]}"
+  echo "CODEC2_GRAPH_READY=1"
+  exit 0
+fi
+m --skip-soong-tests -j"$JOBS" "${targets[@]}"
 
 TREE="$(readlink -f "$TREE")"; SOURCES="$(readlink -f "$SOURCES")"; OUT="$(readlink -m "$OUT")"
 [ "$OUT" != "/" ] && [ "$OUT" != "$TREE" ] && [ "$OUT" != "$SOURCES" ] || { echo "unsafe output directory" >&2; exit 2; }
