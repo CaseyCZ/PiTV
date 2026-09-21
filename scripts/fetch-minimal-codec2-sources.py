@@ -8,19 +8,18 @@ lock=json.loads((repo/"android/waydroid-rpi4/minimal-codec2-sources.lock.json").
 out=Path(sys.argv[1]).resolve(); out.mkdir(parents=True,exist_ok=True)
 for item in lock["sources"]:
     dst=out/item["name"]
+    fresh=False
     if not dst.exists():
         subprocess.run(["git","clone","--filter=blob:none","--no-checkout",item["url"],str(dst)],check=True)
+        fresh=True
     elif not (dst/".git").exists():
         raise SystemExit(f"existing path is not a git checkout: {dst}")
     origin=subprocess.check_output(["git","-C",str(dst),"remote","get-url","origin"],text=True).strip()
     if origin!=item["url"]: raise SystemExit(f"refusing source with unexpected origin: {item['name']} {origin}")
-    # A fresh --no-checkout clone reports the whole index as deleted/untracked.
-    # Dirty-tree protection applies only after a real worktree has been checked out.
-    try:
-        has_head=subprocess.run(["git","-C",str(dst),"rev-parse","--verify","HEAD"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
-    except OSError:
-        has_head=False
-    if has_head:
+    # A fresh --no-checkout clone has HEAD and an index but intentionally no
+    # populated worktree, so git status reports tracked files as deleted.
+    # Only pre-existing checkouts are subject to the dirty-tree refusal.
+    if not fresh:
         dirty=subprocess.check_output(["git","-C",str(dst),"status","--porcelain"],text=True)
         if dirty.strip(): raise SystemExit(f"refusing dirty source checkout: {item['name']}")
     subprocess.run(["git","-C",str(dst),"fetch","--depth=1","origin",item["commit"]],check=True)
