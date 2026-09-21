@@ -286,3 +286,5 @@ grep -q '"ffmpeg":\["Android.mk"' scripts/verify-minimal-codec2-sources.py
 grep -Fq 'bash "$HERE/guard-codec2-build-workspace.sh" "$TREE"' scripts/build-minimal-codec2-modules.sh
 
 # [build-codec2] retry after portable guard invocation
+
+grep -q -- '--skip-soong-tests' scripts/build-minimal-codec2-modules.sh
