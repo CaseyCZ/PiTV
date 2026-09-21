@@ -9,7 +9,7 @@ OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
 SOURCE_EPOCH="${PITV_CODEC2_SOURCE_EPOCH:-946684800}"
-case "$PHASE" in all|graph|modules) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
+case "$PHASE" in all|graph|modules|diagnose) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -95,6 +95,16 @@ PY
 
 if [ "${PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE:-0}" = "1" ]; then
   python3 "$HERE/check-codec2-bootstrap-checkpoint.py" "$TREE"
+fi
+
+if [ "$PHASE" = "diagnose" ]; then
+  cd "$TREE"
+  NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+  [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+  echo "CODEC2_BOOTSTRAP_NINJA=${NINJA}"
+  "$NINJA" -d explain -n -j1 -f out/soong/bootstrap.ninja 2>&1 | tee /tmp/pitv-codec2-ninja-explain.log
+  echo "CODEC2_BOOTSTRAP_DIAGNOSE_READY=1"
+  exit 0
 fi
 
 cd "$TREE"
