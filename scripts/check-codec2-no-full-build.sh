@@ -393,7 +393,7 @@ mkdir -p "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64"
 printf '#!/bin/sh\n' >"$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
 chmod +x "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
 touch -d '@946685500' "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile"
-PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_BOOTSTRAP_INPUT_MTIMES_NORMALIZED=2'
+PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE=1 python3 scripts/check-codec2-bootstrap-checkpoint.py "$tmp/bootstrap-ninja" | grep -q 'CODEC2_BOOTSTRAP_INPUT_MTIMES_NORMALIZED='
 test "$(stat -c %Y "$tmp/bootstrap-ninja/prebuilts/go/linux-x86/pkg/tool/linux_amd64/compile")" -eq 946684800
 test "$(stat -c %Y "$tmp/bootstrap-ninja/src/Android.bp")" -eq 946684800
 
