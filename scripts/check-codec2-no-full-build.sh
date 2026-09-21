@@ -5,6 +5,7 @@ trap 'echo "Codec2 static check failed at line $LINENO" >&2' ERR
 PY=(
  scripts/probe-codec2-prebuilt.py
  scripts/collect-codec2-prebuilt.py
+ scripts/merge-codec2-component-payloads.py
  scripts/assemble-codec2-overlay.py
  scripts/validate-codec2-payload.py
  scripts/verify-staged-codec2-payload.py
@@ -85,6 +86,14 @@ if bash scripts/plan-codec2-overlay-install.sh "$tmp/payload" >/dev/null 2>&1; t
   exit 1
 fi
 grep -q 'vendor/lib64/libfixture.so' "$tmp/payload/PITV-CODEC2-PAYLOAD.txt" "$tmp/payload/PITV-CODEC2-INSTALL-PLAN.txt"
+mkdir -p "$tmp/avc/vendor/bin/hw" "$tmp/hevc/vendor/bin/hw"
+printf avc >"$tmp/avc/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64"
+printf hevc >"$tmp/hevc/vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg"
+printf 'vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64\n' >"$tmp/avc/PITV-CODEC2-PAYLOAD.txt"
+printf 'vendor/bin/hw/android.hardware.media.c2@1.2-service-ffmpeg\n' >"$tmp/hevc/PITV-CODEC2-PAYLOAD.txt"
+python3 scripts/merge-codec2-component-payloads.py "$tmp/avc" "$tmp/hevc" "$tmp/merged" >/dev/null
+grep -q 'service-v4l2-64' "$tmp/merged/PITV-CODEC2-PAYLOAD.txt"
+grep -q 'service-ffmpeg' "$tmp/merged/PITV-CODEC2-PAYLOAD.txt"
 python3 scripts/test-codec2-no-full-build.py
 echo "Codec2 no-full-build helper checks OK"
 grep -q 'never runs repo init/sync' scripts/build-minimal-codec2-modules.sh
@@ -299,3 +308,8 @@ grep -q 'timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph'
 grep -Fq 'name: pitv-codec2-bootstrap-${{ github.sha }}' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'Restore warmed Soong bootstrap' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'PITV_CODEC2_COMPONENT' scripts/build-minimal-codec2-modules.sh
+grep -q 'Minimal Codec2 $COMPONENT component payload' scripts/build-minimal-codec2-modules.sh
+grep -q 'build-avc:' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'build-hevc:' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'merge-codec2-component-payloads.py' .github/workflows/codec2-no-full-build-check.yml
