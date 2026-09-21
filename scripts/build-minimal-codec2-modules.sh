@@ -8,6 +8,7 @@ SOURCES="$(readlink -f "${2:?directory from fetch-minimal-codec2-sources.py requ
 OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
+SOURCE_EPOCH="${PITV_CODEC2_SOURCE_EPOCH:-946684800}"
 case "$PHASE" in all|graph|modules) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
@@ -40,6 +41,11 @@ install_src(){
   MODIFIED+=("$dst")
   mkdir -p "$(dirname "$target")"
   cp -a "$SOURCES/$src" "$target"
+  # A restored Soong bootstrap manifest depends on these build-definition
+  # files. Fresh clones otherwise make them newer than the checkpoint and
+  # force all bootstrap Go tools to rebuild on every runner.
+  find "$target" -type f \( -name 'Android.bp' -o -name 'Android.mk' -o -name '*.mk' \) \
+    -exec touch -d "@$SOURCE_EPOCH" {} +
 }
 install_src v4l2_codec2 external/v4l2_codec2
 install_src ffmpeg external/ffmpeg
@@ -80,6 +86,10 @@ if old not in s: raise SystemExit("unexpected FFmpeg Codec2 audio component coun
 s=s.replace(old,"static const size_t kNumAudioComponents = 0;",1)
 p.write_text(s)
 PY
+
+if [ "${PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE:-0}" = "1" ]; then
+  python3 "$HERE/check-codec2-bootstrap-checkpoint.py" "$TREE"
+fi
 
 cd "$TREE"
 # Android envsetup/lunch scripts are not guaranteed to be nounset-clean.
