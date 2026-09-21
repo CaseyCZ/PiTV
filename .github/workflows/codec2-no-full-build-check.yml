@@ -21,3 +21,39 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate no-full-build helpers
         run: bash scripts/check-codec2-no-full-build.sh
+
+  reduced-build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      TREE: ${{ github.workspace }}/android13
+      SOURCES: ${{ github.workspace }}/codec2-sources
+      OUT: ${{ github.workspace }}/codec2-payload
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Android build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev libc6-dev-i386 libncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig python3
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Sync shallow Raspberry Vanilla Android 13 tree
+        run: |
+          mkdir -p "$TREE" && cd "$TREE"
+          repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r35 --depth=1
+          git clone --depth=1 --branch android-13.0 https://github.com/raspberry-vanilla/android_local_manifest .repo/local_manifests
+          repo sync -c --no-tags --no-clone-bundle -j4
+      - name: Fetch and build pinned Codec2 modules
+        run: |
+          python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+          bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          python3 scripts/codec2-payload-readiness.py "$OUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pitv-rpi4-codec2-payload-${{ github.sha }}
+          path: codec2-payload/
+          if-no-files-found: error
+          retention-days: 14
