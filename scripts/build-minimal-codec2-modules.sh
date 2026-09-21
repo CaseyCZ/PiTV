@@ -8,7 +8,12 @@ SOURCES="$(readlink -f "${2:?directory from fetch-minimal-codec2-sources.py requ
 OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
+COMPONENT="${PITV_CODEC2_COMPONENT:-all}"
 case "$PHASE" in all|graph|modules) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
+case "$COMPONENT" in all|avc|hevc) ;; *) echo "invalid PITV_CODEC2_COMPONENT: $COMPONENT" >&2; exit 2;; esac
+if [ "$PHASE" = "graph" ] && [ "$COMPONENT" != "all" ]; then
+  echo "graph phase must cover both Codec2 components" >&2; exit 2
+fi
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -87,13 +92,30 @@ set +u
 # shellcheck disable=SC1091
 source build/envsetup.sh
 lunch "${PITV_CODEC2_LUNCH:-lineage_waydroid_arm64-userdebug}"
-targets=(
-  android.hardware.media.c2@1.0-service-v4l2-64
-  libc2plugin_store
-  android.hardware.media.c2@1.2-service-ffmpeg
-  android.hardware.media.c2@1.2-ffmpeg.policy
-  media_codecs_ffmpeg_c2.xml
-)
+case "$COMPONENT" in
+  all)
+    targets=(
+      android.hardware.media.c2@1.0-service-v4l2-64
+      libc2plugin_store
+      android.hardware.media.c2@1.2-service-ffmpeg
+      android.hardware.media.c2@1.2-ffmpeg.policy
+      media_codecs_ffmpeg_c2.xml
+    )
+    ;;
+  avc)
+    targets=(
+      android.hardware.media.c2@1.0-service-v4l2-64
+      libc2plugin_store
+    )
+    ;;
+  hevc)
+    targets=(
+      android.hardware.media.c2@1.2-service-ffmpeg
+      android.hardware.media.c2@1.2-ffmpeg.policy
+      media_codecs_ffmpeg_c2.xml
+    )
+    ;;
+esac
 if [ "$PHASE" = "graph" ]; then
   # Generate and validate the complete Soong/Kati graph without compiling target
   # modules. The workflow persists TREE/out as a permission-preserving tarball,
@@ -110,21 +132,35 @@ case "$OUT/" in "$TREE/"*|"$SOURCES/"*) echo "output must not be inside build/so
 rm -rf "$OUT"; mkdir -p "$OUT"
 PRODUCT_OUT="${ANDROID_PRODUCT_OUT:?ANDROID_PRODUCT_OUT missing after lunch/build}"
 VENDOR_OUT="$PRODUCT_OUT/vendor"
-mapfile -t avc_roots < <(find "$VENDOR_OUT" -type f -name 'android.hardware.media.c2@1.0-service-v4l2-64' | sort)
-mapfile -t hevc_roots < <(find "$VENDOR_OUT" -type f -name 'android.hardware.media.c2@1.2-service-ffmpeg' | sort)
-[ "${#avc_roots[@]}" -eq 1 ] || { echo "expected one AVC service output" >&2; exit 10; }
-[ "${#hevc_roots[@]}" -eq 1 ] || { echo "expected one HEVC service output" >&2; exit 10; }
-roots=("${avc_roots[0]#"$VENDOR_OUT"/}" "${hevc_roots[0]#"$VENDOR_OUT"/}")
+roots=()
+metadata_patterns=()
+if [ "$COMPONENT" = "all" ] || [ "$COMPONENT" = "avc" ]; then
+  mapfile -t avc_roots < <(find "$VENDOR_OUT" -type f -name 'android.hardware.media.c2@1.0-service-v4l2-64' | sort)
+  [ "${#avc_roots[@]}" -eq 1 ] || { echo "expected one AVC service output" >&2; exit 10; }
+  roots+=("${avc_roots[0]#"$VENDOR_OUT"/}")
+  metadata_patterns+=(
+    'android.hardware.media.c2@1.0-service-v4l2*.rc'
+    'android.hardware.media.c2@1.0-service-v4l2*.xml'
+    '*v4l2*policy*'
+    'android.hardware.media.c2@1.2-default-seccomp_policy'
+  )
+fi
+if [ "$COMPONENT" = "all" ] || [ "$COMPONENT" = "hevc" ]; then
+  mapfile -t hevc_roots < <(find "$VENDOR_OUT" -type f -name 'android.hardware.media.c2@1.2-service-ffmpeg' | sort)
+  [ "${#hevc_roots[@]}" -eq 1 ] || { echo "expected one HEVC service output" >&2; exit 10; }
+  roots+=("${hevc_roots[0]#"$VENDOR_OUT"/}")
+  metadata_patterns+=(
+    'android.hardware.media.c2@1.2-service-ffmpeg*.rc'
+    'android.hardware.media.c2@1.2-service-ffmpeg*.xml'
+    '*ffmpeg*policy*'
+    'media_codecs_ffmpeg_c2.xml'
+  )
+fi
 python3 "$HERE/collect-codec2-prebuilt.py" "$VENDOR_OUT" "$OUT" "${roots[@]}"
 
 # ELF DT_NEEDED does not carry init/VINTF/seccomp metadata. Copy only metadata
-# installed by the two selected services, never the rest of donor vendor.
-for pattern in \
-  'android.hardware.media.c2@1.0-service-v4l2*.rc' \
-  'android.hardware.media.c2@1.0-service-v4l2*.xml' \
-  'android.hardware.media.c2@1.2-service-ffmpeg*.rc' \
-  'android.hardware.media.c2@1.2-service-ffmpeg*.xml' \
-  '*v4l2*policy*' '*ffmpeg*policy*' 'android.hardware.media.c2@1.2-default-seccomp_policy' 'media_codecs_ffmpeg_c2.xml'
+# installed by the selected service(s), never the rest of donor vendor.
+for pattern in "${metadata_patterns[@]}"
 do
   while IFS= read -r p; do
     [ -n "$p" ] || continue
@@ -136,6 +172,13 @@ do
   done < <(find "$VENDOR_OUT" -type f -name "$pattern" | sort)
 done
 sort -u "$OUT/PITV-CODEC2-PAYLOAD.txt" -o "$OUT/PITV-CODEC2-PAYLOAD.txt"
+if [ "$COMPONENT" != "all" ]; then
+  python3 "$HERE/validate-codec2-payload.py" "$OUT"
+  python3 "$HERE/enforce-codec2-payload-scope.py" "$OUT"
+  python3 "$HERE/check-codec2-payload-size.py" "$OUT"
+  echo "Minimal Codec2 $COMPONENT component payload: $OUT"
+  exit 0
+fi
 python3 "$HERE/assemble-codec2-overlay.py" "$OUT" "$HERE/.."
 python3 "$HERE/validate-codec2-payload.py" "$OUT"
 python3 "$HERE/enforce-codec2-payload-scope.py" "$OUT"
