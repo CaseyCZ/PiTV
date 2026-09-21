@@ -308,9 +308,12 @@ grep -Fq 'needs: [static, codec2-bootstrap]' .github/workflows/codec2-no-full-bu
 grep -q 'PITV_CODEC2_SOURCE_EPOCH' scripts/build-minimal-codec2-modules.sh
 grep -q "name 'Android.bp'" scripts/build-minimal-codec2-modules.sh
 grep -q 'check-codec2-bootstrap-checkpoint.py' scripts/build-minimal-codec2-modules.sh
+grep -q 'SOURCES_RESTORED=0' scripts/build-minimal-codec2-modules.sh
+grep -q 'trap - EXIT INT TERM' scripts/build-minimal-codec2-modules.sh
 test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
 test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
-grep -q 'repo manifest -r > out/soong/pitv-source-manifest.xml' .github/workflows/codec2-no-full-build-check.yml
+test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+grep -Fq 'cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml
 test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 2
 
 mkdir -p "$tmp/bootstrap-ok/out/soong" "$tmp/bootstrap-ok/out/host/linux-x86/bin" "$tmp/bootstrap-ok/external/v4l2_codec2"
