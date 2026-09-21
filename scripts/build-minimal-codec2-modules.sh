@@ -85,7 +85,7 @@ set +u
 # shellcheck disable=SC1091
 source build/envsetup.sh
 lunch "${PITV_CODEC2_LUNCH:-lineage_waydroid_arm64-userdebug}"
-m -j"$JOBS" \
+m --skip-soong-tests -j"$JOBS" \
   android.hardware.media.c2@1.0-service-v4l2-64 \
   libc2plugin_store \
   android.hardware.media.c2@1.2-service-ffmpeg \
