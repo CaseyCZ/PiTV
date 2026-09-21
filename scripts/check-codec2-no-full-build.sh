@@ -450,3 +450,5 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 # [build-codec2] retry with graph warmup checkpoint
 
 # [build-codec2] retry clean graph warmup checkpoint boundary
+
+# [build-codec2] retry 120s process-group graph checkpoint
