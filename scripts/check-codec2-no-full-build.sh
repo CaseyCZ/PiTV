@@ -429,3 +429,5 @@ grep -q '"-t",' scripts/check-codec2-bootstrap-checkpoint.py
 grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 
 # [diagnose-codec2] verify Go toolchain mtime normalization
+
+# [diagnose-codec2] verify full soong_build input normalization
