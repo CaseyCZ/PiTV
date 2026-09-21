@@ -63,7 +63,7 @@ def parse_android_top_component(text):
             else len(text)
         )
         block = text[match.end():block_end]
-        if re.search(r"(?m)^\s*mResumed\s*=\s*true\b", block):
+        if re.search(r"\bmResumed\s*=\s*true\b", block):
             return match.group(1)
 
     # Compatibility fallback for terse dumps containing a single ACTIVITY line.
