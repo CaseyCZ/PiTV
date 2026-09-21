@@ -5,9 +5,9 @@
   "sources": [
     {
       "name": "v4l2_codec2",
-      "url": "https://github.com/android-rpi/external_v4l2_codec2.git",
-      "branch": "arpi-13",
-      "commit": "ab5a6d643920336a7e7c6c4d4db36d621f21f935",
+      "url": "https://github.com/raspberry-vanilla/android_external_v4l2_codec2.git",
+      "branch": "android-13.0",
+      "commit": "8099ddbe335071004b6f6baf4a1327a83551f124",
       "license_files": [
         "MODULE_LICENSE_BSD",
         "NOTICE"
