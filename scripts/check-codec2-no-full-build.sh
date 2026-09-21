@@ -352,3 +352,5 @@ grep -q 'pkill -KILL -x ninja' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq "tar --exclude='out/.path_interposer_log' --zstd -cf" .github/workflows/codec2-no-full-build-check.yml
 
 # [build-codec2] retry Ubuntu 24.04 checkpoint after safe symlink validation
+
+# [build-codec2] retry after checkpoint quiescence fix
