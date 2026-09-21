@@ -2,7 +2,7 @@ name: Codec2 No Full Build Check
 
 on:
   push:
-    branches: [experiment/rpi4-codec2-no-full-build, experiment/rpi4-codec2-runner24-test]
+    branches: [experiment/rpi4-codec2-no-full-build, experiment/rpi4-codec2-runner24-test, experiment/rpi4-codec2-narrow-soong-graph]
   pull_request:
     paths:
       - 'scripts/*codec2*'
