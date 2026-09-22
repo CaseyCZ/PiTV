@@ -141,6 +141,7 @@ prefixes = (
     "external/ffmpeg/",
     "external/ffmpeg_codec2/",
     "external/golang-protobuf/",
+    "external/go-cmp/",
     "external/libudev-zero/",
     "external/v4l2_codec2/",
     "frameworks/av/",
