@@ -30,8 +30,8 @@ glob_dir = tree / "out/soong/.pitv-codec2-globs"
 argv = [
     str(builder),
     "--top", str(tree),
-    "--out", str(tree / "out/soong"),
-    "-b", str(tree / "out"),
+    "--out", str(tree / "out"),
+    "--soong_out", str(tree / "out/soong"),
     "-l", str(module_list),
     "-o", str(probe_out),
     "--available_env", str(available),
