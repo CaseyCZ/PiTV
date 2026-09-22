@@ -172,6 +172,7 @@ excluded_prefixes = (
 excluded_parts = (
     "/tests/",
     "/test/",
+    "/vts/",
 )
 selected = sorted({
     x for x in lines

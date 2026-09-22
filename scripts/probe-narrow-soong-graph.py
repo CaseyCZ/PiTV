@@ -40,6 +40,7 @@ forbidden_prefixes = (
 forbidden_parts = (
     "/test/",
     "/tests/",
+    "/vts/",
 )
 
 def allowed(rel: str) -> bool:
