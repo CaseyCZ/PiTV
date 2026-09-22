@@ -11,52 +11,35 @@ if len(sys.argv) != 3:
 
 tree = Path(sys.argv[1]).resolve()
 module_list = Path(sys.argv[2]).resolve()
-bootstrap = tree / "out/soong/bootstrap.ninja"
-ninja = tree / "prebuilts/build-tools/linux-x86/bin/ninja"
 builder = tree / "out/host/linux-x86/bin/soong_build"
-for p in (bootstrap, ninja, builder, module_list):
+available = tree / "out/soong/soong.environment.available"
+product_vars = tree / "out/soong/soong.variables"
+for p in (builder, available, product_vars, module_list):
     if not p.exists():
         raise SystemExit(f"missing narrow Soong probe prerequisite: {p}")
 
-# Ask Ninja for its fully expanded commands instead of duplicating AOSP's
-# version-specific soong_build flags here.
-proc = subprocess.run(
-    [str(ninja), "-t", "commands", "-f", str(bootstrap)],
-    cwd=tree, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
-)
-commands = [x.strip() for x in proc.stdout.splitlines() if "soong_build" in x]
-if not commands:
-    raise SystemExit("bootstrap.ninja did not expose a soong_build command")
-
-# Prefer the normal build.ninja-producing invocation over docs/modulegraph modes.
-candidates = [x for x in commands if " --module_graph_file " not in f" {x} " and " --soong_docs " not in f" {x} "]
-command = candidates[-1] if candidates else commands[-1]
-argv = shlex.split(command)
-try:
-    exe_i = next(i for i, x in enumerate(argv) if x.endswith("/soong_build") or x == "soong_build")
-except StopIteration:
-    raise SystemExit("could not identify soong_build executable")
-argv = argv[exe_i:]
-
-def replace_flag(flag: str, value: str) -> None:
-    for i, item in enumerate(argv):
-        if item == flag:
-            if i + 1 >= len(argv):
-                raise SystemExit(f"missing value after {flag}")
-            argv[i + 1] = value
-            return
-        if item.startswith(flag + "="):
-            argv[i] = flag + "=" + value
-            return
-    raise SystemExit(f"bootstrap soong_build command missing {flag}")
-
 probe_out = tree / "out/soong/pitv-codec2.ninja"
-replace_flag("-l", str(module_list))
-replace_flag("-o", str(probe_out))
-
-# Never let the probe overwrite normal Soong environment dependency tracking.
 used = tree / "out/soong/pitv-codec2.environment.used"
-replace_flag("--used_env", str(used))
+glob_file = tree / "out/soong/pitv-codec2-build-globs.ninja"
+glob_dir = tree / "out/soong/.pitv-codec2-globs"
+
+# Android 13 soong_build accepts the same direct arguments that soong_ui puts
+# into bootstrap.ninja.  Invoke it directly so the narrow probe never starts
+# Ninja.  The environment is intentionally empty except TOP: soong_build reads
+# tracked build variables from --available_env.
+argv = [
+    str(builder),
+    "--top", str(tree),
+    "--out", str(tree / "out/soong"),
+    "-b", str(tree / "out"),
+    "-l", str(module_list),
+    "-o", str(probe_out),
+    "--available_env", str(available),
+    "--used_env", str(used),
+    "--globFile", str(glob_file),
+    "--globListDir", str(glob_dir),
+    "Android.bp",
+]
 
 print("CODEC2_NARROW_SOONG_EXEC=" + shlex.join(argv))
 env = {"TOP": str(tree)}
@@ -65,6 +48,6 @@ if result.returncode:
     print(f"CODEC2_NARROW_SOONG_RC={result.returncode}")
     raise SystemExit(result.returncode)
 if not probe_out.is_file() or probe_out.stat().st_size == 0:
-    raise SystemExit("narrow Soong probe produced no ninja graph")
+    raise SystemExit("narrow Soong probe produced no graph")
 print(f"CODEC2_NARROW_SOONG_NINJA={probe_out}")
 print("CODEC2_NARROW_SOONG_READY=1")
