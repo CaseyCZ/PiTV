@@ -75,6 +75,10 @@ ansi_re = re.compile(r"\x1b\[[0-9;]*m")
 missing_re = re.compile(
     r'error:\s+([^:\n]+):\d+:\d+:\s+"[^"]+" depends on undefined module "([^"]+)"'
 )
+package_root_re = re.compile(
+    r"error:\s+([^:\n]+):\d+:\d+:.*?Cannot find package root specification "
+    r"for package root '([^']+)'"
+)
 
 def common_prefix_score(a: str, b: str) -> int:
     ap = Path(a).parts[:-1]
@@ -161,6 +165,15 @@ for attempt in range(1, max_attempts + 1):
         if key not in seen_missing:
             seen_missing.add(key)
             missing.append(key)
+    for consumer, package_root in package_root_re.findall(clean_output):
+        key = (consumer, package_root)
+        if key not in seen_missing:
+            seen_missing.add(key)
+            missing.append(key)
+            print(
+                f"CODEC2_NARROW_MISSING_PACKAGE_ROOT={package_root} "
+                f"consumer={consumer}"
+            )
     if not missing:
         print(f"CODEC2_NARROW_SOONG_RC={result.returncode}")
         raise SystemExit(result.returncode)
