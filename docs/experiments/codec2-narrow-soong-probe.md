@@ -39,3 +39,8 @@ Retry the direct AVC Soong graph with the minimal `external/go-cmp/` dependency 
 ## Probe 7
 
 Retry the direct AVC Soong graph with the minimal `external/starlark-go/` dependency added after Probe 6. `[probe-codec2]`
+
+
+## Probe 8
+
+Retry the direct AVC Soong graph with `system/tools/hidl/` added to provide HIDL module defaults after Probe 7. `[probe-codec2]`
