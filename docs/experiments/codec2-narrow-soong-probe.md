@@ -59,3 +59,8 @@ Retry the direct AVC Soong graph with `packages/modules/common/` added to provid
 ## Probe 11
 
 Retry the direct AVC Soong graph with `packages/modules/NeuralNetworks/` and `external/skia/` added after Probe 10 exposed `neuralnetworks_utils_defaults` and `skia_deps`. `[probe-codec2]`
+
+
+## Probe 12
+
+Switch from dependency-prefix expansion to graph pruning: exclude unrelated `hardware/interfaces/automotive/`, `hardware/interfaces/neuralnetworks/`, and test Android.bp paths; remove the temporary Skia and NeuralNetworks prefixes. This keeps the direct probe focused on V4L2 AVC instead of CTS/Automotive. `[probe-codec2]`
