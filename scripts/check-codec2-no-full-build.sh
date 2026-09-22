@@ -460,7 +460,9 @@ grep -q 'CODEC2_NARROW_LIST_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/v4l2_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/ffmpeg_codec2/Android.mk' scripts/build-minimal-codec2-modules.sh
 
-grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
+! grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
+grep -q -- '--available_env' scripts/probe-narrow-soong-graph.py
+grep -q -- '--globListDir' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.environment.used' scripts/probe-narrow-soong-graph.py
 grep -q 'CODEC2_NARROW_SOONG_READY=1' scripts/probe-narrow-soong-graph.py
