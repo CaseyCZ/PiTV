@@ -49,6 +49,7 @@ def allowed(rel: str) -> bool:
 
 all_bp = [x.strip() for x in full_list.read_text().splitlines() if x.strip()]
 selected = {x.strip() for x in module_list.read_text().splitlines() if x.strip()}
+initial_selected = set(selected)
 
 # Index literal module/default/interface names once. AOSP Blueprint module names
 # are normally declared as name: "..."; generated AIDL variants are handled by
@@ -69,6 +70,7 @@ for rel in all_bp:
 generated_aidl_re = re.compile(
     r"^(?P<base>.+)-V\d+-(?:ndk|ndk_platform|cpp|java|rust)(?:-source)?$"
 )
+ansi_re = re.compile(r"\x1b\[[0-9;]*m")
 missing_re = re.compile(
     r'error:\s+([^:\n]+):\d+:\d+:\s+"[^"]+" depends on undefined module "([^"]+)"'
 )
@@ -146,13 +148,14 @@ for attempt in range(1, max_attempts + 1):
         if not probe_out.is_file() or probe_out.stat().st_size == 0:
             raise SystemExit("narrow Soong probe produced no graph")
         print(f"CODEC2_NARROW_SOONG_NINJA={probe_out}")
-        print(f"CODEC2_NARROW_AUTO_ADDED={len(selected) - len(set(x.strip() for x in module_list.read_text().splitlines() if x.strip()))}")
+        print(f"CODEC2_NARROW_AUTO_ADDED={len(selected) - len(initial_selected)}")
         print("CODEC2_NARROW_SOONG_READY=1")
         raise SystemExit(0)
 
+    clean_output = ansi_re.sub("", output)
     missing = []
     seen_missing = set()
-    for consumer, module in missing_re.findall(output):
+    for consumer, module in missing_re.findall(clean_output):
         key = (consumer, module)
         if key not in seen_missing:
             seen_missing.add(key)
@@ -166,7 +169,16 @@ for attempt in range(1, max_attempts + 1):
         provider = choose_provider(module, consumer)
         if provider is None:
             candidates = provider_candidates(module)
-            blocked = [x for x in all_bp if not allowed(x) and module in (tree / x).read_text(errors="ignore") if (tree / x).is_file()]
+            blocked = []
+            for x in all_bp:
+                p = tree / x
+                if allowed(x) or not p.is_file():
+                    continue
+                try:
+                    if module in p.read_text(errors="ignore"):
+                        blocked.append(x)
+                except OSError:
+                    continue
             if blocked:
                 print(f'CODEC2_NARROW_BLOCKED_MODULE={module} providers={",".join(blocked[:8])}')
             elif candidates:
