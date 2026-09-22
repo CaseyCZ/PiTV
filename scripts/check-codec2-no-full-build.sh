@@ -458,7 +458,7 @@ grep -q 'pitv-codec2.Android.bp.list' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_BP_SELECTED=' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_LIST_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/v4l2_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
-grep -q 'external/ffmpeg_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
+grep -q 'external/ffmpeg_codec2/Android.mk' scripts/build-minimal-codec2-modules.sh
 
 grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
