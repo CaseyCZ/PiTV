@@ -28,6 +28,7 @@ PY=(
  scripts/verify-minimal-codec2-sources.py
  scripts/check-codec2-xml-contract.py
  scripts/check-codec2-bootstrap-checkpoint.py
+ scripts/probe-narrow-soong-graph.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -452,9 +453,14 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 
 
 # Narrow Soong experiment: generate a Codec2-focused Android.bp list first.
-grep -q 'all|graph|modules|diagnose|narrow-list' scripts/build-minimal-codec2-modules.sh
+grep -q 'all|graph|modules|diagnose|narrow-list|narrow-probe' scripts/build-minimal-codec2-modules.sh
 grep -q 'pitv-codec2.Android.bp.list' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_BP_SELECTED=' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_LIST_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/v4l2_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/ffmpeg_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
+
+grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
+grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
+grep -q 'pitv-codec2.environment.used' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_SOONG_READY=1' scripts/probe-narrow-soong-graph.py
