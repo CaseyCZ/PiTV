@@ -151,6 +151,7 @@ prefixes = (
     "hardware/interfaces/",
     "hardware/libhardware/",
     "hardware/libhardware_legacy/",
+    "packages/modules/common/",
     "system/apex/",
     "system/core/",
     "system/libbase/",
