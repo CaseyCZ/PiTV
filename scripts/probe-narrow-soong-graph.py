@@ -36,6 +36,7 @@ forbidden_prefixes = (
     "hardware/interfaces/automotive/",
     "hardware/interfaces/neuralnetworks/",
     "packages/modules/NeuralNetworks/",
+    "frameworks/native/services/surfaceflinger/Tracing/",
 )
 forbidden_parts = (
     "/test/",

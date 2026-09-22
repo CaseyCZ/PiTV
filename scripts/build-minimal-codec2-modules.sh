@@ -168,6 +168,7 @@ lines = [x.strip() for x in src.read_text().splitlines() if x.strip()]
 excluded_prefixes = (
     "hardware/interfaces/automotive/",
     "hardware/interfaces/neuralnetworks/",
+    "frameworks/native/services/surfaceflinger/Tracing/",
 )
 excluded_parts = (
     "/tests/",
