@@ -14,3 +14,8 @@ The probe is intentionally isolated so a failure cannot be mistaken for a full C
 ## Probe 2
 
 Direct `soong_build` narrow AVC probe. Ninja command expansion is intentionally bypassed; `[probe-codec2]` gates only the narrow probe job.
+
+
+## Probe 3
+
+Retry direct Android 13 `soong_build` with corrected `--out` / `--soong_out` flags and no Ninja command expansion. `[probe-codec2]`
