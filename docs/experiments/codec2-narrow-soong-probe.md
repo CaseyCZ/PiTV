@@ -24,3 +24,8 @@ Retry direct Android 13 `soong_build` with corrected `--out` / `--soong_out` fla
 ## Probe 4
 
 Retry the direct AVC Soong graph with the minimal `external/golang-protobuf/` dependency closure added after Probe 3. `[probe-codec2]`
+
+
+## Probe 5
+
+Retry the direct AVC Soong graph with the minimal `kernel/configs/` Soong-rule dependency added after Probe 4. `[probe-codec2]`
