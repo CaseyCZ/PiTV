@@ -153,6 +153,7 @@ prefixes = (
     "hardware/libhardware_legacy/",
     "packages/modules/common/",
     "system/apex/",
+    "system/hardware/interfaces/suspend/",
     "system/core/",
     "system/libbase/",
     "system/libfmq/",
