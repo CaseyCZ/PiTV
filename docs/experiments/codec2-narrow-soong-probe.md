@@ -34,3 +34,8 @@ Retry the direct AVC Soong graph with the minimal `kernel/configs/` Soong-rule d
 ## Probe 6
 
 Retry the direct AVC Soong graph with the minimal `external/go-cmp/` dependency added after Probe 5. `[probe-codec2]`
+
+
+## Probe 7
+
+Retry the direct AVC Soong graph with the minimal `external/starlark-go/` dependency added after Probe 6. `[probe-codec2]`
