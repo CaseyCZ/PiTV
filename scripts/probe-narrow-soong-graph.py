@@ -35,6 +35,7 @@ forbidden_prefixes = (
     "external/skia/",
     "hardware/interfaces/automotive/",
     "hardware/interfaces/neuralnetworks/",
+    "packages/modules/NeuralNetworks/",
 )
 forbidden_parts = (
     "/test/",
