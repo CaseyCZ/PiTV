@@ -468,6 +468,8 @@ grep -q 'kernel/configs/' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/go-cmp/' scripts/build-minimal-codec2-modules.sh
 grep -q 'external/starlark-go/' scripts/build-minimal-codec2-modules.sh
 grep -q 'system/tools/hidl/' scripts/build-minimal-codec2-modules.sh
+grep -q 'system/apex/' scripts/build-minimal-codec2-modules.sh
+grep -q 'system/tools/aidl/' scripts/build-minimal-codec2-modules.sh
 ! grep -q '"-b"' scripts/probe-narrow-soong-graph.py
 grep -q -- '--globListDir' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
