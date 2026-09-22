@@ -9,7 +9,7 @@ OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
 SOURCE_EPOCH="${PITV_CODEC2_SOURCE_EPOCH:-946684800}"
-case "$PHASE" in all|graph|modules|diagnose|narrow-list) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
+case "$PHASE" in all|graph|modules|diagnose|narrow-list|narrow-probe) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -122,7 +122,7 @@ targets=(
   android.hardware.media.c2@1.2-ffmpeg.policy
   media_codecs_ffmpeg_c2.xml
 )
-if [ "$PHASE" = "narrow-list" ]; then
+if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ]; then
   # AOSP soong_ui normally feeds soong_build every Android.bp in the tree via
   # out/.module_paths/Android.bp.list.  Build a conservative Codec2-focused
   # candidate list for the next direct-soong probe without mutating that file.
@@ -170,6 +170,8 @@ print(f"CODEC2_NARROW_BP_SELECTED={len(selected)}")
 print(f"CODEC2_NARROW_BP_LIST={dst}")
 PYNARROW
   echo "CODEC2_NARROW_LIST_READY=1"
+  if [ "$PHASE" = "narrow-list" ]; then exit 0; fi
+  python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
   exit 0
 fi
 if [ "$PHASE" = "graph" ]; then
