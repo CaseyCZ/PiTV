@@ -143,7 +143,6 @@ prefixes = (
     "external/golang-protobuf/",
     "external/go-cmp/",
     "external/starlark-go/",
-    "external/skia/",
     "external/libudev-zero/",
     "external/v4l2_codec2/",
     "frameworks/av/",
@@ -153,7 +152,6 @@ prefixes = (
     "hardware/libhardware/",
     "hardware/libhardware_legacy/",
     "packages/modules/common/",
-    "packages/modules/NeuralNetworks/",
     "system/apex/",
     "system/core/",
     "system/libbase/",
@@ -166,7 +164,20 @@ prefixes = (
     "system/memory/",
 )
 lines = [x.strip() for x in src.read_text().splitlines() if x.strip()]
-selected = sorted({x for x in lines if x == "Android.bp" or x.startswith(prefixes[1:])})
+excluded_prefixes = (
+    "hardware/interfaces/automotive/",
+    "hardware/interfaces/neuralnetworks/",
+)
+excluded_parts = (
+    "/tests/",
+    "/test/",
+)
+selected = sorted({
+    x for x in lines
+    if (x == "Android.bp" or x.startswith(prefixes[1:]))
+    and not x.startswith(excluded_prefixes)
+    and not any(part in x for part in excluded_parts)
+})
 required = (
     "external/v4l2_codec2/Android.bp",
 )
