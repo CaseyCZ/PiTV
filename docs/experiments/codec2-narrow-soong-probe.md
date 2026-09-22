@@ -54,3 +54,8 @@ Retry the direct AVC Soong graph with `system/apex/` and `system/tools/aidl/` ad
 ## Probe 10
 
 Retry the direct AVC Soong graph with `packages/modules/common/` added to provide `q-launched-apex-module` after Probe 9. `[probe-codec2]`
+
+
+## Probe 11
+
+Retry the direct AVC Soong graph with `packages/modules/NeuralNetworks/` and `external/skia/` added after Probe 10 exposed `neuralnetworks_utils_defaults` and `skia_deps`. `[probe-codec2]`
