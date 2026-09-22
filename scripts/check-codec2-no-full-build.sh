@@ -463,6 +463,7 @@ grep -q 'external/ffmpeg_codec2/Android.mk' scripts/build-minimal-codec2-modules
 ! grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
 grep -q -- '--available_env' scripts/probe-narrow-soong-graph.py
 grep -q -- '--soong_out' scripts/probe-narrow-soong-graph.py
+grep -q 'external/golang-protobuf/' scripts/build-minimal-codec2-modules.sh
 ! grep -q '"-b"' scripts/probe-narrow-soong-graph.py
 grep -q -- '--globListDir' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
