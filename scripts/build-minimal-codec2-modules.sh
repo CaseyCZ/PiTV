@@ -155,6 +155,7 @@ prefixes = (
     "system/libbase/",
     "system/libfmq/",
     "system/libhidl/",
+    "system/tools/hidl/",
     "system/logging/",
     "system/media/",
     "system/memory/",
