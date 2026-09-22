@@ -169,7 +169,7 @@ print(f"CODEC2_NARROW_BP_TOTAL={len(lines)}")
 print(f"CODEC2_NARROW_BP_SELECTED={len(selected)}")
 print(f"CODEC2_NARROW_BP_LIST={dst}")
 PYNARROW
-  echo "CODEC2_NARROW_LIST_READY=1"
+  # ffmpeg_codec2 is Android.mk-only at the pinned commit; this first probe\n  # deliberately validates the native-Soong V4L2/AVC side before adding a shim.\n  [ -f "$TREE/external/ffmpeg_codec2/Android.mk" ] || { echo "missing FFmpeg Codec2 Android.mk" >&2; exit 12; }\n  echo "CODEC2_NARROW_LIST_READY=1"
   if [ "$PHASE" = "narrow-list" ]; then exit 0; fi
   python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
   exit 0
