@@ -44,3 +44,8 @@ Retry the direct AVC Soong graph with the minimal `external/starlark-go/` depend
 ## Probe 8
 
 Retry the direct AVC Soong graph with `system/tools/hidl/` added to provide HIDL module defaults after Probe 7. `[probe-codec2]`
+
+
+## Probe 9
+
+Retry the direct AVC Soong graph with `system/apex/` and `system/tools/aidl/` added after Probe 8. `[probe-codec2]`
