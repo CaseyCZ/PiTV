@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""Run a disposable Soong graph probe with a reduced Android.bp module list."""
+"""Run a disposable Soong graph probe with a reduced Android.bp module list.
+
+When Soong reports a missing module, expand the list by the exact provider
+Android.bp and retry in the same runner. This keeps the graph narrow without
+paying for a fresh repo sync for every dependency-discovery step.
+"""
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -14,7 +20,8 @@ module_list = Path(sys.argv[2]).resolve()
 builder = tree / "out/host/linux-x86/bin/soong_build"
 available = tree / "out/soong/soong.environment.available"
 product_vars = tree / "out/soong/soong.variables"
-for p in (builder, available, product_vars, module_list):
+full_list = tree / "out/.module_paths/Android.bp.list"
+for p in (builder, available, product_vars, module_list, full_list):
     if not p.exists():
         raise SystemExit(f"missing narrow Soong probe prerequisite: {p}")
 
@@ -23,9 +30,86 @@ used = tree / "out/soong/pitv-codec2.environment.used"
 glob_file = tree / "out/soong/pitv-codec2-build-globs.ninja"
 glob_dir = tree / "out/soong/.pitv-codec2-globs"
 
+forbidden_prefixes = (
+    "cts/",
+    "external/skia/",
+    "hardware/interfaces/automotive/",
+    "hardware/interfaces/neuralnetworks/",
+)
+forbidden_parts = (
+    "/test/",
+    "/tests/",
+)
+
+def allowed(rel: str) -> bool:
+    return (
+        not rel.startswith(forbidden_prefixes)
+        and not any(part in rel for part in forbidden_parts)
+    )
+
+all_bp = [x.strip() for x in full_list.read_text().splitlines() if x.strip()]
+selected = {x.strip() for x in module_list.read_text().splitlines() if x.strip()}
+
+# Index literal module/default/interface names once. AOSP Blueprint module names
+# are normally declared as name: "..."; generated AIDL variants are handled by
+# mapping their generated suffix back to the aidl_interface base name.
+name_re = re.compile(r'\bname\s*:\s*"([^"]+)"')
+providers = {}
+for rel in all_bp:
+    if not allowed(rel):
+        continue
+    p = tree / rel
+    try:
+        text = p.read_text(errors="ignore")
+    except OSError:
+        continue
+    for name in name_re.findall(text):
+        providers.setdefault(name, []).append(rel)
+
+generated_aidl_re = re.compile(
+    r"^(?P<base>.+)-V\d+-(?:ndk|ndk_platform|cpp|java|rust)(?:-source)?$"
+)
+missing_re = re.compile(
+    r'error:\s+([^:\n]+):\d+:\d+:\s+"[^"]+" depends on undefined module "([^"]+)"'
+)
+
+def common_prefix_score(a: str, b: str) -> int:
+    ap = Path(a).parts[:-1]
+    bp = Path(b).parts[:-1]
+    score = 0
+    for x, y in zip(ap, bp):
+        if x != y:
+            break
+        score += 1
+    return score
+
+def provider_candidates(module: str):
+    names = [module]
+    m = generated_aidl_re.match(module)
+    if m:
+        names.append(m.group("base"))
+    out = []
+    seen = set()
+    for name in names:
+        for rel in providers.get(name, []):
+            if rel not in seen:
+                seen.add(rel)
+                out.append(rel)
+    return out
+
+def choose_provider(module: str, consumer: str):
+    candidates = [x for x in provider_candidates(module) if x not in selected]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: (-common_prefix_score(consumer, x), len(Path(x).parts), x))
+    return candidates[0]
+
+def write_selected():
+    module_list.write_text("\n".join(sorted(selected)) + "\n")
+
 # Android 13 soong_build accepts the same direct arguments that soong_ui puts
-# into bootstrap.ninja.  Invoke it directly so the narrow probe never starts
-# Ninja.  The environment is intentionally empty except TOP: soong_build reads
+# into bootstrap.ninja. Invoke it directly so the narrow probe never starts
+# Ninja. The environment is intentionally empty except TOP: soong_build reads
 # tracked build variables from --available_env.
 argv = [
     str(builder),
@@ -40,14 +124,66 @@ argv = [
     "--globListDir", str(glob_dir),
     "Android.bp",
 ]
-
-print("CODEC2_NARROW_SOONG_EXEC=" + shlex.join(argv))
 env = {"TOP": str(tree)}
-result = subprocess.run(argv, cwd=tree, env=env)
-if result.returncode:
-    print(f"CODEC2_NARROW_SOONG_RC={result.returncode}")
-    raise SystemExit(result.returncode)
-if not probe_out.is_file() or probe_out.stat().st_size == 0:
-    raise SystemExit("narrow Soong probe produced no graph")
-print(f"CODEC2_NARROW_SOONG_NINJA={probe_out}")
-print("CODEC2_NARROW_SOONG_READY=1")
+max_attempts = int(os.environ.get("PITV_CODEC2_NARROW_MAX_ATTEMPTS", "24"))
+
+for attempt in range(1, max_attempts + 1):
+    write_selected()
+    print(f"CODEC2_NARROW_SOONG_ATTEMPT={attempt}")
+    print("CODEC2_NARROW_SOONG_EXEC=" + shlex.join(argv))
+    result = subprocess.run(
+        argv,
+        cwd=tree,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    output = result.stdout or ""
+    if output:
+        print(output, end="" if output.endswith("\n") else "\n")
+    if result.returncode == 0:
+        if not probe_out.is_file() or probe_out.stat().st_size == 0:
+            raise SystemExit("narrow Soong probe produced no graph")
+        print(f"CODEC2_NARROW_SOONG_NINJA={probe_out}")
+        print(f"CODEC2_NARROW_AUTO_ADDED={len(selected) - len(set(x.strip() for x in module_list.read_text().splitlines() if x.strip()))}")
+        print("CODEC2_NARROW_SOONG_READY=1")
+        raise SystemExit(0)
+
+    missing = []
+    seen_missing = set()
+    for consumer, module in missing_re.findall(output):
+        key = (consumer, module)
+        if key not in seen_missing:
+            seen_missing.add(key)
+            missing.append(key)
+    if not missing:
+        print(f"CODEC2_NARROW_SOONG_RC={result.returncode}")
+        raise SystemExit(result.returncode)
+
+    additions = []
+    for consumer, module in missing:
+        provider = choose_provider(module, consumer)
+        if provider is None:
+            candidates = provider_candidates(module)
+            blocked = [x for x in all_bp if not allowed(x) and module in (tree / x).read_text(errors="ignore") if (tree / x).is_file()]
+            if blocked:
+                print(f'CODEC2_NARROW_BLOCKED_MODULE={module} providers={",".join(blocked[:8])}')
+            elif candidates:
+                print(f'CODEC2_NARROW_PROVIDER_ALREADY_SELECTED={module} providers={",".join(candidates[:8])}')
+            else:
+                print(f'CODEC2_NARROW_PROVIDER_NOT_FOUND={module}')
+            print(f"CODEC2_NARROW_SOONG_RC={result.returncode}")
+            raise SystemExit(result.returncode)
+        if provider not in additions:
+            additions.append(provider)
+            print(f'CODEC2_NARROW_ADD_PROVIDER module={module} consumer={consumer} provider={provider}')
+
+    if not additions:
+        print(f"CODEC2_NARROW_SOONG_RC={result.returncode}")
+        raise SystemExit(result.returncode)
+    selected.update(additions)
+    print(f"CODEC2_NARROW_BP_SELECTED_NOW={len(selected)}")
+
+print(f"CODEC2_NARROW_MAX_ATTEMPTS_REACHED={max_attempts}")
+raise SystemExit(1)
