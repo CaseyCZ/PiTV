@@ -19,3 +19,8 @@ Direct `soong_build` narrow AVC probe. Ninja command expansion is intentionally 
 ## Probe 3
 
 Retry direct Android 13 `soong_build` with corrected `--out` / `--soong_out` flags and no Ninja command expansion. `[probe-codec2]`
+
+
+## Probe 4
+
+Retry the direct AVC Soong graph with the minimal `external/golang-protobuf/` dependency closure added after Probe 3. `[probe-codec2]`
