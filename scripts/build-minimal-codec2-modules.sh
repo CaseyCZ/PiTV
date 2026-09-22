@@ -159,7 +159,6 @@ lines = [x.strip() for x in src.read_text().splitlines() if x.strip()]
 selected = sorted({x for x in lines if x == "Android.bp" or x.startswith(prefixes[1:])})
 required = (
     "external/v4l2_codec2/Android.bp",
-    "external/ffmpeg_codec2/Android.bp",
 )
 missing = [x for x in required if x not in selected]
 if missing:
@@ -169,7 +168,11 @@ print(f"CODEC2_NARROW_BP_TOTAL={len(lines)}")
 print(f"CODEC2_NARROW_BP_SELECTED={len(selected)}")
 print(f"CODEC2_NARROW_BP_LIST={dst}")
 PYNARROW
-  # ffmpeg_codec2 is Android.mk-only at the pinned commit; this first probe\n  # deliberately validates the native-Soong V4L2/AVC side before adding a shim.\n  [ -f "$TREE/external/ffmpeg_codec2/Android.mk" ] || { echo "missing FFmpeg Codec2 Android.mk" >&2; exit 12; }\n  echo "CODEC2_NARROW_LIST_READY=1"
+  # The pinned FFmpeg and ffmpeg_codec2 trees are Android.mk-only. This probe
+  # intentionally validates only the native-Soong V4L2/AVC graph.
+  [ -f "$TREE/external/ffmpeg_codec2/Android.mk" ] || { echo "missing FFmpeg Codec2 Android.mk" >&2; exit 12; }
+  [ -f "$TREE/external/ffmpeg/Android.mk" ] || { echo "missing FFmpeg Android.mk" >&2; exit 12; }
+  echo "CODEC2_NARROW_LIST_READY=1"
   if [ "$PHASE" = "narrow-list" ]; then exit 0; fi
   python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
   exit 0
