@@ -145,6 +145,7 @@ prefixes = (
     "external/v4l2_codec2/",
     "frameworks/av/",
     "frameworks/native/",
+    "kernel/configs/",
     "hardware/interfaces/",
     "hardware/libhardware/",
     "hardware/libhardware_legacy/",
