@@ -9,7 +9,7 @@ OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
 SOURCE_EPOCH="${PITV_CODEC2_SOURCE_EPOCH:-946684800}"
-case "$PHASE" in all|graph|modules|diagnose|narrow-list|narrow-probe) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
+case "$PHASE" in all|graph|modules|diagnose|narrow-list|narrow-probe|narrow-build) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -122,7 +122,7 @@ targets=(
   android.hardware.media.c2@1.2-ffmpeg.policy
   media_codecs_ffmpeg_c2.xml
 )
-if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ]; then
+if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" = "narrow-build" ]; then
   # AOSP soong_ui normally feeds soong_build every Android.bp in the tree via
   # out/.module_paths/Android.bp.list.  Build a conservative Codec2-focused
   # candidate list for the next direct-soong probe without mutating that file.
@@ -177,6 +177,20 @@ PYNARROW
   echo "CODEC2_NARROW_LIST_READY=1"
   if [ "$PHASE" = "narrow-list" ]; then exit 0; fi
   python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
+  if [ "$PHASE" = "narrow-probe" ]; then exit 0; fi
+
+  NARROW_NINJA="$TREE/out/soong/pitv-codec2.ninja"
+  NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+  [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+  [ -s "$NARROW_NINJA" ] || { echo "missing narrow Soong ninja graph" >&2; exit 13; }
+  target_line="$("$NINJA" -f "$NARROW_NINJA" -t targets all | grep -m1 -E '(^|/)vendor/bin/hw/android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
+  [ -n "$target_line" ] || { echo "narrow graph missing V4L2 AVC 64-bit install target" >&2; exit 13; }
+  avc_target="${target_line%%: *}"
+  echo "CODEC2_NARROW_AVC_TARGET=$avc_target"
+  "$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target"
+  [ -f "$TREE/$avc_target" ] || { echo "narrow AVC target was not produced: $avc_target" >&2; exit 13; }
+  echo "CODEC2_NARROW_AVC_BINARY=$TREE/$avc_target"
+  echo "CODEC2_NARROW_BUILD_READY=1"
   exit 0
 fi
 if [ "$PHASE" = "graph" ]; then

@@ -132,11 +132,12 @@ jobs:
           tar --zstd -xf codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst -C "$TREE"
           cmp "$TREE/out/soong/pitv-source-manifest.xml" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
-      - name: Probe narrow V4L2 AVC Soong graph only
+      - name: Build narrow V4L2 AVC service
         run: |
           python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
-          PITV_CODEC2_PHASE=narrow-probe bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          PITV_CODEC2_PHASE=narrow-build bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
           test -s "$TREE/out/soong/pitv-codec2.ninja"
+          find "$TREE/out/target/product" -type f -path '*/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64' -print -quit | grep -q .
           echo "CODEC2_NARROW_WORKFLOW_READY=1"
 
   codec2-bootstrap:

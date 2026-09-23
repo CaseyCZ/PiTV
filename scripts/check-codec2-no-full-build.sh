@@ -453,7 +453,7 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 
 
 # Narrow Soong experiment: generate a Codec2-focused Android.bp list first.
-grep -q 'all|graph|modules|diagnose|narrow-list|narrow-probe' scripts/build-minimal-codec2-modules.sh
+grep -q 'all|graph|modules|diagnose|narrow-list|narrow-probe|narrow-build' scripts/build-minimal-codec2-modules.sh
 grep -q 'pitv-codec2.Android.bp.list' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_BP_SELECTED=' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_LIST_READY=1' scripts/build-minimal-codec2-modules.sh
@@ -481,3 +481,7 @@ grep -q -- '--globListDir' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.environment.used' scripts/probe-narrow-soong-graph.py
 grep -q 'CODEC2_NARROW_SOONG_READY=1' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_BUILD_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q -- '-t targets all' scripts/build-minimal-codec2-modules.sh
+grep -q 'PITV_CODEC2_PHASE=narrow-build' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'android.hardware.media.c2@1.0-service-v4l2-64' .github/workflows/codec2-no-full-build-check.yml
