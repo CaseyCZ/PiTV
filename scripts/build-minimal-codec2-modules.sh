@@ -159,21 +159,14 @@ for rel in sys.argv[2:]:
     p = tree / rel
     s = p.read_text()
     if rel == "frameworks/av/Android.bp":
-        marker = 'name: "av-types-aidl"'
-        if marker not in s:
-            raise SystemExit("unexpected frameworks/av root AIDL definition")
-        needle = '''    backend: {
-        cpp: {
-'''
-        replacement = '''    backend: {
-        java: {
-            enabled: false,
-        },
-        cpp: {
-'''
-        if needle not in s:
-            raise SystemExit("unexpected av-types-aidl backend block")
-        s = s.replace(needle, replacement, 1)
+        # The narrow Codec2 graph needs only frameworks_av_license from this
+        # root file. av-types-aidl / av-headers are unrelated to the V4L2
+        # service and pull the global AIDL metadata graph via aidl_metadata_json.
+        marker = "\naidl_interface {"
+        cut = s.find(marker)
+        if cut < 0 or 'name: "frameworks_av_license"' not in s[:cut]:
+            raise SystemExit("unexpected frameworks/av root structure")
+        s = s[:cut].rstrip() + "\n"
     else:
         if "gen_java: true," not in s:
             raise SystemExit(f"expected gen_java true in {rel}")
