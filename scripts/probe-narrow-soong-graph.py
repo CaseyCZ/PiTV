@@ -81,6 +81,9 @@ package_root_re = re.compile(
     r"error:\s+([^:\n]+):\d+:\d+:.*?Cannot find package root specification "
     r"for package root '([^']+)'"
 )
+aidl_import_re = re.compile(
+    r"error:\s+([^:\n]+):\d+:\d+:.*?imports: Import does not exist: ([^\s]+)"
+)
 
 def common_prefix_score(a: str, b: str) -> int:
     ap = Path(a).parts[:-1]
@@ -174,6 +177,15 @@ for attempt in range(1, max_attempts + 1):
             missing.append(key)
             print(
                 f"CODEC2_NARROW_MISSING_PACKAGE_ROOT={package_root} "
+                f"consumer={consumer}"
+            )
+    for consumer, aidl_import in aidl_import_re.findall(clean_output):
+        key = (consumer, aidl_import)
+        if key not in seen_missing:
+            seen_missing.add(key)
+            missing.append(key)
+            print(
+                f"CODEC2_NARROW_MISSING_AIDL_IMPORT={aidl_import} "
                 f"consumer={consumer}"
             )
     if not missing:
