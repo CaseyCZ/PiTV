@@ -463,14 +463,16 @@ grep -q 'external/ffmpeg_codec2/Android.mk' scripts/build-minimal-codec2-modules
 ! grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
 grep -q -- '--available_env' scripts/probe-narrow-soong-graph.py
 grep -q -- '--soong_out' scripts/probe-narrow-soong-graph.py
-grep -q 'external/golang-protobuf/' scripts/build-minimal-codec2-modules.sh
-grep -q 'kernel/configs/' scripts/build-minimal-codec2-modules.sh
-grep -q 'external/go-cmp/' scripts/build-minimal-codec2-modules.sh
-grep -q 'external/starlark-go/' scripts/build-minimal-codec2-modules.sh
-grep -q 'system/tools/hidl/' scripts/build-minimal-codec2-modules.sh
-grep -q 'system/apex/' scripts/build-minimal-codec2-modules.sh
-grep -q 'system/tools/aidl/' scripts/build-minimal-codec2-modules.sh
-grep -q 'packages/modules/common/' scripts/build-minimal-codec2-modules.sh
+grep -q 'external/v4l2_codec2/' scripts/build-minimal-codec2-modules.sh
+grep -q 'frameworks/av/media/codec2/' scripts/build-minimal-codec2-modules.sh
+grep -q 'hardware/interfaces/graphics/bufferqueue/' scripts/build-minimal-codec2-modules.sh
+grep -q 'hardware/interfaces/graphics/common/' scripts/build-minimal-codec2-modules.sh
+grep -q 'hardware/interfaces/media/c2/' scripts/build-minimal-codec2-modules.sh
+grep -q 'system/hardware/interfaces/Android.bp' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "build/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "bionic/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "frameworks/native/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "hardware/interfaces/"' scripts/build-minimal-codec2-modules.sh
 grep -q '"hardware/interfaces/automotive/"' scripts/build-minimal-codec2-modules.sh
 grep -q '"hardware/interfaces/neuralnetworks/"' scripts/build-minimal-codec2-modules.sh
 grep -q '"/tests/"' scripts/build-minimal-codec2-modules.sh

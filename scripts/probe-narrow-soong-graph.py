@@ -134,7 +134,7 @@ argv = [
     "Android.bp",
 ]
 env = {"TOP": str(tree)}
-max_attempts = int(os.environ.get("PITV_CODEC2_NARROW_MAX_ATTEMPTS", "24"))
+max_attempts = int(os.environ.get("PITV_CODEC2_NARROW_MAX_ATTEMPTS", "64"))
 
 for attempt in range(1, max_attempts + 1):
     write_selected()
