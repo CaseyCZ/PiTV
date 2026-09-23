@@ -153,6 +153,7 @@ prefixes = (
     "hardware/libhardware_legacy/",
     "packages/modules/common/",
     "system/apex/",
+    "system/hardware/interfaces/Android.bp",
     "system/hardware/interfaces/suspend/",
     "system/core/",
     "system/libbase/",
