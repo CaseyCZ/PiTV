@@ -139,6 +139,7 @@ if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" =
   # enables Java implicitly. Those variants are unrelated to the V4L2 service
   # but otherwise pull the full framework stub graph into this narrow build.
   NATIVE_ONLY_BP=(
+    build/soong/cmd/soong_build/Android.bp
     frameworks/av/Android.bp
     hardware/interfaces/Android.bp
     system/tools/hidl/Android.bp
@@ -162,7 +163,26 @@ tree = Path(sys.argv[1])
 for rel in sys.argv[2:]:
     p = tree / rel
     s = p.read_text()
-    if rel == "frameworks/av/Android.bp":
+    if rel == "build/soong/cmd/soong_build/Android.bp":
+        # Direct soong_build still runs Blueprint's bootstrap singleton, which
+        # requires exactly one primary builder module. The real soong_build
+        # module pulls the complete Go bootstrap dependency tree into this
+        # disposable AVC graph. Keep only a marker module: in direct
+        # non-bootstrap generation Blueprint emits this as a phony target, so
+        # no Go sources or deps are needed and the restored host soong_build
+        # binary remains the process actually generating the graph.
+        if 'name: "soong_build"' not in s or "primaryBuilder: true" not in s:
+            raise SystemExit("unexpected soong_build Android.bp structure")
+        s = '''package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+blueprint_go_binary {
+    name: "soong_build",
+    primaryBuilder: true,
+}
+'''
+    elif rel == "frameworks/av/Android.bp":
         # The narrow Codec2 graph needs only frameworks_av_license from this
         # root file. av-types-aidl / av-headers are unrelated to the V4L2
         # service and pull the global AIDL metadata graph via aidl_metadata_json.
@@ -255,6 +275,7 @@ cc_defaults {
         s = s.replace("gen_java_constants: true,", "gen_java_constants: false,")
     p.write_text(s)
 print("CODEC2_NARROW_NATIVE_ONLY_BP=1")
+print("CODEC2_NARROW_PRIMARY_BUILDER_STUB=1")
 PYNATIVE
 
   # AOSP soong_ui normally feeds soong_build every Android.bp in the tree via
