@@ -55,6 +55,17 @@ install_src(){
   find "$target" -type f \( -name 'Android.bp' -o -name 'Android.mk' -o -name '*.mk' \) \
     -exec touch -d "@$SOURCE_EPOCH" {} +
 }
+
+prepare_temp_file_edit(){
+  dst="$1"
+  target="$(readlink -m "$TREE/$dst")"
+  case "$target/" in "$TREE/"*) ;; *) echo "unsafe temporary edit target: $target" >&2; exit 2;; esac
+  [ -f "$target" ] || { echo "missing temporary edit target: $dst" >&2; exit 2; }
+  key="${dst//\//__}"
+  [ ! -e "$SRC_BACKUP/$key" ] || { echo "duplicate temporary edit target: $dst" >&2; exit 2; }
+  cp -a "$target" "$SRC_BACKUP/$key"
+  MODIFIED+=("$dst")
+}
 install_src v4l2_codec2 external/v4l2_codec2
 install_src ffmpeg external/ffmpeg
 install_src ffmpeg_codec2 external/ffmpeg_codec2
@@ -123,6 +134,55 @@ targets=(
   media_codecs_ffmpeg_c2.xml
 )
 if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" = "narrow-build" ]; then
+  # Keep the disposable AVC graph native-only. Several HIDL interfaces generate
+  # Java variants by default, and frameworks/av's root AIDL interface also
+  # enables Java implicitly. Those variants are unrelated to the V4L2 service
+  # but otherwise pull the full framework stub graph into this narrow build.
+  NATIVE_ONLY_BP=(
+    frameworks/av/Android.bp
+    hardware/interfaces/graphics/common/1.0/Android.bp
+    hardware/interfaces/graphics/common/1.1/Android.bp
+    hardware/interfaces/graphics/common/1.2/Android.bp
+    hardware/interfaces/graphics/bufferqueue/1.0/Android.bp
+    hardware/interfaces/graphics/bufferqueue/2.0/Android.bp
+    hardware/interfaces/media/1.0/Android.bp
+    system/libhidl/transport/base/1.0/Android.bp
+    system/libhidl/transport/safe_union/1.0/Android.bp
+  )
+  for rel in "${NATIVE_ONLY_BP[@]}"; do prepare_temp_file_edit "$rel"; done
+  python3 - "$TREE" "${NATIVE_ONLY_BP[@]}" <<'PYNATIVE'
+import sys
+from pathlib import Path
+
+tree = Path(sys.argv[1])
+for rel in sys.argv[2:]:
+    p = tree / rel
+    s = p.read_text()
+    if rel == "frameworks/av/Android.bp":
+        marker = 'name: "av-types-aidl"'
+        if marker not in s:
+            raise SystemExit("unexpected frameworks/av root AIDL definition")
+        needle = '''    backend: {
+        cpp: {
+'''
+        replacement = '''    backend: {
+        java: {
+            enabled: false,
+        },
+        cpp: {
+'''
+        if needle not in s:
+            raise SystemExit("unexpected av-types-aidl backend block")
+        s = s.replace(needle, replacement, 1)
+    else:
+        if "gen_java: true," not in s:
+            raise SystemExit(f"expected gen_java true in {rel}")
+        s = s.replace("gen_java: true,", "gen_java: false,")
+        s = s.replace("gen_java_constants: true,", "gen_java_constants: false,")
+    p.write_text(s)
+print("CODEC2_NARROW_NATIVE_ONLY_BP=1")
+PYNATIVE
+
   # AOSP soong_ui normally feeds soong_build every Android.bp in the tree via
   # out/.module_paths/Android.bp.list.  Build a conservative Codec2-focused
   # candidate list for the next direct-soong probe without mutating that file.
