@@ -481,6 +481,11 @@ grep -q -- '--globListDir' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
 grep -q 'pitv-codec2.environment.used' scripts/probe-narrow-soong-graph.py
 grep -q 'CODEC2_NARROW_SOONG_READY=1' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1' scripts/probe-narrow-soong-graph.py
+grep -q 'Allow_missing_dependencies' scripts/probe-narrow-soong-graph.py
+grep -q 'PITV_CODEC2_NARROW_REQUIRED_MODULES' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_NINJA_MISSING=' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_BUILD_ATTEMPT=' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_BUILD_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -q -- '-t targets all' scripts/build-minimal-codec2-modules.sh
 grep -q 'PITV_CODEC2_PHASE=narrow-build' .github/workflows/codec2-no-full-build-check.yml

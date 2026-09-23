@@ -5,6 +5,8 @@ When Soong reports a missing module, expand the list by the exact provider
 Android.bp and retry in the same runner. This keeps the graph narrow without
 paying for a fresh repo sync for every dependency-discovery step.
 """
+import atexit
+import json
 import os
 import re
 import shlex
@@ -24,6 +26,27 @@ full_list = tree / "out/.module_paths/Android.bp.list"
 for p in (builder, available, product_vars, module_list, full_list):
     if not p.exists():
         raise SystemExit(f"missing narrow Soong probe prerequisite: {p}")
+
+# The reduced list intentionally contains Android.bp files that also define
+# unrelated tests/tools. Let Soong keep unresolved deps on those unused modules
+# instead of recursively expanding the global graph. A concrete Ninja build of
+# the V4L2 install target below will still fail on any dependency that is
+# actually in the target's transitive closure.
+_product_vars_original = product_vars.read_bytes()
+_product_vars_stat = product_vars.stat()
+_product_vars_json = json.loads(_product_vars_original.decode("utf-8"))
+_product_vars_json["Allow_missing_dependencies"] = True
+product_vars.write_text(json.dumps(_product_vars_json, indent=2, sort_keys=True) + "\n")
+
+def _restore_product_vars():
+    product_vars.write_bytes(_product_vars_original)
+    os.utime(
+        product_vars,
+        ns=(_product_vars_stat.st_atime_ns, _product_vars_stat.st_mtime_ns),
+    )
+
+atexit.register(_restore_product_vars)
+print("CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1")
 
 probe_out = tree / "out/soong/pitv-codec2.ninja"
 used = tree / "out/soong/pitv-codec2.environment.used"
@@ -133,6 +156,28 @@ def choose_provider(module: str, consumer: str):
         return None
     candidates.sort(key=lambda x: (-common_prefix_score(consumer, x), len(Path(x).parts), x))
     return candidates[0]
+
+# A previous concrete Ninja attempt can feed back only the missing modules that
+# were proven to be on the AVC target path. Add their exact providers before
+# regenerating the graph, while keeping unrelated missing deps tolerated.
+required_raw = os.environ.get("PITV_CODEC2_NARROW_REQUIRED_MODULES", "")
+required_modules = [
+    x.strip() for x in re.split(r"[\n,]+", required_raw) if x.strip()
+]
+for module in required_modules:
+    candidates = provider_candidates(module)
+    if any(rel in selected for rel in candidates):
+        print(f"CODEC2_NARROW_REQUIRED_ALREADY_SELECTED={module}")
+        continue
+    provider = choose_provider(module, "")
+    if provider is None:
+        if candidates:
+            print(f'CODEC2_NARROW_REQUIRED_BLOCKED={module} providers={",".join(candidates[:8])}')
+        else:
+            print(f"CODEC2_NARROW_REQUIRED_PROVIDER_NOT_FOUND={module}")
+        raise SystemExit(1)
+    selected.add(provider)
+    print(f"CODEC2_NARROW_REQUIRE_PROVIDER module={module} provider={provider}")
 
 def write_selected():
     module_list.write_text("\n".join(sorted(selected)) + "\n")

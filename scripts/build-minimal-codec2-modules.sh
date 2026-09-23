@@ -320,22 +320,68 @@ PYNARROW
   [ -f "$TREE/external/ffmpeg/Android.mk" ] || { echo "missing FFmpeg Android.mk" >&2; exit 12; }
   echo "CODEC2_NARROW_LIST_READY=1"
   if [ "$PHASE" = "narrow-list" ]; then exit 0; fi
-  python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
-  if [ "$PHASE" = "narrow-probe" ]; then exit 0; fi
+  if [ "$PHASE" = "narrow-probe" ]; then
+    python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
+    exit 0
+  fi
 
   NARROW_NINJA="$TREE/out/soong/pitv-codec2.ninja"
   NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
   [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
-  [ -s "$NARROW_NINJA" ] || { echo "missing narrow Soong ninja graph" >&2; exit 13; }
-  target_line="$("$NINJA" -f "$NARROW_NINJA" -t targets all | grep -m1 -E '(^|/)vendor/bin/hw/android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
-  [ -n "$target_line" ] || { echo "narrow graph missing V4L2 AVC 64-bit install target" >&2; exit 13; }
-  avc_target="${target_line%%: *}"
-  echo "CODEC2_NARROW_AVC_TARGET=$avc_target"
-  "$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target"
-  [ -f "$TREE/$avc_target" ] || { echo "narrow AVC target was not produced: $avc_target" >&2; exit 13; }
-  echo "CODEC2_NARROW_AVC_BINARY=$TREE/$avc_target"
-  echo "CODEC2_NARROW_BUILD_READY=1"
-  exit 0
+  REQUIRED_MODULES=""
+  PREVIOUS_REQUIRED_MODULES=""
+  for build_attempt in $(seq 1 "${PITV_CODEC2_NARROW_BUILD_ATTEMPTS:-16}"); do
+    echo "CODEC2_NARROW_BUILD_ATTEMPT=$build_attempt"
+    if [ -n "$REQUIRED_MODULES" ]; then
+      export PITV_CODEC2_NARROW_REQUIRED_MODULES="$REQUIRED_MODULES"
+    else
+      unset PITV_CODEC2_NARROW_REQUIRED_MODULES || true
+    fi
+
+    python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
+    [ -s "$NARROW_NINJA" ] || { echo "missing narrow Soong ninja graph" >&2; exit 13; }
+
+    target_line="$("$NINJA" -f "$NARROW_NINJA" -t targets all | grep -m1 -E '(^|/)vendor/bin/hw/android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
+    [ -n "$target_line" ] || { echo "narrow graph missing V4L2 AVC 64-bit install target" >&2; exit 13; }
+    avc_target="${target_line%%: *}"
+    echo "CODEC2_NARROW_AVC_TARGET=$avc_target"
+
+    set +e
+    build_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)"
+    build_rc=$?
+    set -e
+    [ -z "$build_output" ] || printf '%s\n' "$build_output"
+    if [ "$build_rc" -eq 0 ]; then
+      [ -f "$TREE/$avc_target" ] || { echo "narrow AVC target was not produced: $avc_target" >&2; exit 13; }
+      echo "CODEC2_NARROW_AVC_BINARY=$TREE/$avc_target"
+      echo "CODEC2_NARROW_BUILD_READY=1"
+      exit 0
+    fi
+
+    REQUIRED_MODULES="$(printf '%s\n' "$build_output" | python3 -c '
+import re, sys
+text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
+mods = set()
+for match in re.finditer(r"missing dependencies:\s*([^\n]+)", text, re.I):
+    for raw in match.group(1).split(","):
+        name = raw.strip().strip("\"\047").rstrip(".;")
+        if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
+            mods.add(name)
+print(",".join(sorted(mods)))
+')"
+    if [ -z "$REQUIRED_MODULES" ]; then
+      echo "CODEC2_NARROW_NINJA_RC=$build_rc"
+      exit "$build_rc"
+    fi
+    echo "CODEC2_NARROW_NINJA_MISSING=$REQUIRED_MODULES"
+    if [ "$REQUIRED_MODULES" = "$PREVIOUS_REQUIRED_MODULES" ]; then
+      echo "narrow AVC dependency closure made no progress" >&2
+      exit "$build_rc"
+    fi
+    PREVIOUS_REQUIRED_MODULES="$REQUIRED_MODULES"
+  done
+  echo "CODEC2_NARROW_BUILD_ATTEMPTS_EXHAUSTED=1" >&2
+  exit 13
 fi
 if [ "$PHASE" = "graph" ]; then
   # Generate and validate the complete Soong/Kati graph without compiling target
