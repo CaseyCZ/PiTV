@@ -118,20 +118,36 @@ jobs:
           curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
           repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8
           repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
-      - name: Download known-good bootstrap checkpoint from run 411
-        uses: actions/download-artifact@v4
-        with:
-          name: pitv-codec2-bootstrap-ceb7b7bfc756107cd2fb12423665112e58f16866
-          path: codec2-bootstrap-checkpoint
-          github-token: ${{ github.token }}
-          repository: CaseyCZ/PiTV
-          run-id: 35591736044
-      - name: Restore and verify bootstrap checkpoint
+      - name: Warm local Soong bootstrap for narrow probe
         run: |
-          test -f codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst
-          tar --zstd -xf codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst -C "$TREE"
-          cmp "$TREE/out/soong/pitv-source-manifest.xml" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+          python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+          set +e
+          timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_PHASE=graph bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
+            exit "$rc"
+          fi
+          for _ in $(seq 1 20); do
+            if ! pgrep -x soong_ui >/dev/null 2>&1 && \
+               ! pgrep -x ninja >/dev/null 2>&1 && \
+               ! pgrep -x soong_build >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if pgrep -x soong_ui >/dev/null 2>&1 || \
+             pgrep -x ninja >/dev/null 2>&1 || \
+             pgrep -x soong_build >/dev/null 2>&1; then
+            pkill -KILL -x soong_ui 2>/dev/null || true
+            pkill -KILL -x ninja 2>/dev/null || true
+            pkill -KILL -x soong_build 2>/dev/null || true
+            sleep 1
+          fi
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          mkdir -p "$TREE/out/soong"
+          cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
+          echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
       - name: Build narrow V4L2 AVC service
         run: |
           python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
