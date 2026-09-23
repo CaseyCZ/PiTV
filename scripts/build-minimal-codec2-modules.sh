@@ -180,11 +180,27 @@ for rel in sys.argv[2:]:
             raise SystemExit("unexpected hardware/interfaces root structure")
         s = s[:cut].rstrip() + "\n"
     elif rel == "system/tools/hidl/Android.bp":
-        # Generated HIDL C++ modules only need hidl-module-defaults here.
-        # Host hidl-gen libraries would otherwise pull BoringSSL/libc++/base.
-        if 'name: "hidl-module-defaults"' not in s:
+        # Generated HIDL C++ modules need the package/license plus
+        # hidl-module-defaults. Keep host hidl-gen libraries out of the narrow
+        # graph while preserving system_tools_hidl_license for hidl_metadata_json.
+        if 'name: "hidl-module-defaults"' not in s or 'name: "system_tools_hidl_license"' not in s:
             raise SystemExit("unexpected system/tools/hidl root structure")
-        s = '''cc_defaults {
+        s = '''package {
+    default_applicable_licenses: ["system_tools_hidl_license"],
+}
+
+license {
+    name: "system_tools_hidl_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-Apache-2.0",
+    ],
+    license_text: [
+        "NOTICE",
+    ],
+}
+
+cc_defaults {
     name: "hidl-module-defaults",
     cflags: [
         "-Wall",
