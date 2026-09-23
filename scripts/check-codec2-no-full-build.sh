@@ -323,6 +323,7 @@ test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.x
 grep -Fq 'cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml
 test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
 grep -q 'CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE=0 PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'all|graph|modules|diagnose' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_BOOTSTRAP_DIAGNOSE_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -Fq '"$NINJA" -d explain -n' scripts/build-minimal-codec2-modules.sh
