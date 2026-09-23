@@ -148,6 +148,7 @@ if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" =
     hardware/interfaces/media/1.0/Android.bp
     system/libhidl/transport/base/1.0/Android.bp
     system/libhidl/transport/safe_union/1.0/Android.bp
+    system/tools/hidl/build/Android.bp
   )
   for rel in "${NATIVE_ONLY_BP[@]}"; do prepare_temp_file_edit "$rel"; done
   python3 - "$TREE" "${NATIVE_ONLY_BP[@]}" <<'PYNATIVE'
@@ -167,6 +168,28 @@ for rel in sys.argv[2:]:
         if cut < 0 or 'name: "frameworks_av_license"' not in s[:cut]:
             raise SystemExit("unexpected frameworks/av root structure")
         s = s[:cut].rstrip() + "\n"
+    elif rel == "system/tools/hidl/build/Android.bp":
+        # soong_build already contains the HIDL plugin from the restored
+        # bootstrap checkpoint. Keep only the metadata singleton definition;
+        # the bootstrap_go_package here would otherwise pull Blueprint/Soong.
+        bootstrap = s.find("\nbootstrap_go_package {")
+        metadata = s.find("\nhidl_interfaces_metadata {")
+        if bootstrap < 0 or metadata < 0 or metadata <= bootstrap:
+            raise SystemExit("unexpected HIDL build Android.bp structure")
+        brace = s.find("{", metadata)
+        depth = 0
+        end = -1
+        for i in range(brace, len(s)):
+            if s[i] == "{":
+                depth += 1
+            elif s[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end < 0:
+            raise SystemExit("unterminated hidl_interfaces_metadata block")
+        s = s[:bootstrap].rstrip() + "\n\n" + s[metadata + 1:end].strip() + "\n"
     else:
         if "gen_java: true," not in s:
             raise SystemExit(f"expected gen_java true in {rel}")

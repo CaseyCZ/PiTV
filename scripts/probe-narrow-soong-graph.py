@@ -75,9 +75,15 @@ for rel in all_bp:
 generated_aidl_re = re.compile(
     r"^(?P<base>.+)-V\d+-(?:ndk|ndk_platform|cpp|java|rust)(?:-source)?$"
 )
+generated_hidl_re = re.compile(
+    r"^(?P<base>.+@\d+\.\d+)(?:_interface|_genc\+\+(?:_headers)?|-inheritance-hierarchy|-hidl-lint)$"
+)
 ansi_re = re.compile(r"\x1b\[[0-9;]*m")
 missing_re = re.compile(
     r'error:\s+([^:\n]+):\d+:\d+:\s+"[^"]+" depends on undefined module "([^"]+)"'
+)
+reverse_missing_re = re.compile(
+    r'error:\s+([^:\n]+):\d+:\d+:\s+"[^"]+" has a reverse dependency on undefined module "([^"]+)"'
 )
 package_root_re = re.compile(
     r"error:\s+([^:\n]+):\d+:\d+:.*?Cannot find package root specification "
@@ -102,6 +108,9 @@ def provider_candidates(module: str):
     m = generated_aidl_re.match(module)
     if m:
         names.append(m.group("base"))
+    h = generated_hidl_re.match(module)
+    if h:
+        names.append(h.group("base"))
     out = []
     seen = set()
     for name in names:
@@ -172,6 +181,15 @@ for attempt in range(1, max_attempts + 1):
         if key not in seen_missing:
             seen_missing.add(key)
             missing.append(key)
+    for consumer, module in reverse_missing_re.findall(clean_output):
+        key = (consumer, module)
+        if key not in seen_missing:
+            seen_missing.add(key)
+            missing.append(key)
+            print(
+                f"CODEC2_NARROW_MISSING_REVERSE_DEP={module} "
+                f"consumer={consumer}"
+            )
     for consumer, package_root in package_root_re.findall(clean_output):
         key = (consumer, package_root)
         if key not in seen_missing:
