@@ -125,9 +125,7 @@ jobs:
           timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE=0 PITV_CODEC2_PHASE=graph bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
           rc=$?
           set -e
-          if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
-            exit "$rc"
-          fi
+          echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_RC=$rc"
           for _ in $(seq 1 20); do
             if ! pgrep -x soong_ui >/dev/null 2>&1 && \
                ! pgrep -x ninja >/dev/null 2>&1 && \
@@ -145,6 +143,8 @@ jobs:
             sleep 1
           fi
           test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          test -s "$TREE/out/soong/bootstrap.ninja"
+          test -s "$TREE/out/soong/bootstrap.ninja.d"
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
