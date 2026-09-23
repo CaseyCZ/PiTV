@@ -142,6 +142,7 @@ if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" =
     frameworks/av/Android.bp
     hardware/interfaces/Android.bp
     system/tools/hidl/Android.bp
+    system/libhidl/Android.bp
     hardware/interfaces/graphics/common/1.0/Android.bp
     hardware/interfaces/graphics/common/1.1/Android.bp
     hardware/interfaces/graphics/common/1.2/Android.bp
@@ -200,6 +201,15 @@ for rel in sys.argv[2:]:
     },
 }
 '''
+    elif rel == "system/libhidl/Android.bp":
+        # Source HIDL interfaces need only the package license from this root.
+        # libhidlbase and its tests are real platform modules, but not required
+        # merely to generate the C++ interface modules used by this narrow graph.
+        marker = "\ncc_defaults {"
+        cut = s.find(marker)
+        if cut < 0 or 'name: "system_libhidl_license"' not in s[:cut]:
+            raise SystemExit("unexpected system/libhidl root structure")
+        s = s[:cut].rstrip() + "\n"
     elif rel == "system/tools/hidl/build/Android.bp":
         # soong_build already contains the HIDL plugin from the restored
         # bootstrap checkpoint. Keep only the metadata singleton definition;
