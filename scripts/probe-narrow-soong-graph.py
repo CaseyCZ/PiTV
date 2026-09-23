@@ -35,6 +35,8 @@ forbidden_prefixes = (
     "external/skia/",
     "hardware/interfaces/automotive/",
     "hardware/interfaces/neuralnetworks/",
+    "hardware/interfaces/graphics/common/aidl/",
+    "hardware/interfaces/common/aidl/",
     "packages/modules/NeuralNetworks/",
     "frameworks/native/services/surfaceflinger/Tracing/",
 )
