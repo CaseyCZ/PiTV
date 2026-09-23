@@ -140,6 +140,8 @@ if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" =
   # but otherwise pull the full framework stub graph into this narrow build.
   NATIVE_ONLY_BP=(
     frameworks/av/Android.bp
+    hardware/interfaces/Android.bp
+    system/tools/hidl/Android.bp
     hardware/interfaces/graphics/common/1.0/Android.bp
     hardware/interfaces/graphics/common/1.1/Android.bp
     hardware/interfaces/graphics/common/1.2/Android.bp
@@ -168,6 +170,36 @@ for rel in sys.argv[2:]:
         if cut < 0 or 'name: "frameworks_av_license"' not in s[:cut]:
             raise SystemExit("unexpected frameworks/av root structure")
         s = s[:cut].rstrip() + "\n"
+    elif rel == "hardware/interfaces/Android.bp":
+        # Keep only the package license, android.hardware package root and
+        # hidl_defaults. VTS defaults are unrelated to the V4L2 service.
+        marker = "\n// VTS tests"
+        cut = s.find(marker)
+        if cut < 0 or 'name: "android.hardware"' not in s[:cut] or 'name: "hidl_defaults"' not in s[:cut]:
+            raise SystemExit("unexpected hardware/interfaces root structure")
+        s = s[:cut].rstrip() + "\n"
+    elif rel == "system/tools/hidl/Android.bp":
+        # Generated HIDL C++ modules only need hidl-module-defaults here.
+        # Host hidl-gen libraries would otherwise pull BoringSSL/libc++/base.
+        if 'name: "hidl-module-defaults"' not in s:
+            raise SystemExit("unexpected system/tools/hidl root structure")
+        s = '''cc_defaults {
+    name: "hidl-module-defaults",
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wextra-semi",
+    ],
+    tidy_checks: [
+        "-performance-unnecessary-value-param",
+    ],
+    product_variables: {
+        debuggable: {
+            cflags: ["-D__ANDROID_DEBUGGABLE__"],
+        },
+    },
+}
+'''
     elif rel == "system/tools/hidl/build/Android.bp":
         # soong_build already contains the HIDL plugin from the restored
         # bootstrap checkpoint. Keep only the metadata singleton definition;

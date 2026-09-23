@@ -104,17 +104,24 @@ def common_prefix_score(a: str, b: str) -> int:
     return score
 
 def provider_candidates(module: str):
-    names = [module]
-    m = generated_aidl_re.match(module)
-    if m:
-        names.append(m.group("base"))
+    # Generated HIDL helper modules must resolve back to the source
+    # hidl_interface declaration. VNDK prebuilts often export modules with the
+    # same generated names; selecting those expands the graph into every VNDK
+    # snapshot instead of the Android 13 source interface we are probing.
     h = generated_hidl_re.match(module)
     if h:
-        names.append(h.group("base"))
+        names = [h.group("base")]
+    else:
+        names = [module]
+        m = generated_aidl_re.match(module)
+        if m:
+            names.append(m.group("base"))
     out = []
     seen = set()
     for name in names:
         for rel in providers.get(name, []):
+            if h and rel.startswith("prebuilts/vndk/"):
+                continue
             if rel not in seen:
                 seen.add(rel)
                 out.append(rel)
