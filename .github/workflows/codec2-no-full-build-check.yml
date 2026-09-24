@@ -2,7 +2,7 @@ name: Codec2 No Full Build Check
 
 on:
   push:
-    branches: [experiment/rpi4-codec2-no-full-build, experiment/rpi4-codec2-runner24-test]
+    branches: [experiment/rpi4-codec2-no-full-build, experiment/rpi4-codec2-runner24-test, experiment/rpi4-codec2-narrow-soong-graph]
   pull_request:
     paths:
       - 'scripts/*codec2*'
@@ -60,7 +60,17 @@ jobs:
           repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
           curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
           curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8
+          for attempt in 1 2 3; do
+            echo "CODEC2_REPO_SYNC_ATTEMPT=$attempt"
+            if repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Android repo sync failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
           df -h "$TREE"
       - name: Download known-good bootstrap checkpoint from run 411
@@ -82,6 +92,96 @@ jobs:
         run: |
           python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
           PITV_CODEC2_PHASE=diagnose bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+
+
+  codec2-narrow-probe:
+    if: contains(github.event.head_commit.message, '[probe-codec2]')
+    needs: [static]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TREE: ${{ github.workspace }}/android13
+      SOURCES: ${{ github.workspace }}/codec2-sources
+      OUT: ${{ github.workspace }}/codec2-payload
+      PITV_CODEC2_LUNCH: aosp_rpi4_tv-userdebug
+      PITV_CODEC2_JOBS: 2
+      PITV_CODEC2_REQUIRED_GB: 10
+      PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
+      PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup || true
+          df -h /
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Sync exact Android tree for narrow probe
+        run: |
+          mkdir -p "$TREE" && cd "$TREE"
+          repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
+          curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
+          curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
+          for attempt in 1 2 3; do
+            echo "CODEC2_REPO_SYNC_ATTEMPT=$attempt"
+            if repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Android repo sync failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+      - name: Warm local Soong bootstrap for narrow probe
+        run: |
+          python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+          set +e
+          timeout --signal=TERM --kill-after=15s 90s env PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE=0 PITV_CODEC2_PHASE=graph bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          rc=$?
+          set -e
+          echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_RC=$rc"
+          for _ in $(seq 1 20); do
+            if ! pgrep -x soong_ui >/dev/null 2>&1 && \
+               ! pgrep -x ninja >/dev/null 2>&1 && \
+               ! pgrep -x soong_build >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if pgrep -x soong_ui >/dev/null 2>&1 || \
+             pgrep -x ninja >/dev/null 2>&1 || \
+             pgrep -x soong_build >/dev/null 2>&1; then
+            pkill -KILL -x soong_ui 2>/dev/null || true
+            pkill -KILL -x ninja 2>/dev/null || true
+            pkill -KILL -x soong_build 2>/dev/null || true
+            sleep 1
+          fi
+          bootstrap_builder="$TREE/out/host/linux-x86/bin/soong_build"
+          bootstrap_source="$TREE/out/soong/host/linux-x86/bin/soong_build"
+          if [ ! -s "$bootstrap_builder" ] && [ -s "$bootstrap_source" ]; then
+            mkdir -p "$(dirname "$bootstrap_builder")"
+            cp "$bootstrap_source" "$bootstrap_builder"
+            echo "CODEC2_NARROW_PROMOTED_SOONG_BUILDER=1"
+          fi
+          test -s "$bootstrap_builder"
+          chmod +x "$bootstrap_builder"
+          ls -l "$bootstrap_builder"
+          mkdir -p "$TREE/out/soong"
+          cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
+          echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
+      - name: Build narrow V4L2 AVC service
+        run: |
+          python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+          PITV_CODEC2_PHASE=narrow-build bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          test -s "$TREE/out/soong/pitv-codec2.ninja"
+          find "$TREE/out" -type f -name 'android.hardware.media.c2@1.0-service-v4l2-64' -print -quit | grep -q .
+          echo "CODEC2_NARROW_WORKFLOW_READY=1"
 
   codec2-bootstrap:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2]')
@@ -113,7 +213,17 @@ jobs:
           repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
           curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
           curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8
+          for attempt in 1 2 3; do
+            echo "CODEC2_REPO_SYNC_ATTEMPT=$attempt"
+            if repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Android repo sync failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
           df -h "$TREE"
       - name: Warm Soong bootstrap within runner budget
@@ -189,7 +299,17 @@ jobs:
           repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
           curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
           curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8
+          for attempt in 1 2 3; do
+            echo "CODEC2_REPO_SYNC_ATTEMPT=$attempt"
+            if repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Android repo sync failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
           df -h "$TREE"
       - uses: actions/download-artifact@v4
@@ -254,7 +374,17 @@ jobs:
           repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
           curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
           curl -fsSL -o .repo/local_manifests/remove_projects.xml https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
-          repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8
+          for attempt in 1 2 3; do
+            echo "CODEC2_REPO_SYNC_ATTEMPT=$attempt"
+            if repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Android repo sync failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
           df -h "$TREE"
       - name: Fetch pinned Codec2 sources

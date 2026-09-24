@@ -9,7 +9,7 @@ OUT="$(readlink -m "${3:?output payload directory required}")"
 JOBS="${PITV_CODEC2_JOBS:-$(nproc)}"
 PHASE="${PITV_CODEC2_PHASE:-all}"
 SOURCE_EPOCH="${PITV_CODEC2_SOURCE_EPOCH:-946684800}"
-case "$PHASE" in all|graph|modules|diagnose) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
+case "$PHASE" in all|graph|modules|diagnose|narrow-list|narrow-probe|narrow-build) ;; *) echo "invalid PITV_CODEC2_PHASE: $PHASE" >&2; exit 2;; esac
 [ -f "$TREE/build/envsetup.sh" ] || { echo "not an Android build tree" >&2; exit 2; }
 for d in v4l2_codec2 ffmpeg ffmpeg_codec2 libudev_zero; do [ -d "$SOURCES/$d" ] || { echo "missing $d" >&2; exit 2; }; done
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -54,6 +54,17 @@ install_src(){
   # force all bootstrap Go tools to rebuild on every runner.
   find "$target" -type f \( -name 'Android.bp' -o -name 'Android.mk' -o -name '*.mk' \) \
     -exec touch -d "@$SOURCE_EPOCH" {} +
+}
+
+prepare_temp_file_edit(){
+  dst="$1"
+  target="$(readlink -m "$TREE/$dst")"
+  case "$target/" in "$TREE/"*) ;; *) echo "unsafe temporary edit target: $target" >&2; exit 2;; esac
+  [ -f "$target" ] || { echo "missing temporary edit target: $dst" >&2; exit 2; }
+  key="${dst//\//__}"
+  [ ! -e "$SRC_BACKUP/$key" ] || { echo "duplicate temporary edit target: $dst" >&2; exit 2; }
+  cp -a "$target" "$SRC_BACKUP/$key"
+  MODIFIED+=("$dst")
 }
 install_src v4l2_codec2 external/v4l2_codec2
 install_src ffmpeg external/ffmpeg
@@ -122,6 +133,290 @@ targets=(
   android.hardware.media.c2@1.2-ffmpeg.policy
   media_codecs_ffmpeg_c2.xml
 )
+if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" = "narrow-build" ]; then
+  # Keep the disposable AVC graph native-only. Several HIDL interfaces generate
+  # Java variants by default, and frameworks/av's root AIDL interface also
+  # enables Java implicitly. Those variants are unrelated to the V4L2 service
+  # but otherwise pull the full framework stub graph into this narrow build.
+  NATIVE_ONLY_BP=(
+    build/soong/cmd/soong_build/Android.bp
+    frameworks/av/Android.bp
+    hardware/interfaces/Android.bp
+    system/tools/hidl/Android.bp
+    system/libhidl/Android.bp
+    hardware/interfaces/graphics/common/1.0/Android.bp
+    hardware/interfaces/graphics/common/1.1/Android.bp
+    hardware/interfaces/graphics/common/1.2/Android.bp
+    hardware/interfaces/graphics/bufferqueue/1.0/Android.bp
+    hardware/interfaces/graphics/bufferqueue/2.0/Android.bp
+    hardware/interfaces/media/1.0/Android.bp
+    system/libhidl/transport/base/1.0/Android.bp
+    system/libhidl/transport/safe_union/1.0/Android.bp
+    system/tools/hidl/build/Android.bp
+  )
+  for rel in "${NATIVE_ONLY_BP[@]}"; do prepare_temp_file_edit "$rel"; done
+  python3 - "$TREE" "${NATIVE_ONLY_BP[@]}" <<'PYNATIVE'
+import sys
+from pathlib import Path
+
+tree = Path(sys.argv[1])
+for rel in sys.argv[2:]:
+    p = tree / rel
+    s = p.read_text()
+    if rel == "build/soong/cmd/soong_build/Android.bp":
+        # Direct soong_build still runs Blueprint's bootstrap singleton, which
+        # requires exactly one primary builder module. The real soong_build
+        # module pulls the complete Go bootstrap dependency tree into this
+        # disposable AVC graph. Keep only a marker module: in direct
+        # non-bootstrap generation Blueprint emits this as a phony target, so
+        # no Go sources or deps are needed and the restored host soong_build
+        # binary remains the process actually generating the graph.
+        if 'name: "soong_build"' not in s or "primaryBuilder: true" not in s:
+            raise SystemExit("unexpected soong_build Android.bp structure")
+        s = '''package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+blueprint_go_binary {
+    name: "soong_build",
+    primaryBuilder: true,
+}
+'''
+    elif rel == "frameworks/av/Android.bp":
+        # The narrow Codec2 graph needs only frameworks_av_license from this
+        # root file. av-types-aidl / av-headers are unrelated to the V4L2
+        # service and pull the global AIDL metadata graph via aidl_metadata_json.
+        marker = "\naidl_interface {"
+        cut = s.find(marker)
+        if cut < 0 or 'name: "frameworks_av_license"' not in s[:cut]:
+            raise SystemExit("unexpected frameworks/av root structure")
+        s = s[:cut].rstrip() + "\n"
+    elif rel == "hardware/interfaces/Android.bp":
+        # Keep only the package license, android.hardware package root and
+        # hidl_defaults. VTS defaults are unrelated to the V4L2 service.
+        marker = "\n// VTS tests"
+        cut = s.find(marker)
+        if cut < 0 or 'name: "android.hardware"' not in s[:cut] or 'name: "hidl_defaults"' not in s[:cut]:
+            raise SystemExit("unexpected hardware/interfaces root structure")
+        s = s[:cut].rstrip() + "\n"
+    elif rel == "system/tools/hidl/Android.bp":
+        # Generated HIDL C++ modules need the package/license plus
+        # hidl-module-defaults. Keep host hidl-gen libraries out of the narrow
+        # graph while preserving system_tools_hidl_license for hidl_metadata_json.
+        if 'name: "hidl-module-defaults"' not in s or 'name: "system_tools_hidl_license"' not in s:
+            raise SystemExit("unexpected system/tools/hidl root structure")
+        s = '''package {
+    default_applicable_licenses: ["system_tools_hidl_license"],
+}
+
+license {
+    name: "system_tools_hidl_license",
+    visibility: [":__subpackages__"],
+    license_kinds: [
+        "SPDX-license-identifier-Apache-2.0",
+    ],
+    license_text: [
+        "NOTICE",
+    ],
+}
+
+cc_defaults {
+    name: "hidl-module-defaults",
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wextra-semi",
+    ],
+    tidy_checks: [
+        "-performance-unnecessary-value-param",
+    ],
+    product_variables: {
+        debuggable: {
+            cflags: ["-D__ANDROID_DEBUGGABLE__"],
+        },
+    },
+}
+'''
+    elif rel == "system/libhidl/Android.bp":
+        # Source HIDL interfaces need only the package license from this root.
+        # libhidlbase and its tests are real platform modules, but not required
+        # merely to generate the C++ interface modules used by this narrow graph.
+        marker = "\ncc_defaults {"
+        cut = s.find(marker)
+        if cut < 0 or 'name: "system_libhidl_license"' not in s[:cut]:
+            raise SystemExit("unexpected system/libhidl root structure")
+        s = s[:cut].rstrip() + "\n"
+    elif rel == "system/tools/hidl/build/Android.bp":
+        # soong_build already contains the HIDL plugin from the restored
+        # bootstrap checkpoint. Keep only the metadata singleton definition;
+        # the bootstrap_go_package here would otherwise pull Blueprint/Soong.
+        bootstrap = s.find("\nbootstrap_go_package {")
+        metadata = s.find("\nhidl_interfaces_metadata {")
+        if bootstrap < 0 or metadata < 0 or metadata <= bootstrap:
+            raise SystemExit("unexpected HIDL build Android.bp structure")
+        brace = s.find("{", metadata)
+        depth = 0
+        end = -1
+        for i in range(brace, len(s)):
+            if s[i] == "{":
+                depth += 1
+            elif s[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end < 0:
+            raise SystemExit("unterminated hidl_interfaces_metadata block")
+        s = s[:bootstrap].rstrip() + "\n\n" + s[metadata + 1:end].strip() + "\n"
+    else:
+        if "gen_java: true," not in s:
+            raise SystemExit(f"expected gen_java true in {rel}")
+        s = s.replace("gen_java: true,", "gen_java: false,")
+        s = s.replace("gen_java_constants: true,", "gen_java_constants: false,")
+    p.write_text(s)
+print("CODEC2_NARROW_NATIVE_ONLY_BP=1")
+print("CODEC2_NARROW_PRIMARY_BUILDER_STUB=1")
+PYNATIVE
+
+  # AOSP soong_ui normally feeds soong_build every Android.bp in the tree via
+  # out/.module_paths/Android.bp.list.  Build a conservative Codec2-focused
+  # candidate list for the next direct-soong probe without mutating that file.
+  FULL_LIST="$TREE/out/.module_paths/Android.bp.list"
+  NARROW_LIST="$TREE/out/.module_paths/pitv-codec2.Android.bp.list"
+  [ -s "$FULL_LIST" ] || { echo "missing Soong Android.bp.list checkpoint" >&2; exit 12; }
+  python3 - "$FULL_LIST" "$NARROW_LIST" <<'PYNARROW'
+import sys
+from pathlib import Path
+src, dst = map(Path, sys.argv[1:3])
+prefixes = (
+    "Android.bp",
+    "external/v4l2_codec2/",
+    "frameworks/av/media/codec2/core/",
+    "frameworks/av/media/codec2/vndk/",
+    "frameworks/av/media/codec2/components/base/",
+    "frameworks/av/media/codec2/hidl/1.0/utils/",
+    "frameworks/av/media/codec2/hidl/1.1/utils/",
+    "frameworks/av/media/codec2/hidl/1.2/utils/",
+    "frameworks/av/media/codec2/hidl/plugin/Android.bp",
+    "frameworks/av/media/codec2/hidl/services/Android.bp",
+    "frameworks/av/media/codec2/sfplugin/utils/",
+    "hardware/interfaces/graphics/bufferqueue/",
+    "hardware/interfaces/graphics/common/",
+    "hardware/interfaces/media/c2/",
+    "system/hardware/interfaces/Android.bp",
+)
+lines = [x.strip() for x in src.read_text().splitlines() if x.strip()]
+primary_builder = "build/soong/cmd/soong_build/Android.bp"
+excluded_prefixes = (
+    "hardware/interfaces/automotive/",
+    "hardware/interfaces/neuralnetworks/",
+    "hardware/interfaces/graphics/common/aidl/",
+    "hardware/interfaces/common/aidl/",
+    "frameworks/native/services/surfaceflinger/Tracing/",
+)
+excluded_parts = (
+    "/tests/",
+    "/test/",
+    "/vts/",
+)
+selected = sorted({
+    x for x in lines
+    if (x == "Android.bp" or x == primary_builder or x.startswith(prefixes[1:]))
+    and not x.startswith(excluded_prefixes)
+    and not any(part in x for part in excluded_parts)
+})
+required = (
+    "external/v4l2_codec2/Android.bp",
+    primary_builder,
+)
+missing = [x for x in required if x not in selected]
+if missing:
+    raise SystemExit("narrow Soong list missing required roots: " + ", ".join(missing))
+dst.write_text("\n".join(selected) + "\n")
+print(f"CODEC2_NARROW_BP_TOTAL={len(lines)}")
+print(f"CODEC2_NARROW_BP_SELECTED={len(selected)}")
+print(f"CODEC2_NARROW_BP_LIST={dst}")
+PYNARROW
+  # The pinned FFmpeg and ffmpeg_codec2 trees are Android.mk-only. This probe
+  # intentionally validates only the native-Soong V4L2/AVC graph.
+  [ -f "$TREE/external/ffmpeg_codec2/Android.mk" ] || { echo "missing FFmpeg Codec2 Android.mk" >&2; exit 12; }
+  [ -f "$TREE/external/ffmpeg/Android.mk" ] || { echo "missing FFmpeg Android.mk" >&2; exit 12; }
+  echo "CODEC2_NARROW_LIST_READY=1"
+  if [ "$PHASE" = "narrow-list" ]; then exit 0; fi
+  if [ "$PHASE" = "narrow-probe" ]; then
+    python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
+    exit 0
+  fi
+
+  NARROW_NINJA="$TREE/out/soong/pitv-codec2.ninja"
+  NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+  [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+  REQUIRED_MODULES=""
+  PREVIOUS_REQUIRED_MODULES=""
+  for build_attempt in $(seq 1 "${PITV_CODEC2_NARROW_BUILD_ATTEMPTS:-16}"); do
+    echo "CODEC2_NARROW_BUILD_ATTEMPT=$build_attempt"
+    if [ -n "$REQUIRED_MODULES" ]; then
+      export PITV_CODEC2_NARROW_REQUIRED_MODULES="$REQUIRED_MODULES"
+    else
+      unset PITV_CODEC2_NARROW_REQUIRED_MODULES || true
+    fi
+
+    python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
+    [ -s "$NARROW_NINJA" ] || { echo "missing narrow Soong ninja graph" >&2; exit 13; }
+
+    target_inventory="$("$NINJA" -f "$NARROW_NINJA" -t targets all)"
+    target_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '(^|/)[^:]*android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
+    if [ -z "$target_line" ]; then
+      echo "CODEC2_NARROW_V4L2_TARGET_CANDIDATES_BEGIN=1"
+      printf '%s\n' "$target_inventory" | grep -E 'android\.hardware\.media\.c2@1\.0-service-v4l2|libv4l2_codec2' | head -80 || true
+      echo "CODEC2_NARROW_V4L2_TARGET_CANDIDATES_END=1"
+      echo "narrow graph missing V4L2 AVC 64-bit build target" >&2
+      exit 13
+    fi
+    avc_target="${target_line%%: *}"
+    echo "CODEC2_NARROW_AVC_TARGET=$avc_target"
+
+    set +e
+    build_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)"
+    build_rc=$?
+    set -e
+    [ -z "$build_output" ] || printf '%s\n' "$build_output"
+    if [ "$build_rc" -eq 0 ]; then
+      avc_binary="$TREE/$avc_target"
+      if [ ! -f "$avc_binary" ]; then
+        avc_binary="$(find "$TREE/out" -type f -name 'android.hardware.media.c2@1.0-service-v4l2-64' -print -quit)"
+      fi
+      [ -n "$avc_binary" ] && [ -f "$avc_binary" ] || { echo "narrow AVC binary was not produced" >&2; exit 13; }
+      echo "CODEC2_NARROW_AVC_BINARY=$avc_binary"
+      echo "CODEC2_NARROW_BUILD_READY=1"
+      exit 0
+    fi
+
+    REQUIRED_MODULES="$(printf '%s\n' "$build_output" | python3 -c '
+import re, sys
+text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
+mods = set()
+for match in re.finditer(r"missing dependencies:\s*([^\n]+)", text, re.I):
+    for raw in match.group(1).split(","):
+        name = raw.strip().strip("\"\047").rstrip(".;")
+        if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
+            mods.add(name)
+print(",".join(sorted(mods)))
+')"
+    if [ -z "$REQUIRED_MODULES" ]; then
+      echo "CODEC2_NARROW_NINJA_RC=$build_rc"
+      exit "$build_rc"
+    fi
+    echo "CODEC2_NARROW_NINJA_MISSING=$REQUIRED_MODULES"
+    if [ "$REQUIRED_MODULES" = "$PREVIOUS_REQUIRED_MODULES" ]; then
+      echo "narrow AVC dependency closure made no progress" >&2
+      exit "$build_rc"
+    fi
+    PREVIOUS_REQUIRED_MODULES="$REQUIRED_MODULES"
+  done
+  echo "CODEC2_NARROW_BUILD_ATTEMPTS_EXHAUSTED=1" >&2
+  exit 13
+fi
 if [ "$PHASE" = "graph" ]; then
   # Generate and validate the complete Soong/Kati graph without compiling target
   # modules. The workflow persists TREE/out as a permission-preserving tarball,

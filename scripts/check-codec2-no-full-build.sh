@@ -28,6 +28,7 @@ PY=(
  scripts/verify-minimal-codec2-sources.py
  scripts/check-codec2-xml-contract.py
  scripts/check-codec2-bootstrap-checkpoint.py
+ scripts/probe-narrow-soong-graph.py
 )
 SH=(
  scripts/probe-waydroid-codec2-target.sh
@@ -316,11 +317,13 @@ grep -q 'SOURCES_RESTORED=0' scripts/build-minimal-codec2-modules.sh
 grep -q 'trap - EXIT INT TERM' scripts/build-minimal-codec2-modules.sh
 grep -Fq "trap 'restore_sources; exit 130' INT" scripts/build-minimal-codec2-modules.sh
 grep -Fq "trap 'restore_sources; exit 143' TERM" scripts/build-minimal-codec2-modules.sh
-test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
-test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
-test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
+test "$(grep -c 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
+test "$(grep -c 'PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1' .github/workflows/codec2-no-full-build-check.yml)" -eq 4
+test "$(grep -c 'repo manifest -r > "\${GITHUB_WORKSPACE}/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 5
 grep -Fq 'cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml
 test "$(grep -c 'cmp "$TREE/out/soong/pitv-source-manifest.xml"' .github/workflows/codec2-no-full-build-check.yml)" -eq 3
+grep -q 'CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE=0 PITV_CODEC2_PHASE=graph' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'all|graph|modules|diagnose' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_BOOTSTRAP_DIAGNOSE_READY=1' scripts/build-minimal-codec2-modules.sh
 grep -Fq '"$NINJA" -d explain -n' scripts/build-minimal-codec2-modules.sh
@@ -449,3 +452,43 @@ grep -q '"inputs",' scripts/check-codec2-bootstrap-checkpoint.py
 # [build-codec2] retry with two staged graph checkpoints
 
 # [build-codec2] retry with Soong-only graph generation
+
+
+# Narrow Soong experiment: generate a Codec2-focused Android.bp list first.
+grep -q 'all|graph|modules|diagnose|narrow-list|narrow-probe|narrow-build' scripts/build-minimal-codec2-modules.sh
+grep -q 'pitv-codec2.Android.bp.list' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_BP_SELECTED=' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_LIST_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q 'external/v4l2_codec2/Android.bp' scripts/build-minimal-codec2-modules.sh
+grep -q 'external/ffmpeg_codec2/Android.mk' scripts/build-minimal-codec2-modules.sh
+
+! grep -q 'ninja.*-t.*commands' scripts/probe-narrow-soong-graph.py
+grep -q -- '--available_env' scripts/probe-narrow-soong-graph.py
+grep -q -- '--soong_out' scripts/probe-narrow-soong-graph.py
+grep -q 'external/v4l2_codec2/' scripts/build-minimal-codec2-modules.sh
+grep -q 'frameworks/av/media/codec2/' scripts/build-minimal-codec2-modules.sh
+grep -q 'hardware/interfaces/graphics/bufferqueue/' scripts/build-minimal-codec2-modules.sh
+grep -q 'hardware/interfaces/graphics/common/' scripts/build-minimal-codec2-modules.sh
+grep -q 'hardware/interfaces/media/c2/' scripts/build-minimal-codec2-modules.sh
+grep -q 'system/hardware/interfaces/Android.bp' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "build/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "bionic/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "frameworks/native/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '    "hardware/interfaces/"' scripts/build-minimal-codec2-modules.sh
+grep -q '"hardware/interfaces/automotive/"' scripts/build-minimal-codec2-modules.sh
+grep -q '"hardware/interfaces/neuralnetworks/"' scripts/build-minimal-codec2-modules.sh
+grep -q '"/tests/"' scripts/build-minimal-codec2-modules.sh
+! grep -q '"-b"' scripts/probe-narrow-soong-graph.py
+grep -q -- '--globListDir' scripts/probe-narrow-soong-graph.py
+grep -q 'pitv-codec2.ninja' scripts/probe-narrow-soong-graph.py
+grep -q 'pitv-codec2.environment.used' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_SOONG_READY=1' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1' scripts/probe-narrow-soong-graph.py
+grep -q 'Allow_missing_dependencies' scripts/probe-narrow-soong-graph.py
+grep -q 'PITV_CODEC2_NARROW_REQUIRED_MODULES' scripts/probe-narrow-soong-graph.py
+grep -q 'CODEC2_NARROW_NINJA_MISSING=' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_BUILD_ATTEMPT=' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_BUILD_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q -- '-t targets all' scripts/build-minimal-codec2-modules.sh
+grep -q 'PITV_CODEC2_PHASE=narrow-build' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'android.hardware.media.c2@1.0-service-v4l2-64' .github/workflows/codec2-no-full-build-check.yml
