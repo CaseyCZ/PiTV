@@ -162,7 +162,9 @@ jobs:
             pkill -KILL -x soong_build 2>/dev/null || true
             sleep 1
           fi
-          test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          test -s "$TREE/out/host/linux-x86/bin/soong_build"
+          chmod +x "$TREE/out/host/linux-x86/bin/soong_build"
+          ls -l "$TREE/out/host/linux-x86/bin/soong_build"
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
