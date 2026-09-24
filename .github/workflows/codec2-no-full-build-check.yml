@@ -162,9 +162,16 @@ jobs:
             pkill -KILL -x soong_build 2>/dev/null || true
             sleep 1
           fi
-          test -s "$TREE/out/host/linux-x86/bin/soong_build"
-          chmod +x "$TREE/out/host/linux-x86/bin/soong_build"
-          ls -l "$TREE/out/host/linux-x86/bin/soong_build"
+          bootstrap_builder="$TREE/out/host/linux-x86/bin/soong_build"
+          bootstrap_source="$TREE/out/soong/host/linux-x86/bin/soong_build"
+          if [ ! -s "$bootstrap_builder" ] && [ -s "$bootstrap_source" ]; then
+            mkdir -p "$(dirname "$bootstrap_builder")"
+            cp "$bootstrap_source" "$bootstrap_builder"
+            echo "CODEC2_NARROW_PROMOTED_SOONG_BUILDER=1"
+          fi
+          test -s "$bootstrap_builder"
+          chmod +x "$bootstrap_builder"
+          ls -l "$bootstrap_builder"
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
