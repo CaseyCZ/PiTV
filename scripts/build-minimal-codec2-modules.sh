@@ -364,8 +364,15 @@ PYNARROW
     python3 "$HERE/probe-narrow-soong-graph.py" "$TREE" "$NARROW_LIST"
     [ -s "$NARROW_NINJA" ] || { echo "missing narrow Soong ninja graph" >&2; exit 13; }
 
-    target_line="$("$NINJA" -f "$NARROW_NINJA" -t targets all | grep -m1 -E '(^|/)vendor/bin/hw/android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
-    [ -n "$target_line" ] || { echo "narrow graph missing V4L2 AVC 64-bit install target" >&2; exit 13; }
+    target_inventory="$("$NINJA" -f "$NARROW_NINJA" -t targets all)"
+    target_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '(^|/)[^:]*android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
+    if [ -z "$target_line" ]; then
+      echo "CODEC2_NARROW_V4L2_TARGET_CANDIDATES_BEGIN=1"
+      printf '%s\n' "$target_inventory" | grep -E 'android\.hardware\.media\.c2@1\.0-service-v4l2|libv4l2_codec2' | head -80 || true
+      echo "CODEC2_NARROW_V4L2_TARGET_CANDIDATES_END=1"
+      echo "narrow graph missing V4L2 AVC 64-bit build target" >&2
+      exit 13
+    fi
     avc_target="${target_line%%: *}"
     echo "CODEC2_NARROW_AVC_TARGET=$avc_target"
 
@@ -375,8 +382,12 @@ PYNARROW
     set -e
     [ -z "$build_output" ] || printf '%s\n' "$build_output"
     if [ "$build_rc" -eq 0 ]; then
-      [ -f "$TREE/$avc_target" ] || { echo "narrow AVC target was not produced: $avc_target" >&2; exit 13; }
-      echo "CODEC2_NARROW_AVC_BINARY=$TREE/$avc_target"
+      avc_binary="$TREE/$avc_target"
+      if [ ! -f "$avc_binary" ]; then
+        avc_binary="$(find "$TREE/out" -type f -name 'android.hardware.media.c2@1.0-service-v4l2-64' -print -quit)"
+      fi
+      [ -n "$avc_binary" ] && [ -f "$avc_binary" ] || { echo "narrow AVC binary was not produced" >&2; exit 13; }
+      echo "CODEC2_NARROW_AVC_BINARY=$avc_binary"
       echo "CODEC2_NARROW_BUILD_READY=1"
       exit 0
     fi

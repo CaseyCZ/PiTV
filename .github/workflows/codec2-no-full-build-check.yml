@@ -180,7 +180,7 @@ jobs:
           python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
           PITV_CODEC2_PHASE=narrow-build bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
           test -s "$TREE/out/soong/pitv-codec2.ninja"
-          find "$TREE/out/target/product" -type f -path '*/vendor/bin/hw/android.hardware.media.c2@1.0-service-v4l2-64' -print -quit | grep -q .
+          find "$TREE/out" -type f -name 'android.hardware.media.c2@1.0-service-v4l2-64' -print -quit | grep -q .
           echo "CODEC2_NARROW_WORKFLOW_READY=1"
 
   codec2-bootstrap:
