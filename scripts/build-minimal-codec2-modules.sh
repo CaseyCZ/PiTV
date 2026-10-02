@@ -318,6 +318,70 @@ PYNARROW
     [ -s "$NARROW_NINJA" ] || { echo "missing narrow Soong ninja graph" >&2; exit 13; }
 
     target_inventory="$("$NINJA" -f "$NARROW_NINJA" -t targets all)"
+
+    # HIDL-generated headers depend on the installed host hidl-gen path. A
+    # direct narrow Soong graph can expose only the module/intermediate target,
+    # without the normal full-build install edge. Build that exact host tool
+    # first, close only its concrete missing dependencies, then promote the
+    # resulting executable to the canonical HOST_OUT path expected by HIDL.
+    hidl_gen="$TREE/out/host/linux-x86/bin/hidl-gen"
+    if [ ! -x "$hidl_gen" ]; then
+      hidl_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '(^|/)hidl-gen: ' || true)"
+      if [ -z "$hidl_line" ]; then
+        echo "CODEC2_NARROW_HIDL_GEN_TARGETS_BEGIN=1"
+        printf '%s\n' "$target_inventory" | grep -E '(^|/)(hidl-gen|libhidl-gen[^/:]*): ' | head -80 || true
+        echo "CODEC2_NARROW_HIDL_GEN_TARGETS_END=1"
+        echo "narrow graph missing host hidl-gen build target" >&2
+        exit 13
+      fi
+      hidl_target="${hidl_line%%: *}"
+      echo "CODEC2_NARROW_HIDL_GEN_TARGET=$hidl_target"
+      set +e
+      hidl_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$hidl_target" 2>&1)"
+      hidl_rc=$?
+      set -e
+      [ -z "$hidl_output" ] || printf '%s\n' "$hidl_output"
+      if [ "$hidl_rc" -ne 0 ]; then
+        REQUIRED_MODULES="$(printf '%s\n' "$hidl_output" | python3 -c '
+import re, sys
+text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
+mods = set()
+for match in re.finditer(r"missing dependencies:\\s*([^\\n]+)", text, re.I):
+    for raw in match.group(1).split(","):
+        name = raw.strip().strip("\"\\047").rstrip(".;")
+        if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
+            mods.add(name)
+print(",".join(sorted(mods)))
+')"
+        if [ -z "$REQUIRED_MODULES" ]; then
+          echo "CODEC2_NARROW_HIDL_GEN_NINJA_RC=$hidl_rc"
+          exit "$hidl_rc"
+        fi
+        echo "CODEC2_NARROW_HIDL_GEN_MISSING=$REQUIRED_MODULES"
+        if [ "$REQUIRED_MODULES" = "$PREVIOUS_REQUIRED_MODULES" ]; then
+          echo "narrow hidl-gen dependency closure made no progress" >&2
+          exit "$hidl_rc"
+        fi
+        PREVIOUS_REQUIRED_MODULES="$REQUIRED_MODULES"
+        continue
+      fi
+      case "$hidl_target" in
+        /*) hidl_binary="$hidl_target" ;;
+        *) hidl_binary="$TREE/$hidl_target" ;;
+      esac
+      [ -f "$hidl_binary" ] || {
+        hidl_binary="$(find "$TREE/out/soong/.intermediates/system/tools/hidl" -type f -name hidl-gen -print -quit 2>/dev/null || true)"
+      }
+      [ -n "$hidl_binary" ] && [ -f "$hidl_binary" ] || {
+        echo "host hidl-gen target built but executable was not found" >&2
+        exit 13
+      }
+      mkdir -p "$(dirname "$hidl_gen")"
+      cp -f "$hidl_binary" "$hidl_gen"
+      chmod +x "$hidl_gen"
+      echo "CODEC2_NARROW_HIDL_GEN_PROMOTED=$hidl_binary"
+    fi
+
     target_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '(^|/)[^:]*android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
     if [ -z "$target_line" ]; then
       echo "CODEC2_NARROW_V4L2_TARGET_CANDIDATES_BEGIN=1"
