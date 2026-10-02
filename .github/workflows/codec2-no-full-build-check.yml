@@ -215,6 +215,25 @@ jobs:
           test -x "$host_soong_zip"
           ls -l "$host_soong_zip"
 
+          # libchrome header extraction also uses zipsync. Build only that
+          # bootstrap host tool and promote it to the HOST_OUT path expected
+          # by the narrow target graph.
+          bootstrap_zipsync="$TREE/out/soong/host/linux-x86/bin/zipsync"
+          host_zipsync="$TREE/out/host/linux-x86/bin/zipsync"
+          if [ ! -s "$host_zipsync" ]; then
+            (
+              cd "$TREE"
+              "$bootstrap_ninja_exe" -f out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/zipsync
+            )
+            test -s "$bootstrap_zipsync"
+            mkdir -p "$(dirname "$host_zipsync")"
+            cp "$bootstrap_zipsync" "$host_zipsync"
+            chmod +x "$host_zipsync"
+            echo "CODEC2_NARROW_PROMOTED_ZIPSYNC=1"
+          fi
+          test -x "$host_zipsync"
+          ls -l "$host_zipsync"
+
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
