@@ -258,6 +258,7 @@ prefixes = (
 )
 lines = [x.strip() for x in src.read_text().splitlines() if x.strip()]
 primary_builder = "build/soong/cmd/soong_build/Android.bp"
+hidl_tool = "system/tools/hidl/Android.bp"
 excluded_prefixes = (
     "hardware/interfaces/automotive/",
     "hardware/interfaces/neuralnetworks/",
@@ -272,13 +273,14 @@ excluded_parts = (
 )
 selected = sorted({
     x for x in lines
-    if (x == "Android.bp" or x == primary_builder or x.startswith(prefixes[1:]))
+    if (x == "Android.bp" or x == primary_builder or x == hidl_tool or x.startswith(prefixes[1:]))
     and not x.startswith(excluded_prefixes)
     and not any(part in x for part in excluded_parts)
 })
 required = (
     "external/v4l2_codec2/Android.bp",
     primary_builder,
+    hidl_tool,
 )
 missing = [x for x in required if x not in selected]
 if missing:
