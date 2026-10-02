@@ -172,6 +172,31 @@ jobs:
           test -s "$bootstrap_builder"
           chmod +x "$bootstrap_builder"
           ls -l "$bootstrap_builder"
+
+          # HIDL code generation uses sbox as a host tool. The 90s warmup
+          # intentionally stops after soong_build is ready, so build only the
+          # bootstrap sbox target here and promote it to HOST_OUT for the
+          # subsequent narrow Ninja graph.
+          bootstrap_ninja="$TREE/out/soong/bootstrap.ninja"
+          bootstrap_sbox="$TREE/out/soong/host/linux-x86/bin/sbox"
+          host_sbox="$TREE/out/host/linux-x86/bin/sbox"
+          if [ ! -s "$host_sbox" ]; then
+            test -s "$bootstrap_ninja"
+            bootstrap_ninja_exe="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+            [ -x "$bootstrap_ninja_exe" ] || bootstrap_ninja_exe="$(command -v ninja)"
+            (
+              cd "$TREE"
+              "$bootstrap_ninja_exe" -f out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/sbox
+            )
+            test -s "$bootstrap_sbox"
+            mkdir -p "$(dirname "$host_sbox")"
+            cp "$bootstrap_sbox" "$host_sbox"
+            chmod +x "$host_sbox"
+            echo "CODEC2_NARROW_PROMOTED_SBOX=1"
+          fi
+          test -x "$host_sbox"
+          ls -l "$host_sbox"
+
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
