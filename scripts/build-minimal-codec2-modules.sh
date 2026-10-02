@@ -346,7 +346,7 @@ PYNARROW
 import re, sys
 text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
 mods = set()
-for match in re.finditer(r"missing dependencies:\\s*([^\\n]+)", text, re.I):
+for match in re.finditer(r"missing dependencies:\s*([^\n]+)", text, re.I):
     for raw in match.group(1).split(","):
         name = raw.strip().strip("\"\\047").rstrip(".;")
         if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
