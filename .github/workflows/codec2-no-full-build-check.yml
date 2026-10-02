@@ -252,6 +252,24 @@ jobs:
           test -x "$host_merge_zips"
           ls -l "$host_merge_zips"
 
+          # Vendor stub generation for liblog needs ndkstubgen. Build the
+          # bootstrap host tool and promote it to HOST_OUT.
+          bootstrap_ndkstubgen="$TREE/out/soong/host/linux-x86/bin/ndkstubgen"
+          host_ndkstubgen="$TREE/out/host/linux-x86/bin/ndkstubgen"
+          if [ ! -s "$host_ndkstubgen" ]; then
+            (
+              cd "$TREE"
+              "$bootstrap_ninja_exe" -f out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/ndkstubgen
+            )
+            test -s "$bootstrap_ndkstubgen"
+            mkdir -p "$(dirname "$host_ndkstubgen")"
+            cp "$bootstrap_ndkstubgen" "$host_ndkstubgen"
+            chmod +x "$host_ndkstubgen"
+            echo "CODEC2_NARROW_PROMOTED_NDKSTUBGEN=1"
+          fi
+          test -x "$host_ndkstubgen"
+          ls -l "$host_ndkstubgen"
+
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
