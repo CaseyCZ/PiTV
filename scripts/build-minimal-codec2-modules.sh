@@ -142,7 +142,6 @@ if [ "$PHASE" = "narrow-list" ] || [ "$PHASE" = "narrow-probe" ] || [ "$PHASE" =
     build/soong/cmd/soong_build/Android.bp
     frameworks/av/Android.bp
     hardware/interfaces/Android.bp
-    system/tools/hidl/Android.bp
     hardware/interfaces/graphics/common/1.0/Android.bp
     hardware/interfaces/graphics/common/1.1/Android.bp
     hardware/interfaces/graphics/common/1.2/Android.bp
@@ -198,44 +197,6 @@ blueprint_go_binary {
         if cut < 0 or 'name: "android.hardware"' not in s[:cut] or 'name: "hidl_defaults"' not in s[:cut]:
             raise SystemExit("unexpected hardware/interfaces root structure")
         s = s[:cut].rstrip() + "\n"
-    elif rel == "system/tools/hidl/Android.bp":
-        # Generated HIDL C++ modules need the package/license plus
-        # hidl-module-defaults. Keep host hidl-gen libraries out of the narrow
-        # graph while preserving system_tools_hidl_license for hidl_metadata_json.
-        if 'name: "hidl-module-defaults"' not in s or 'name: "system_tools_hidl_license"' not in s:
-            raise SystemExit("unexpected system/tools/hidl root structure")
-        s = '''package {
-    default_applicable_licenses: ["system_tools_hidl_license"],
-}
-
-license {
-    name: "system_tools_hidl_license",
-    visibility: [":__subpackages__"],
-    license_kinds: [
-        "SPDX-license-identifier-Apache-2.0",
-    ],
-    license_text: [
-        "NOTICE",
-    ],
-}
-
-cc_defaults {
-    name: "hidl-module-defaults",
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wextra-semi",
-    ],
-    tidy_checks: [
-        "-performance-unnecessary-value-param",
-    ],
-    product_variables: {
-        debuggable: {
-            cflags: ["-D__ANDROID_DEBUGGABLE__"],
-        },
-    },
-}
-'''
     elif rel == "system/tools/hidl/build/Android.bp":
         # soong_build already contains the HIDL plugin from the restored
         # bootstrap checkpoint. Keep only the metadata singleton definition;
