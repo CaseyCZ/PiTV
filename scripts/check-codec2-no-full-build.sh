@@ -489,6 +489,9 @@ grep -q 'PITV_CODEC2_NARROW_REQUIRED_MODULES' scripts/probe-narrow-soong-graph.p
 grep -q 'CODEC2_NARROW_NINJA_MISSING=' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_BUILD_ATTEMPT=' scripts/build-minimal-codec2-modules.sh
 grep -q 'CODEC2_NARROW_BUILD_READY=1' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_AVC_TARGET=' scripts/build-minimal-codec2-modules.sh
 grep -q -- '-t targets all' scripts/build-minimal-codec2-modules.sh
+grep -q 'CODEC2_NARROW_PROMOTED_SOONG_BUILDER=1' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'find "$TREE/out" -type f -name '\''android.hardware.media.c2@1.0-service-v4l2-64'\''' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'PITV_CODEC2_PHASE=narrow-build' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'android.hardware.media.c2@1.0-service-v4l2-64' .github/workflows/codec2-no-full-build-check.yml
