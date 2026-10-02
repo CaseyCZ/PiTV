@@ -499,6 +499,8 @@ grep -q 'CODEC2_NARROW_PROMOTED_SBOX=1' .github/workflows/codec2-no-full-build-c
 grep -Fq 'out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/sbox' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'CODEC2_NARROW_PROMOTED_SOONG_ZIP=1' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/soong_zip' .github/workflows/codec2-no-full-build-check.yml
+grep -q 'CODEC2_NARROW_PROMOTED_ZIPSYNC=1' .github/workflows/codec2-no-full-build-check.yml
+grep -Fq 'out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/zipsync' .github/workflows/codec2-no-full-build-check.yml
 grep -Fq 'find "$TREE/out" -type f -name '\''android.hardware.media.c2@1.0-service-v4l2-64'\''' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'PITV_CODEC2_PHASE=narrow-build' .github/workflows/codec2-no-full-build-check.yml
 grep -q 'android.hardware.media.c2@1.0-service-v4l2-64' .github/workflows/codec2-no-full-build-check.yml
