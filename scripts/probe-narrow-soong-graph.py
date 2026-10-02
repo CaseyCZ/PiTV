@@ -115,6 +115,9 @@ package_root_re = re.compile(
 aidl_import_re = re.compile(
     r"error:\s+([^:\n]+):\d+:\d+:.*?imports: Import does not exist: ([^\s]+)"
 )
+label_no_files_re = re.compile(
+    r'error:\s+([^:\n]+):\d+:\d+:.*?cmd:\s+(?:default )?label ":(?P<label>[^"]+)" has no files'
+)
 
 def common_prefix_score(a: str, b: str) -> int:
     ap = Path(a).parts[:-1]
@@ -258,6 +261,15 @@ for attempt in range(1, max_attempts + 1):
             missing.append(key)
             print(
                 f"CODEC2_NARROW_MISSING_AIDL_IMPORT={aidl_import} "
+                f"consumer={consumer}"
+            )
+    for consumer, label in label_no_files_re.findall(clean_output):
+        key = (consumer, label)
+        if key not in seen_missing:
+            seen_missing.add(key)
+            missing.append(key)
+            print(
+                f"CODEC2_NARROW_MISSING_LABEL={label} "
                 f"consumer={consumer}"
             )
     if not missing:
