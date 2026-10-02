@@ -234,6 +234,24 @@ jobs:
           test -x "$host_zipsync"
           ls -l "$host_zipsync"
 
+          # libchrome JNI generation uses merge_zips as another bootstrap host
+          # tool. Build only that target and promote it to HOST_OUT.
+          bootstrap_merge_zips="$TREE/out/soong/host/linux-x86/bin/merge_zips"
+          host_merge_zips="$TREE/out/host/linux-x86/bin/merge_zips"
+          if [ ! -s "$host_merge_zips" ]; then
+            (
+              cd "$TREE"
+              "$bootstrap_ninja_exe" -f out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/merge_zips
+            )
+            test -s "$bootstrap_merge_zips"
+            mkdir -p "$(dirname "$host_merge_zips")"
+            cp "$bootstrap_merge_zips" "$host_merge_zips"
+            chmod +x "$host_merge_zips"
+            echo "CODEC2_NARROW_PROMOTED_MERGE_ZIPS=1"
+          fi
+          test -x "$host_merge_zips"
+          ls -l "$host_merge_zips"
+
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
