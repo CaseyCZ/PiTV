@@ -151,6 +151,13 @@ def provider_candidates(module: str):
             if rel not in seen:
                 seen.add(rel)
                 out.append(rel)
+    # Prefer Android 13 source modules over VNDK snapshot copies whenever a
+    # source provider exists. Snapshot Android.bp files export many familiar
+    # names (for example libhidlbase/libutils), but selecting them does not
+    # produce the source variant required by this narrow target graph.
+    source_candidates = [rel for rel in out if not rel.startswith("prebuilts/vndk/")]
+    if source_candidates:
+        out = source_candidates
     return out
 
 def choose_provider(module: str, consumer: str):
