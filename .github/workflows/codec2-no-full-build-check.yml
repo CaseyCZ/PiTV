@@ -197,6 +197,24 @@ jobs:
           test -x "$host_sbox"
           ls -l "$host_sbox"
 
+          # libchrome generated headers use soong_zip. Build the single
+          # bootstrap host tool and promote it to HOST_OUT just like sbox.
+          bootstrap_soong_zip="$TREE/out/soong/host/linux-x86/bin/soong_zip"
+          host_soong_zip="$TREE/out/host/linux-x86/bin/soong_zip"
+          if [ ! -s "$host_soong_zip" ]; then
+            (
+              cd "$TREE"
+              "$bootstrap_ninja_exe" -f out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/soong_zip
+            )
+            test -s "$bootstrap_soong_zip"
+            mkdir -p "$(dirname "$host_soong_zip")"
+            cp "$bootstrap_soong_zip" "$host_soong_zip"
+            chmod +x "$host_soong_zip"
+            echo "CODEC2_NARROW_PROMOTED_SOONG_ZIP=1"
+          fi
+          test -x "$host_soong_zip"
+          ls -l "$host_soong_zip"
+
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
