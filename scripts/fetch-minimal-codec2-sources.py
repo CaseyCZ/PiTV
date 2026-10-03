@@ -50,3 +50,15 @@ if tree_env:
         )
         host_ndkstubgen.chmod(0o755)
         print("CODEC2_NARROW_NDKSTUBGEN_WRAPPER=1")
+
+    # The direct narrow graph links host hidl-gen against Soong's shared
+    # libc++.  Unlike a normal full build, the promoted HOST_OUT hidl-gen has
+    # no install-time runtime-library setup.  GitHub Actions applies GITHUB_ENV
+    # to the following step, so point the AVC build at the exact host libc++
+    # intermediate directory before hidl-gen is invoked by generated HIDL rules.
+    github_env=os.environ.get("GITHUB_ENV")
+    if github_env:
+        host_libcxx_dir=tree/"out/soong/.intermediates/external/libcxx/libc++/linux_glibc_x86_64_shared"
+        with Path(github_env).open("a") as env_file:
+            env_file.write(f"LD_LIBRARY_PATH={host_libcxx_dir}\n")
+        print(f"CODEC2_NARROW_HOST_LIBCXX_DIR={host_libcxx_dir}")
