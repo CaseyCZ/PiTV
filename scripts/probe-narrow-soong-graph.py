@@ -176,11 +176,12 @@ required_modules = [
 ]
 # Some transitive header-only dependencies are silently omitted when
 # Allow_missing_dependencies is enabled, so their missing includes never appear
-# as normal module errors. Seed only the header providers proven to be on the
-# concrete AVC compile path.
+# as normal module errors. Seed only the header/interface providers proven to be
+# on the concrete AVC compile path.
 seed_modules = (
-    "libfmq-base",       # fmq/MQDescriptorBase.h
-    "libsystem_headers", # system/graphics.h
+    "libfmq-base",              # fmq/MQDescriptorBase.h
+    "libsystem_headers",        # system/graphics.h
+    "android.hidl.manager@1.0", # android/hidl/manager/1.0/IServiceManager.h
 )
 for module in seed_modules:
     if module not in required_modules:
