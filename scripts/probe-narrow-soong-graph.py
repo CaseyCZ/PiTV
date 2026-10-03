@@ -48,6 +48,35 @@ def _restore_product_vars():
 atexit.register(_restore_product_vars)
 print("CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1")
 
+# android.hidl.manager@1.0 is needed only for its generated native headers in
+# the AVC path. Its default Java variants invoke dexpreopt and therefore pull
+# dex2oat into this disposable graph. Disable Java only while generating the
+# narrow Ninja graph, then restore the source file before returning.
+manager_bp = tree / "system/libhidl/transport/manager/1.0/Android.bp"
+_manager_bp_original = None
+_manager_bp_stat = None
+if manager_bp.is_file():
+    _manager_bp_original = manager_bp.read_bytes()
+    _manager_bp_stat = manager_bp.stat()
+    manager_text = _manager_bp_original.decode("utf-8")
+    if "gen_java: true," not in manager_text:
+        raise SystemExit("unexpected android.hidl.manager@1.0 Android.bp structure")
+    manager_text = manager_text.replace("gen_java: true,", "gen_java: false,")
+    manager_text = manager_text.replace("gen_java_constants: true,", "gen_java_constants: false,")
+    manager_bp.write_text(manager_text)
+    print("CODEC2_NARROW_HIDL_MANAGER_NATIVE_ONLY=1")
+
+def _restore_manager_bp():
+    if _manager_bp_original is None:
+        return
+    manager_bp.write_bytes(_manager_bp_original)
+    os.utime(
+        manager_bp,
+        ns=(_manager_bp_stat.st_atime_ns, _manager_bp_stat.st_mtime_ns),
+    )
+
+atexit.register(_restore_manager_bp)
+
 probe_out = tree / "out/soong/pitv-codec2.ninja"
 used = tree / "out/soong/pitv-codec2.environment.used"
 glob_file = tree / "out/soong/pitv-codec2-build-globs.ninja"
