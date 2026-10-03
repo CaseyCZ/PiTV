@@ -174,6 +174,13 @@ required_raw = os.environ.get("PITV_CODEC2_NARROW_REQUIRED_MODULES", "")
 required_modules = [
     x.strip() for x in re.split(r"[\n,]+", required_raw) if x.strip()
 ]
+# HIDL's MQDescriptor.h includes fmq/MQDescriptorBase.h through libfmq-base.
+# With Allow_missing_dependencies enabled, Soong can omit that header library
+# from compile flags without producing a normal "missing dependencies" error,
+# so seed this proven AVC-path header provider explicitly.
+if "libfmq-base" not in required_modules:
+    required_modules.append("libfmq-base")
+    print("CODEC2_NARROW_SEED_MODULE=libfmq-base")
 for module in required_modules:
     candidates = provider_candidates(module)
     if any(rel in selected for rel in candidates):
