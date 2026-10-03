@@ -283,6 +283,7 @@ seed_modules = (
     "libfmq-base",              # fmq/MQDescriptorBase.h
     "libsystem_headers",        # system/graphics.h
     "android.hidl.manager@1.0", # android/hidl/manager/1.0/IServiceManager.h
+    "libarect",                 # frameworks/native/libs/arect/include/android/rect.h
 )
 for module in seed_modules:
     if module not in required_modules:
