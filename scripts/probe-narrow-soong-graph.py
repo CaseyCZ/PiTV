@@ -77,6 +77,78 @@ def _restore_manager_bp():
 
 atexit.register(_restore_manager_bp)
 
+# The AVC path needs libbinder_headers, but the same Android.bp also defines
+# package-manager and test AIDL interfaces. In a reduced graph those interfaces
+# request aidl_metadata_json, which recursively pulls the complete AIDL Soong
+# plugin/Java graph and eventually dex2oatd. Remove only top-level aidl_interface
+# modules for this disposable probe; native binder/header modules stay intact.
+def _strip_top_level_modules(text: str, module_type: str):
+    pat = re.compile(rf"(?m)^[ \t]*{re.escape(module_type)}[ \t]*\{{")
+    out = []
+    pos = 0
+    removed = 0
+    while True:
+        match = pat.search(text, pos)
+        if match is None:
+            out.append(text[pos:])
+            break
+        out.append(text[pos:match.start()])
+        brace = text.find("{", match.start(), match.end())
+        depth = 0
+        in_string = False
+        escaped = False
+        end = -1
+        for i in range(brace, len(text)):
+            ch = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end < 0:
+            raise SystemExit(f"unterminated {module_type} block")
+        while end < len(text) and text[end] in " \t\r\n":
+            end += 1
+        pos = end
+        removed += 1
+    return "".join(out), removed
+
+binder_bp = tree / "frameworks/native/libs/binder/Android.bp"
+_binder_bp_original = None
+_binder_bp_stat = None
+if binder_bp.is_file():
+    _binder_bp_original = binder_bp.read_bytes()
+    _binder_bp_stat = binder_bp.stat()
+    binder_text = _binder_bp_original.decode("utf-8")
+    binder_text, removed_aidl = _strip_top_level_modules(binder_text, "aidl_interface")
+    if removed_aidl < 1 or 'name: "libbinder_headers"' not in binder_text:
+        raise SystemExit("unexpected frameworks/native binder Android.bp structure")
+    binder_bp.write_text(binder_text)
+    print(f"CODEC2_NARROW_BINDER_HEADERS_ONLY=1 removed_aidl={removed_aidl}")
+
+def _restore_binder_bp():
+    if _binder_bp_original is None:
+        return
+    binder_bp.write_bytes(_binder_bp_original)
+    os.utime(
+        binder_bp,
+        ns=(_binder_bp_stat.st_atime_ns, _binder_bp_stat.st_mtime_ns),
+    )
+
+atexit.register(_restore_binder_bp)
+
 probe_out = tree / "out/soong/pitv-codec2.ninja"
 used = tree / "out/soong/pitv-codec2.environment.used"
 glob_file = tree / "out/soong/pitv-codec2-build-globs.ninja"
