@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fetch only pinned external Codec2 sources, not an Android source tree."""
-import json,subprocess,sys
+import json,os,subprocess,sys
 from pathlib import Path
 if len(sys.argv)!=2: raise SystemExit("usage: fetch-minimal-codec2-sources.py WORKDIR")
 repo=Path(__file__).resolve().parents[1]
@@ -30,3 +30,37 @@ for item in lock["sources"]:
         if not (dst/rel).is_file(): raise SystemExit(f"missing license file {item['name']}/{rel}")
     print(f"{item['name']}={got}")
 subprocess.run([sys.executable,str(repo/"scripts/verify-minimal-codec2-sources.py"),str(out)],check=True)
+
+# ndkstubgen is a python_binary_host, not a bootstrap.ninja target.  The
+# narrow graph still expects it under HOST_OUT, so provide the equivalent
+# lightweight launcher directly from the synced Android tree before the warm
+# bootstrap step tries to use it.
+tree_env=os.environ.get("TREE")
+if tree_env:
+    tree=Path(tree_env).resolve()
+    ndkstubgen_src=tree/"build/soong/cc/ndkstubgen/__init__.py"
+    symbolfile_src=tree/"build/soong/cc/symbolfile/__init__.py"
+    if ndkstubgen_src.is_file() and symbolfile_src.is_file():
+        host_ndkstubgen=tree/"out/host/linux-x86/bin/ndkstubgen"
+        host_ndkstubgen.parent.mkdir(parents=True,exist_ok=True)
+        host_ndkstubgen.write_text(
+            "#!/bin/sh\n"
+            f"export PYTHONPATH=\"{tree}/build/soong/cc${{PYTHONPATH:+:$PYTHONPATH}}\"\n"
+            f"exec python3 \"{ndkstubgen_src}\" \"$@\"\n"
+        )
+        host_ndkstubgen.chmod(0o755)
+        print("CODEC2_NARROW_NDKSTUBGEN_WRAPPER=1")
+
+    # The direct narrow graph links host hidl-gen against Soong's shared
+    # libc++.  Unlike a normal full build, the promoted HOST_OUT hidl-gen has
+    # no install-time runtime-library setup.  GitHub Actions applies GITHUB_ENV
+    # to the following step, so point the AVC build at the exact host libc++
+    # intermediate directory before hidl-gen is invoked by generated HIDL rules.
+    github_env=os.environ.get("GITHUB_ENV")
+    if github_env:
+        host_libcxx_dir=tree/"out/soong/.intermediates/external/libcxx/libc++/linux_glibc_x86_64_shared"
+        with Path(github_env).open("a") as env_file:
+            env_file.write(f"LD_LIBRARY_PATH={host_libcxx_dir}\n")
+            env_file.write("PITV_CODEC2_NARROW_BUILD_ATTEMPTS=32\n")
+        print(f"CODEC2_NARROW_HOST_LIBCXX_DIR={host_libcxx_dir}")
+        print("CODEC2_NARROW_BUILD_ATTEMPTS=32")
