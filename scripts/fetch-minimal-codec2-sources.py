@@ -38,6 +38,26 @@ subprocess.run([sys.executable,str(repo/"scripts/verify-minimal-codec2-sources.p
 tree_env=os.environ.get("TREE")
 if tree_env:
     tree=Path(tree_env).resolve()
+
+    # The normal Android environment can enable clang-tidy globally via
+    # WITH_TIDY or allow generated modules' local tidy:true properties via
+    # ALLOW_LOCAL_TIDY_TRUE.  In this disposable narrow graph the generated
+    # AIDL tidy dependency edge does not materialize its .tidy.dep file, while
+    # the real C++ compilation succeeds.  Disable tidy only for the narrow
+    # codec probe by overriding those two tracked Soong environment entries
+    # after the warm bootstrap has produced soong.environment.available.
+    if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
+        available_env=tree/"out/soong/soong.environment.available"
+        if available_env.is_file():
+            entries=json.loads(available_env.read_text())
+            if not isinstance(entries,list):
+                raise SystemExit("unexpected Soong available environment format")
+            by_key={entry.get("Key"):entry for entry in entries if isinstance(entry,dict) and entry.get("Key")}
+            for key in ("WITH_TIDY","ALLOW_LOCAL_TIDY_TRUE"):
+                by_key[key]={"Key":key,"Value":""}
+            available_env.write_text(json.dumps(sorted(by_key.values(),key=lambda entry:entry["Key"]),indent=4)+"\n")
+            print("CODEC2_NARROW_TIDY_DISABLED=1")
+
     ndkstubgen_src=tree/"build/soong/cc/ndkstubgen/__init__.py"
     symbolfile_src=tree/"build/soong/cc/symbolfile/__init__.py"
     if ndkstubgen_src.is_file() and symbolfile_src.is_file():
