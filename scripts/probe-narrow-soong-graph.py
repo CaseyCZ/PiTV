@@ -149,6 +149,56 @@ def _restore_binder_bp():
 
 atexit.register(_restore_binder_bp)
 
+# libui exports the V3 NDK graphics-common AIDL headers. They are on the real
+# AVC compile path (GraphicTypes.h -> BlendMode.h), but the source interfaces
+# also enable Java by default. Keep only their native NDK variants in this
+# disposable graph and restore both Android.bp files afterwards.
+_aidl_native_only_backups = []
+
+def _disable_aidl_java_backend(rel: str, interface_name: str):
+    bp = tree / rel
+    if not bp.is_file():
+        raise SystemExit(f"missing required AIDL provider: {rel}")
+    original = bp.read_bytes()
+    stat = bp.stat()
+    text = original.decode("utf-8")
+    if f'name: "{interface_name}"' not in text:
+        raise SystemExit(f"unexpected AIDL interface in {rel}")
+    java = re.search(r"(?ms)(^[ \t]*java:[ \t]*\{\n)(.*?)(^[ \t]*\},)", text)
+    if java is None:
+        raise SystemExit(f"missing Java backend block in {rel}")
+    body = java.group(2)
+    if re.search(r"(?m)^[ \t]*enabled:[ \t]*true,[ \t]*$", body):
+        body = re.sub(
+            r"(?m)^([ \t]*)enabled:[ \t]*true,[ \t]*$",
+            r"\1enabled: false,",
+            body,
+            count=1,
+        )
+    elif not re.search(r"(?m)^[ \t]*enabled:[ \t]*false,[ \t]*$", body):
+        indent = re.match(r"([ \t]*)", java.group(1)).group(1) + "    "
+        body = f"{indent}enabled: false,\n" + body
+    text = text[:java.start(2)] + body + text[java.end(2):]
+    bp.write_text(text)
+    _aidl_native_only_backups.append((bp, original, stat))
+    print(f"CODEC2_NARROW_AIDL_NATIVE_ONLY={interface_name}")
+
+_disable_aidl_java_backend(
+    "hardware/interfaces/graphics/common/aidl/Android.bp",
+    "android.hardware.graphics.common",
+)
+_disable_aidl_java_backend(
+    "hardware/interfaces/common/aidl/Android.bp",
+    "android.hardware.common",
+)
+
+def _restore_aidl_native_only():
+    for bp, original, stat in reversed(_aidl_native_only_backups):
+        bp.write_bytes(original)
+        os.utime(bp, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+
+atexit.register(_restore_aidl_native_only)
+
 probe_out = tree / "out/soong/pitv-codec2.ninja"
 used = tree / "out/soong/pitv-codec2.environment.used"
 glob_file = tree / "out/soong/pitv-codec2-build-globs.ninja"
@@ -159,8 +209,6 @@ forbidden_prefixes = (
     "external/skia/",
     "hardware/interfaces/automotive/",
     "hardware/interfaces/neuralnetworks/",
-    "hardware/interfaces/graphics/common/aidl/",
-    "hardware/interfaces/common/aidl/",
     "packages/modules/NeuralNetworks/",
     "frameworks/native/services/surfaceflinger/Tracing/",
 )
@@ -280,11 +328,13 @@ required_modules = [
 # as normal module errors. Seed only the header/interface providers proven to be
 # on the concrete AVC compile path.
 seed_modules = (
-    "libfmq-base",              # fmq/MQDescriptorBase.h
-    "libsystem_headers",        # system/graphics.h
-    "android.hidl.manager@1.0", # android/hidl/manager/1.0/IServiceManager.h
-    "libarect",                 # frameworks/native/libs/arect/include/android/rect.h
-    "libnativebase_headers",    # frameworks/native/libs/nativebase/include/nativebase/nativebase.h
+    "libfmq-base",                         # fmq/MQDescriptorBase.h
+    "libsystem_headers",                   # system/graphics.h
+    "android.hidl.manager@1.0",            # android/hidl/manager/1.0/IServiceManager.h
+    "libarect",                            # android/rect.h
+    "libnativebase_headers",               # nativebase/nativebase.h
+    "android.hardware.common-V2-ndk",       # imported by graphics common AIDL
+    "android.hardware.graphics.common-V3-ndk", # aidl/.../graphics/common/BlendMode.h
 )
 for module in seed_modules:
     if module not in required_modules:
