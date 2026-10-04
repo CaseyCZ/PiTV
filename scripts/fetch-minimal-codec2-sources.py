@@ -51,6 +51,23 @@ if tree_env:
         host_ndkstubgen.chmod(0o755)
         print("CODEC2_NARROW_NDKSTUBGEN_WRAPPER=1")
 
+    # Stable AIDL interfaces in the narrow native graph invoke the canonical
+    # HOST_OUT aidl path. Android 13 already ships a matching prebuilt host
+    # compiler, so expose that exact tool through a tiny wrapper instead of
+    # pulling system/tools/aidl tests and Java integration modules into Soong.
+    prebuilt_aidl=tree/"prebuilts/build-tools/linux-x86/bin/aidl"
+    prebuilt_aidl_lib64=tree/"prebuilts/build-tools/linux-x86/lib64"
+    if prebuilt_aidl.is_file():
+        host_aidl=tree/"out/host/linux-x86/bin/aidl"
+        host_aidl.parent.mkdir(parents=True,exist_ok=True)
+        host_aidl.write_text(
+            "#!/bin/sh\n"
+            f"export LD_LIBRARY_PATH=\"{prebuilt_aidl_lib64}${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}\"\n"
+            f"exec \"{prebuilt_aidl}\" \"$@\"\n"
+        )
+        host_aidl.chmod(0o755)
+        print("CODEC2_NARROW_PREBUILT_AIDL_WRAPPER=1")
+
     # The direct narrow graph links host hidl-gen against Soong's shared
     # libc++.  Unlike a normal full build, the promoted HOST_OUT hidl-gen has
     # no install-time runtime-library setup.  GitHub Actions applies GITHUB_ENV
