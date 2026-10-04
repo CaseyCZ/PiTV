@@ -93,6 +93,10 @@ if tree_env:
             env_file.write(f"LD_LIBRARY_PATH={host_libcxx_dir}\n")
             env_file.write(f"CPATH={math_headers_dir}\n")
             env_file.write("PITV_CODEC2_NARROW_BUILD_ATTEMPTS=32\n")
+            if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
+                env_file.write("PITV_CODEC2_JOBS=1\n")
         print(f"CODEC2_NARROW_HOST_LIBCXX_DIR={host_libcxx_dir}")
         print(f"CODEC2_NARROW_MATH_HEADERS_DIR={math_headers_dir}")
         print("CODEC2_NARROW_BUILD_ATTEMPTS=32")
+        if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
+            print("CODEC2_NARROW_SERIAL_JOBS=1")
