@@ -39,13 +39,31 @@ tree_env=os.environ.get("TREE")
 if tree_env:
     tree=Path(tree_env).resolve()
 
+    # Android 13's AIDL Soong backend hardcodes Tidy=true on every generated
+    # native implementation library. That makes .tidy outputs mandatory even
+    # when WITH_TIDY is disabled. The reduced graph does not materialize the
+    # clang-tidy dependency sidecar correctly, while the real C++ compilation
+    # succeeds. Patch only the disposable CI Android tree before warm bootstrap
+    # so the freshly built aidl-soong-rules plugin creates native modules with
+    # Tidy=false. The second invocation is intentionally idempotent.
+    if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
+        aidl_backends=tree/"system/tools/aidl/build/aidl_interface_backends.go"
+        if not aidl_backends.is_file():
+            raise SystemExit("missing Android 13 AIDL backend source")
+        aidl_text=aidl_backends.read_text()
+        tidy_true="Tidy:                      proptools.BoolPtr(true),"
+        tidy_false="Tidy:                      proptools.BoolPtr(false),"
+        replaced=aidl_text.count(tidy_true)
+        if replaced:
+            aidl_backends.write_text(aidl_text.replace(tidy_true,tidy_false))
+        elif tidy_false not in aidl_text:
+            raise SystemExit("unexpected Android 13 AIDL tidy backend structure")
+        print(f"CODEC2_NARROW_AIDL_TIDY_DISABLED=1 replaced={replaced}")
+
     # The normal Android environment can enable clang-tidy globally via
     # WITH_TIDY or allow generated modules' local tidy:true properties via
-    # ALLOW_LOCAL_TIDY_TRUE.  In this disposable narrow graph the generated
-    # AIDL tidy dependency edge does not materialize its .tidy.dep file, while
-    # the real C++ compilation succeeds.  Disable tidy only for the narrow
-    # codec probe by overriding those two tracked Soong environment entries
-    # after the warm bootstrap has produced soong.environment.available.
+    # ALLOW_LOCAL_TIDY_TRUE. Keep both disabled as a second guard for the
+    # disposable narrow graph.
     if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
         available_env=tree/"out/soong/soong.environment.available"
         if available_env.is_file():
