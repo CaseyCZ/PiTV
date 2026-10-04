@@ -68,6 +68,20 @@ if tree_env:
         host_aidl.chmod(0o755)
         print("CODEC2_NARROW_PREBUILT_AIDL_WRAPPER=1")
 
+    # aidl_hash_gen is only a host sh_binary around hash_gen.sh. The generated
+    # frozen-API dump rules still refer to its canonical HOST_OUT path, so
+    # expose the synced Android 13 script without adding the AIDL test graph.
+    aidl_hash_gen_src=tree/"system/tools/aidl/build/hash_gen.sh"
+    if aidl_hash_gen_src.is_file():
+        host_aidl_hash_gen=tree/"out/host/linux-x86/bin/aidl_hash_gen"
+        host_aidl_hash_gen.parent.mkdir(parents=True,exist_ok=True)
+        host_aidl_hash_gen.write_text(
+            "#!/bin/sh\n"
+            f"exec bash \"{aidl_hash_gen_src}\" \"$@\"\n"
+        )
+        host_aidl_hash_gen.chmod(0o755)
+        print("CODEC2_NARROW_AIDL_HASH_GEN_WRAPPER=1")
+
     # The direct narrow graph links host hidl-gen against Soong's shared
     # libc++.  Unlike a normal full build, the promoted HOST_OUT hidl-gen has
     # no install-time runtime-library setup.  GitHub Actions applies GITHUB_ENV
