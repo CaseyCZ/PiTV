@@ -52,11 +52,11 @@ if tree_env:
         print("CODEC2_NARROW_NDKSTUBGEN_WRAPPER=1")
 
     # Stable AIDL interfaces in the narrow native graph invoke the canonical
-    # HOST_OUT aidl path. Android 13 already ships a matching prebuilt host
+    # HOST_OUT aidl path. Android 13 already ships a matching SDK prebuilt host
     # compiler, so expose that exact tool through a tiny wrapper instead of
     # pulling system/tools/aidl tests and Java integration modules into Soong.
-    prebuilt_aidl=tree/"prebuilts/build-tools/linux-x86/bin/aidl"
-    prebuilt_aidl_lib64=tree/"prebuilts/build-tools/linux-x86/lib64"
+    prebuilt_aidl=tree/"prebuilts/sdk/tools/linux/bin/aidl"
+    prebuilt_aidl_lib64=tree/"prebuilts/sdk/tools/linux/lib64"
     if prebuilt_aidl.is_file():
         host_aidl=tree/"out/host/linux-x86/bin/aidl"
         host_aidl.parent.mkdir(parents=True,exist_ok=True)
