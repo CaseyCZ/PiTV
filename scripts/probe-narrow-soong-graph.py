@@ -368,6 +368,7 @@ seed_modules = (
     "libnativebase_headers",               # nativebase/nativebase.h
     "android.hardware.common-V2-ndk",       # imported by graphics common AIDL
     "android.hardware.graphics.common-V3-ndk", # aidl/.../graphics/common/BlendMode.h
+    "libbinder_headers_platform_shared",   # android/binder_enums.h
 )
 for module in seed_modules:
     if module not in required_modules:
