@@ -90,8 +90,11 @@ if tree_env:
     github_env=os.environ.get("GITHUB_ENV")
     if github_env:
         host_libcxx_dir=tree/"out/soong/.intermediates/external/libcxx/libc++/linux_glibc_x86_64_shared"
+        math_headers_dir=tree/"frameworks/native/libs/math/include"
         with Path(github_env).open("a") as env_file:
             env_file.write(f"LD_LIBRARY_PATH={host_libcxx_dir}\n")
+            env_file.write(f"CPATH={math_headers_dir}\n")
             env_file.write("PITV_CODEC2_NARROW_BUILD_ATTEMPTS=32\n")
         print(f"CODEC2_NARROW_HOST_LIBCXX_DIR={host_libcxx_dir}")
+        print(f"CODEC2_NARROW_MATH_HEADERS_DIR={math_headers_dir}")
         print("CODEC2_NARROW_BUILD_ATTEMPTS=32")
