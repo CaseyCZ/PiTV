@@ -199,6 +199,39 @@ def _restore_aidl_native_only():
 
 atexit.register(_restore_aidl_native_only)
 
+# aidl_metadata_json shares its Android.bp with the aidl-soong-rules bootstrap
+# plugin and many Java test interfaces. The warm soong_build already contains
+# the AIDL plugin, so the reduced graph only needs the metadata sink required by
+# reverse dependencies from the two native AIDL interfaces above. Replace that
+# Android.bp with a metadata-only module for the disposable probe, then restore.
+aidl_build_bp = tree / "system/tools/aidl/build/Android.bp"
+_aidl_build_bp_original = None
+_aidl_build_bp_stat = None
+if aidl_build_bp.is_file():
+    _aidl_build_bp_original = aidl_build_bp.read_bytes()
+    _aidl_build_bp_stat = aidl_build_bp.stat()
+    aidl_build_text = _aidl_build_bp_original.decode("utf-8")
+    if 'name: "aidl_metadata_json"' not in aidl_build_text:
+        raise SystemExit("unexpected system/tools/aidl/build Android.bp structure")
+    aidl_build_bp.write_text(
+        'aidl_interfaces_metadata {\n'
+        '    name: "aidl_metadata_json",\n'
+        '    visibility: ["//visibility:public"],\n'
+        '}\n'
+    )
+    print("CODEC2_NARROW_AIDL_METADATA_ONLY=1")
+
+def _restore_aidl_build_bp():
+    if _aidl_build_bp_original is None:
+        return
+    aidl_build_bp.write_bytes(_aidl_build_bp_original)
+    os.utime(
+        aidl_build_bp,
+        ns=(_aidl_build_bp_stat.st_atime_ns, _aidl_build_bp_stat.st_mtime_ns),
+    )
+
+atexit.register(_restore_aidl_build_bp)
+
 probe_out = tree / "out/soong/pitv-codec2.ninja"
 used = tree / "out/soong/pitv-codec2.environment.used"
 glob_file = tree / "out/soong/pitv-codec2-build-globs.ninja"
