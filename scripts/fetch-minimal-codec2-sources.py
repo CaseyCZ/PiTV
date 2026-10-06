@@ -93,7 +93,7 @@ if tree_env:
     # HOST_OUT aidl path. Android 13 ships a matching build-tools prebuilt host
     # compiler, so expose that exact tool through a tiny wrapper instead of
     # pulling system/tools/aidl tests and Java integration modules into Soong.
-    prebuilt_aidl=tree/"prebuilts/build-tools/linux-x86/bin/aidl"
+    prebuilt_aidl=tree/"prebuilts/sdk/tools/linux/bin/aidl"
     if prebuilt_aidl.is_file():
         host_aidl=tree/"out/host/linux-x86/bin/aidl"
         host_aidl.parent.mkdir(parents=True,exist_ok=True)
