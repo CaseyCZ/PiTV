@@ -48,32 +48,38 @@ def _restore_product_vars():
 atexit.register(_restore_product_vars)
 print("CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1")
 
-# android.hidl.manager@1.0 is needed only for its generated native headers in
-# the AVC path. Its default Java variants invoke dexpreopt and therefore pull
-# dex2oat into this disposable graph. Disable Java only while generating the
-# narrow Ninja graph, then restore the source file before returning.
-manager_bp = tree / "system/libhidl/transport/manager/1.0/Android.bp"
-_manager_bp_original = None
-_manager_bp_stat = None
-if manager_bp.is_file():
-    _manager_bp_original = manager_bp.read_bytes()
-    _manager_bp_stat = manager_bp.stat()
-    manager_text = _manager_bp_original.decode("utf-8")
+# libhidlbase reaches the manager 1.0, 1.1 and 1.2 generated C++ headers on the
+# concrete AVC path. Their Java variants invoke dexpreopt and pull dex2oat into
+# this deliberately reduced graph. Keep all three source interfaces native-only
+# while generating the narrow Ninja graph, then restore their Android.bp files.
+_manager_bp_backups = []
+for manager_version in ("1.0", "1.1", "1.2"):
+    manager_bp = tree / f"system/libhidl/transport/manager/{manager_version}/Android.bp"
+    if not manager_bp.is_file():
+        raise SystemExit(f"missing android.hidl.manager@{manager_version} Android.bp")
+    manager_original = manager_bp.read_bytes()
+    manager_stat = manager_bp.stat()
+    manager_text = manager_original.decode("utf-8")
     if "gen_java: true," not in manager_text:
-        raise SystemExit("unexpected android.hidl.manager@1.0 Android.bp structure")
+        raise SystemExit(
+            f"unexpected android.hidl.manager@{manager_version} Android.bp structure"
+        )
     manager_text = manager_text.replace("gen_java: true,", "gen_java: false,")
-    manager_text = manager_text.replace("gen_java_constants: true,", "gen_java_constants: false,")
+    manager_text = manager_text.replace(
+        "gen_java_constants: true,", "gen_java_constants: false,"
+    )
     manager_bp.write_text(manager_text)
-    print("CODEC2_NARROW_HIDL_MANAGER_NATIVE_ONLY=1")
+    _manager_bp_backups.append((manager_bp, manager_original, manager_stat))
+    print(f"CODEC2_NARROW_HIDL_MANAGER_NATIVE_ONLY_VERSION={manager_version}")
+print("CODEC2_NARROW_HIDL_MANAGER_NATIVE_ONLY=1")
 
 def _restore_manager_bp():
-    if _manager_bp_original is None:
-        return
-    manager_bp.write_bytes(_manager_bp_original)
-    os.utime(
-        manager_bp,
-        ns=(_manager_bp_stat.st_atime_ns, _manager_bp_stat.st_mtime_ns),
-    )
+    for manager_bp, manager_original, manager_stat in reversed(_manager_bp_backups):
+        manager_bp.write_bytes(manager_original)
+        os.utime(
+            manager_bp,
+            ns=(manager_stat.st_atime_ns, manager_stat.st_mtime_ns),
+        )
 
 atexit.register(_restore_manager_bp)
 
