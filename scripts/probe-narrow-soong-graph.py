@@ -372,6 +372,7 @@ seed_modules = (
     "android.hidl.manager@1.0",            # android/hidl/manager/1.0/IServiceManager.h
     "libarect",                            # android/rect.h
     "libnativebase_headers",               # nativebase/nativebase.h
+    "libbacktrace_headers",                # backtrace/backtrace_constants.h used by libhidlbase
     "android.hardware.common-V2-ndk",       # imported by graphics common AIDL
     "android.hardware.graphics.common-V3-ndk", # aidl/.../graphics/common/BlendMode.h
     "android.hardware.graphics.mapper@4.0", # android/hardware/graphics/mapper/4.0/IMapper.h
