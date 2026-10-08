@@ -272,24 +272,10 @@ jobs:
 
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
-          # LibGuiProperties uses sysprop_cpp during the narrow AVC build.
-          # Promote the bootstrap host generator into HOST_OUT.
-          bootstrap_sysprop_cpp="$TREE/out/soong/host/linux-x86/bin/sysprop_cpp"
-          host_sysprop_cpp="$TREE/out/host/linux-x86/bin/sysprop_cpp"
-          if [ ! -s "$host_sysprop_cpp" ]; then
-            (
-              cd "$TREE"
-              "$bootstrap_ninja_exe" -f out/soong/bootstrap.ninja out/soong/host/linux-x86/bin/sysprop_cpp
-            )
-            test -s "$bootstrap_sysprop_cpp"
-            mkdir -p "$(dirname "$host_sysprop_cpp")"
-            cp "$bootstrap_sysprop_cpp" "$host_sysprop_cpp"
-            chmod +x "$host_sysprop_cpp"
-            echo "CODEC2_NARROW_PROMOTED_SYSPROP_CPP=1"
-          fi
-          test -x "$host_sysprop_cpp"
-          ls -l "$host_sysprop_cpp"
-
+          # sysprop_cpp is not a bootstrap.ninja target in this Android 13
+          # source tree. Do not abort before the narrow-graph preflight.
+          # Resolve it from the generated Soong graph instead.
+          echo "CODEC2_NARROW_SYSPROP_BOOTSTRAP_SKIPPED=1"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
       - name: Build isolated Python 2.7 for legacy libchrome JNI generator
         run: |
