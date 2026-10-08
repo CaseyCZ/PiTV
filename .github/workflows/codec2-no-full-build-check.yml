@@ -273,6 +273,29 @@ jobs:
           mkdir -p "$TREE/out/soong"
           cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" "$TREE/out/soong/pitv-source-manifest.xml"
           echo "CODEC2_NARROW_LOCAL_BOOTSTRAP_READY=1"
+      - name: Build isolated Python 2.7 for legacy libchrome JNI generator
+        run: |
+          # Android 13 libchrome invokes /usr/bin/env python2.7; Ubuntu 24.04
+          # does not ship this interpreter. Build it locally without replacing python3.
+          curl --fail --location --retry 3 --silent --show-error \
+            https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz \
+            -o /tmp/Python-2.7.18.tgz
+          mkdir -p /tmp/pitv-python27-src
+          tar -xzf /tmp/Python-2.7.18.tgz -C /tmp/pitv-python27-src --strip-components=1
+          (
+            cd /tmp/pitv-python27-src
+            ./configure --prefix=/tmp/pitv-python27 --without-ensurepip > /tmp/pitv-python27-configure.log
+            make -j2 > /tmp/pitv-python27-build.log 2>&1 || {
+              tail -80 /tmp/pitv-python27-build.log
+              exit 1
+            }
+            make install > /tmp/pitv-python27-install.log 2>&1 || {
+              tail -80 /tmp/pitv-python27-install.log
+              exit 1
+            }
+          )
+          echo "/tmp/pitv-python27/bin" >> "$GITHUB_PATH"
+          /tmp/pitv-python27/bin/python2.7 --version
       - name: Build narrow V4L2 AVC service
         run: |
           python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
