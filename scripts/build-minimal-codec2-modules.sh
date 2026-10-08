@@ -415,6 +415,13 @@ for line in text.splitlines():
       fi
     done
     echo "CODEC2_NARROW_PREFLIGHT_END=1"
+    # Fail immediately on a broken graph instead of spending the build budget
+    # retrying an AVC target that Ninja already proved cannot be built.
+    if [ "$preflight_rc" -ne 0 ]; then
+      echo "CODEC2_NARROW_PREFLIGHT_BLOCKED=1" >&2
+      printf '%s\\n' "$preflight_output" | tail -80 >&2
+      exit "$preflight_rc"
+    fi
     unset preflight_rc
 
 
