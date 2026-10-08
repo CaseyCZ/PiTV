@@ -73,6 +73,29 @@ for manager_version in ("1.0", "1.1", "1.2"):
     print(f"CODEC2_NARROW_HIDL_MANAGER_NATIVE_ONLY_VERSION={manager_version}")
 print("CODEC2_NARROW_HIDL_MANAGER_NATIVE_ONLY=1")
 
+# libhidl token is needed for its native utils library; its Java variants
+# would require dex2oatd, which is deliberately absent from the narrow graph.
+token_bp = tree / "system/libhidl/transport/token/1.0/Android.bp"
+if not token_bp.is_file():
+    raise SystemExit("missing android.hidl.token@1.0 Android.bp")
+token_original = token_bp.read_bytes()
+token_stat = token_bp.stat()
+token_text = token_original.decode("utf-8")
+if "gen_java: true," not in token_text:
+    raise SystemExit("unexpected android.hidl.token@1.0 Android.bp structure")
+token_text = token_text.replace("gen_java: true,", "gen_java: false,")
+token_text = token_text.replace("gen_java_constants: true,", "gen_java_constants: false,")
+token_bp.write_text(token_text)
+print("CODEC2_NARROW_HIDL_TOKEN_NATIVE_ONLY=1")
+
+def _restore_token_bp():
+    token_bp.write_bytes(token_original)
+    os.utime(token_bp, ns=(token_stat.st_atime_ns, token_stat.st_mtime_ns))
+
+atexit.register(_restore_token_bp)
+
+
+
 def _restore_manager_bp():
     for manager_bp, manager_original, manager_stat in reversed(_manager_bp_backups):
         manager_bp.write_bytes(manager_original)
