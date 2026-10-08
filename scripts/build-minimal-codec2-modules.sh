@@ -393,6 +393,31 @@ print(",".join(sorted(mods)))
     avc_target="${target_line%%: *}"
     echo "CODEC2_NARROW_AVC_TARGET=$avc_target"
 
+    # Preflight the entire concrete AVC dependency graph without compiling.
+    # Ninja -n checks missing inputs and absent generating rules up front.
+    # Report all discovered missing host tools before the expensive build.
+    echo "CODEC2_NARROW_PREFLIGHT_BEGIN=1"
+    preflight_output="$("$NINJA" -n -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)" || preflight_rc=$?
+    preflight_rc="${preflight_rc:-0}"
+    echo "CODEC2_NARROW_PREFLIGHT_RC=$preflight_rc"
+    printf '%s\\n' "$preflight_output" | python3 -c '
+import re, sys
+text = sys.stdin.read()
+for line in text.splitlines():
+    if re.search(r"ninja: error:|missing and no known rule|missing dependencies:", line, re.I):
+        print("CODEC2_NARROW_PREFLIGHT_ISSUE=" + line[:600])
+' || true
+    for host_tool in hidl-gen aidl sysprop_cpp ndkstubgen sbox merge_zips; do
+      if [ -x "$TREE/out/host/linux-x86/bin/$host_tool" ]; then
+        echo "CODEC2_NARROW_HOST_TOOL_OK=$host_tool"
+      else
+        echo "CODEC2_NARROW_HOST_TOOL_ABSENT=$host_tool"
+      fi
+    done
+    echo "CODEC2_NARROW_PREFLIGHT_END=1"
+    unset preflight_rc
+
+
     set +e
     build_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)"
     build_rc=$?
