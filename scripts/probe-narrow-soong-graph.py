@@ -373,6 +373,7 @@ seed_modules = (
     "libarect",                            # android/rect.h
     "libnativebase_headers",               # nativebase/nativebase.h
     "libbacktrace_headers",                # backtrace/backtrace_constants.h used by libhidlbase
+    "android.hardware.media.bufferpool@1.0_genc++_headers", # bufferpool/1.0/types.h for libc2plugin_store
     "android.hardware.common-V2-ndk",       # imported by graphics common AIDL
     "android.hardware.graphics.common-V3-ndk", # aidl/.../graphics/common/BlendMode.h
     "android.hardware.graphics.mapper@4.0", # android/hardware/graphics/mapper/4.0/IMapper.h
