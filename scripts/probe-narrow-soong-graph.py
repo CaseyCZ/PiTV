@@ -414,6 +414,7 @@ required_modules = [
 # as normal module errors. Seed only the header/interface providers proven to be
 # on the concrete AVC compile path.
 seed_modules = (
+    "sysprop_cpp",                        # LibGuiProperties host generator
     "libfmq-base",                         # fmq/MQDescriptorBase.h
     "libsystem_headers",                   # system/graphics.h
     "android.hidl.manager@1.0",            # android/hidl/manager/1.0/IServiceManager.h
