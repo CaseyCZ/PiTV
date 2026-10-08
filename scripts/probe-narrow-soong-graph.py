@@ -178,6 +178,30 @@ def _restore_binder_bp():
 
 atexit.register(_restore_binder_bp)
 
+# libbinderthreadstateutils shares its Android.bp with a Java-only AIDL test.
+# Keep native modules while omitting that test from the disposable graph.
+binderthread_bp = tree / "frameworks/native/libs/binderthreadstate/Android.bp"
+if not binderthread_bp.is_file():
+    raise SystemExit("missing binderthreadstate Android.bp")
+_binderthread_original = binderthread_bp.read_bytes()
+_binderthread_stat = binderthread_bp.stat()
+_binderthread_text, _binderthread_removed = _strip_top_level_modules(
+    _binderthread_original.decode("utf-8"), "aidl_interface"
+)
+if _binderthread_removed < 1 or 'name: "libbinderthreadstateutils"' not in _binderthread_text:
+    raise SystemExit("unexpected binderthreadstate Android.bp structure")
+binderthread_bp.write_text(_binderthread_text)
+print(f"CODEC2_NARROW_BINDERTHREAD_NATIVE_ONLY=1 removed_aidl={_binderthread_removed}")
+
+def _restore_binderthread_bp():
+    binderthread_bp.write_bytes(_binderthread_original)
+    os.utime(
+        binderthread_bp,
+        ns=(_binderthread_stat.st_atime_ns, _binderthread_stat.st_mtime_ns),
+    )
+
+atexit.register(_restore_binderthread_bp)
+
 # libui exports the V3 NDK graphics-common AIDL headers. They are on the real
 # AVC compile path (GraphicTypes.h -> BlendMode.h), but the source interfaces
 # also enable Java by default. Keep only their native NDK variants in this
