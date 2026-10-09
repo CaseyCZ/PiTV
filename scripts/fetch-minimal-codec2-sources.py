@@ -156,6 +156,44 @@ if tree_env:
             r'r"missing dependencies:\\s*([^\\n]+)"',
             r'r"missing dependencies:\s*([^\n]+)"',
         )
+        # The previous replacement matched escaped quote characters rather than
+        # the actual Python source in the shell here-doc. Correct both forms so
+        # this remains idempotent across old experimental commits.
+        driver=driver.replace(
+            r'r"missing dependencies:\s*([^\n]+)"'.replace(r'\"', '"'),
+            r'r"missing dependencies:\s*([^\n]+)"'.replace(r'\"', '"'),
+        )
+        driver=driver.replace(
+            r'r"missing dependencies:\\s*([^\\n]+)"'.replace(r'\"', '"'),
+            r'r"missing dependencies:\s*([^\n]+)"'.replace(r'\"', '"'),
+        )
+
+        # A dry-run is diagnostic only. Missing module closures are represented
+        # by Ninja commands that deliberately fail when executed; -n cannot
+        # execute those commands and must not short-circuit the concrete retry.
+        fail_fast='''    # Fail immediately on a broken graph instead of spending the build budget
+    # retrying an AVC target that Ninja already proved cannot be built.
+    if [ "$preflight_rc" -ne 0 ]; then
+      echo "CODEC2_NARROW_PREFLIGHT_BLOCKED=1" >&2
+      printf '%s\\\\n' "$preflight_output" | tail -80 >&2
+      exit "$preflight_rc"
+    fi
+    unset preflight_rc
+'''
+        if fail_fast in driver:
+            driver=driver.replace(
+                fail_fast,
+                '''    # Keep this dry-run diagnostic-only. The concrete Ninja build below
+    # feeds proven missing modules back into the narrow Soong provider closure.
+    unset preflight_rc
+''',
+                1,
+            )
+        driver=driver.replace(
+            "for host_tool in hidl-gen aidl sysprop_cpp ndkstubgen sbox merge_zips; do",
+            "for host_tool in hidl-gen aidl aprotoc sysprop_cpp ndkstubgen sbox merge_zips; do",
+            1,
+        )
 
         aprotoc_marker='    host_sysprop_cpp="$TREE/out/host/linux-x86/bin/sysprop_cpp"'
         aprotoc_ready="CODEC2_NARROW_APROTOC_READY=1"
@@ -210,7 +248,7 @@ print(",".join(sorted(mods)))
       echo "CODEC2_NARROW_APROTOC_READY=1"
     fi
 
-'''
+'''.replace('\\"', '"')
             driver=driver.replace(aprotoc_marker,aprotoc_block+aprotoc_marker,1)
 
         build_driver.write_text(driver)
