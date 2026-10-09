@@ -138,3 +138,80 @@ if tree_env:
         print("CODEC2_NARROW_BUILD_ATTEMPTS=32")
         if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
             print("CODEC2_NARROW_SERIAL_JOBS=1")
+
+    # Keep the experimental CI repair in one place instead of adding one Git
+    # commit for every newly discovered host tool. The fetch step runs directly
+    # before the narrow build, so patch the disposable checkout of the build
+    # driver idempotently. This does not modify the synced Android sources or
+    # the default branch.
+    if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
+        build_driver=repo/"scripts/build-minimal-codec2-modules.sh"
+        driver=build_driver.read_text()
+
+        # Earlier generated edits accidentally wrote two literal backslashes.
+        # Restore normal shell newlines and Python regex escapes so dependency
+        # failures are actually fed back into the automatic provider closure.
+        driver=driver.replace("printf '%s\\\\n'", "printf '%s\\n'")
+        driver=driver.replace(
+            r'r"missing dependencies:\\s*([^\\n]+)"',
+            r'r"missing dependencies:\s*([^\n]+)"',
+        )
+
+        aprotoc_marker='    host_sysprop_cpp="$TREE/out/host/linux-x86/bin/sysprop_cpp"'
+        aprotoc_ready="CODEC2_NARROW_APROTOC_READY=1"
+        if aprotoc_ready not in driver:
+            if aprotoc_marker not in driver:
+                raise SystemExit("missing sysprop host-tool insertion point")
+            aprotoc_block=r'''    # sysprop proto generation expects aprotoc at HOST_OUT, while the reduced
+    # Soong graph exposes the real cc_binary_host only in .intermediates.
+    # Build that real target and promote it. If its closure is incomplete,
+    # feed the missing modules back through the same narrow-graph retry loop.
+    host_aprotoc="$TREE/out/host/linux-x86/bin/aprotoc"
+    if [ ! -x "$host_aprotoc" ]; then
+      aprotoc_target="$(python3 -c '
+import sys
+for line in sys.stdin:
+    if "/aprotoc/linux_glibc_x86_64/aprotoc: " in line:
+        print(line.split(": ", 1)[0]); break
+' <<<"$target_inventory")"
+      if [ -z "$aprotoc_target" ]; then
+        echo "CODEC2_NARROW_APROTOC_TARGET_MISSING=1" >&2
+        exit 15
+      fi
+      echo "CODEC2_NARROW_APROTOC_TARGET=$aprotoc_target"
+      set +e
+      aprotoc_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$aprotoc_target" 2>&1)"
+      aprotoc_rc=$?
+      set -e
+      [ -z "$aprotoc_output" ] || printf '%s\n' "$aprotoc_output"
+      if [ "$aprotoc_rc" -ne 0 ]; then
+        aprotoc_missing="$(printf '%s\n' "$aprotoc_output" | python3 -c '
+import re, sys
+mods = set()
+for match in re.finditer(r"missing dependencies:\s*([^\n]+)", sys.stdin.read(), re.I):
+    for raw in match.group(1).split(","):
+        name = raw.strip().strip(chr(34) + chr(39)).rstrip(".;")
+        if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
+            mods.add(name)
+print(",".join(sorted(mods)))
+')"
+        if [ -n "$aprotoc_missing" ]; then
+          echo "CODEC2_NARROW_APROTOC_MISSING=$aprotoc_missing"
+          REQUIRED_MODULES="${REQUIRED_MODULES:+$REQUIRED_MODULES,}$aprotoc_missing"
+          continue
+        fi
+        exit "$aprotoc_rc"
+      fi
+      test -s "$aprotoc_target"
+      mkdir -p "$(dirname "$host_aprotoc")"
+      cp "$aprotoc_target" "$host_aprotoc"
+      chmod +x "$host_aprotoc"
+      test -x "$host_aprotoc"
+      echo "CODEC2_NARROW_APROTOC_READY=1"
+    fi
+
+'''
+            driver=driver.replace(aprotoc_marker,aprotoc_block+aprotoc_marker,1)
+
+        build_driver.write_text(driver)
+        print("CODEC2_NARROW_RUNTIME_DRIVER_REPAIR=1")
