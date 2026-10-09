@@ -397,15 +397,19 @@ print(",".join(sorted(mods)))
     # LibGuiProperties requires this host executable before AVC can compile.
     host_sysprop_cpp="$TREE/out/host/linux-x86/bin/sysprop_cpp"
     if [ ! -x "$host_sysprop_cpp" ]; then
-      sysprop_target="$(printf '%s\\n' "$target_inventory" | grep -m1 -E '(^|/)out/host/linux-x86/bin/sysprop_cpp:|^out/host/linux-x86/bin/sysprop_cpp:' || true)"
+      # The host binary lives in Soong intermediates; promote it to HOST_OUT.
+      sysprop_target="$(printf '%s\n' "$target_inventory" | grep -m1 -E '/sysprop_cpp/linux_glibc_x86_64/sysprop_cpp: ' || true)"
       sysprop_target="${sysprop_target%%: *}"
       if [ -z "$sysprop_target" ]; then
         echo "CODEC2_NARROW_SYSPROP_TARGET_MISSING=1" >&2
-        printf '%s\\n' "$target_inventory" | grep -E 'sysprop_cpp' | head -25 >&2 || true
         exit 14
       fi
       echo "CODEC2_NARROW_SYSPROP_TARGET=$sysprop_target"
       "$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$sysprop_target"
+      test -s "$sysprop_target"
+      mkdir -p "$(dirname "$host_sysprop_cpp")"
+      cp "$sysprop_target" "$host_sysprop_cpp"
+      chmod +x "$host_sysprop_cpp"
       test -x "$host_sysprop_cpp"
       echo "CODEC2_NARROW_SYSPROP_READY=1"
     fi
