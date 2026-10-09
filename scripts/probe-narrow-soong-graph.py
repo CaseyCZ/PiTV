@@ -415,6 +415,8 @@ required_modules = [
 # on the concrete AVC compile path.
 seed_modules = (
     "sysprop_cpp",                        # LibGuiProperties host generator
+    "libpropertyinfoserializer",          # sysprop_cpp host link dependency
+    "libprotobuf-cpp-full",               # sysprop_cpp host protobuf dependency
     "libfmq-base",                         # fmq/MQDescriptorBase.h
     "libsystem_headers",                   # system/graphics.h
     "android.hidl.manager@1.0",            # android/hidl/manager/1.0/IServiceManager.h
