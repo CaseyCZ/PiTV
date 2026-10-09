@@ -414,6 +414,7 @@ required_modules = [
 # as normal module errors. Seed only the header/interface providers proven to be
 # on the concrete AVC compile path.
 seed_modules = (
+    "aidl-cpp",                          # libgui_bufferqueue_static AIDL C++ host generator
     "sysprop_cpp",                        # LibGuiProperties host generator
     "libpropertyinfoserializer",          # sysprop_cpp host link dependency
     "libprotobuf-cpp-full",               # sysprop_cpp host protobuf dependency
