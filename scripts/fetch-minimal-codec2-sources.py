@@ -13,7 +13,7 @@ out.mkdir(parents=True, exist_ok=True)
 
 for item in lock["sources"]:
     dst = out / item["name"]
-    fresh = False
+    fresh=False
     if not dst.exists():
         subprocess.run(
             ["git", "clone", "--filter=blob:none", "--no-checkout", item["url"], str(dst)],
@@ -43,10 +43,7 @@ for item in lock["sources"]:
         ["git", "-C", str(dst), "fetch", "--depth=1", "origin", item["commit"]],
         check=True,
     )
-    subprocess.run(
-        ["git", "-C", str(dst), "checkout", "--detach", "--force", item["commit"]],
-        check=True,
-    )
+    subprocess.run(["git","-C",str(dst),"checkout","--detach","--force",item["commit"]],check=True)
     got = subprocess.check_output(
         ["git", "-C", str(dst), "rev-parse", "HEAD"], text=True
     ).strip()
