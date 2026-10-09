@@ -440,10 +440,10 @@ print(",".join(sorted(mods)))
     # Resolve its real Soong target and promote it before Ninja preflight.
     host_aidl_cpp="$TREE/out/host/linux-x86/bin/aidl-cpp"
     if [ ! -x "$host_aidl_cpp" ]; then
-      aidl_cpp_line="$(printf '%s\\n' "$target_inventory" | grep -m1 -E '/aidl-cpp(/linux_glibc[^/]*)?/aidl-cpp: ' || true)"
+      aidl_cpp_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '/aidl-cpp(/linux_glibc[^/]*)?/aidl-cpp: ' || true)"
       if [ -z "$aidl_cpp_line" ]; then
         echo "CODEC2_NARROW_AIDL_CPP_TARGET_MISSING=1" >&2
-        printf '%s\\n' "$target_inventory" | grep -E '/aidl-cpp[^:]*: ' | head -30 || true
+        printf '%s\n' "$target_inventory" | grep -E '/aidl-cpp[^:]*: ' | head -30 || true
         exit 14
       fi
       aidl_cpp_target="${aidl_cpp_line%%: *}"
@@ -452,12 +452,12 @@ print(",".join(sorted(mods)))
       aidl_cpp_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$aidl_cpp_target" 2>&1)"
       aidl_cpp_rc=$?
       set -e
-      [ -z "$aidl_cpp_output" ] || printf '%s\\n' "$aidl_cpp_output"
+      [ -z "$aidl_cpp_output" ] || printf '%s\n' "$aidl_cpp_output"
       if [ "$aidl_cpp_rc" -ne 0 ]; then
-        aidl_cpp_missing="$(printf '%s\\n' "$aidl_cpp_output" | python3 -c '
+        aidl_cpp_missing="$(printf '%s\n' "$aidl_cpp_output" | python3 -c '
 import re, sys
 mods = set()
-for match in re.finditer(r"missing dependencies:\\s*([^\\n]+)", sys.stdin.read(), re.I):
+for match in re.finditer(r"missing dependencies:\s*([^\n]+)", sys.stdin.read(), re.I):
     for raw in match.group(1).split(","):
         name = raw.strip().strip(chr(34) + chr(39)).rstrip(".;")
         if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
