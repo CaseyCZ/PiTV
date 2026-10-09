@@ -405,7 +405,29 @@ print(",".join(sorted(mods)))
         exit 14
       fi
       echo "CODEC2_NARROW_SYSPROP_TARGET=$sysprop_target"
-      "$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$sysprop_target"
+      set +e
+      sysprop_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$sysprop_target" 2>&1)"
+      sysprop_rc=$?
+      set -e
+      [ -z "$sysprop_output" ] || printf '%s\\n' "$sysprop_output"
+      if [ "$sysprop_rc" -ne 0 ]; then
+        sysprop_missing="$(printf '%s\\n' "$sysprop_output" | python3 -c '
+import re, sys
+mods = set()
+for match in re.finditer(r"missing dependencies:\\s*([^\\n]+)", sys.stdin.read(), re.I):
+    for raw in match.group(1).split(","):
+        name = raw.strip().strip(chr(34) + chr(39)).rstrip(".;")
+        if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
+            mods.add(name)
+print(",".join(sorted(mods)))
+')"
+        if [ -n "$sysprop_missing" ]; then
+          echo "CODEC2_NARROW_SYSPROP_MISSING=$sysprop_missing"
+          REQUIRED_MODULES="${REQUIRED_MODULES:+$REQUIRED_MODULES,}$sysprop_missing"
+          continue
+        fi
+        exit "$sysprop_rc"
+      fi
       test -s "$sysprop_target"
       mkdir -p "$(dirname "$host_sysprop_cpp")"
       cp "$sysprop_target" "$host_sysprop_cpp"
