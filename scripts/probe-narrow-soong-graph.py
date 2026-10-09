@@ -95,7 +95,6 @@ def _restore_token_bp():
 atexit.register(_restore_token_bp)
 
 
-
 def _restore_manager_bp():
     for manager_bp, manager_original, manager_stat in reversed(_manager_bp_backups):
         manager_bp.write_bytes(manager_original)
@@ -153,6 +152,32 @@ def _strip_top_level_modules(text: str, module_type: str):
         pos = end
         removed += 1
     return "".join(out), removed
+
+# aidl-cpp shares system/tools/aidl/Android.bp with many test aidl_interface
+# modules. Their Java variants trigger dexpreopt/dex2oatd even though only the
+# native host generator is needed on the AVC path. Strip those interfaces only
+# for this disposable graph and restore the source file afterwards.
+aidl_tool_bp = tree / "system/tools/aidl/Android.bp"
+if not aidl_tool_bp.is_file():
+    raise SystemExit("missing system/tools/aidl/Android.bp")
+_aidl_tool_original = aidl_tool_bp.read_bytes()
+_aidl_tool_stat = aidl_tool_bp.stat()
+_aidl_tool_text, _aidl_tool_removed = _strip_top_level_modules(
+    _aidl_tool_original.decode("utf-8"), "aidl_interface"
+)
+if _aidl_tool_removed < 1 or 'name: "aidl-cpp"' not in _aidl_tool_text:
+    raise SystemExit("unexpected system/tools/aidl Android.bp structure")
+aidl_tool_bp.write_text(_aidl_tool_text)
+print(f"CODEC2_NARROW_AIDL_TOOL_NATIVE_ONLY=1 removed_aidl={_aidl_tool_removed}")
+
+def _restore_aidl_tool_bp():
+    aidl_tool_bp.write_bytes(_aidl_tool_original)
+    os.utime(
+        aidl_tool_bp,
+        ns=(_aidl_tool_stat.st_atime_ns, _aidl_tool_stat.st_mtime_ns),
+    )
+
+atexit.register(_restore_aidl_tool_bp)
 
 binder_bp = tree / "frameworks/native/libs/binder/Android.bp"
 _binder_bp_original = None
