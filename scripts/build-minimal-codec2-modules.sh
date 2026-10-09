@@ -409,12 +409,12 @@ print(",".join(sorted(mods)))
       sysprop_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$sysprop_target" 2>&1)"
       sysprop_rc=$?
       set -e
-      [ -z "$sysprop_output" ] || printf '%s\\n' "$sysprop_output"
+      [ -z "$sysprop_output" ] || printf '%s\n' "$sysprop_output"
       if [ "$sysprop_rc" -ne 0 ]; then
-        sysprop_missing="$(printf '%s\\n' "$sysprop_output" | python3 -c '
+        sysprop_missing="$(printf '%s\n' "$sysprop_output" | python3 -c '
 import re, sys
 mods = set()
-for match in re.finditer(r"missing dependencies:\\s*([^\\n]+)", sys.stdin.read(), re.I):
+for match in re.finditer(r"missing dependencies:\s*([^\n]+)", sys.stdin.read(), re.I):
     for raw in match.group(1).split(","):
         name = raw.strip().strip(chr(34) + chr(39)).rstrip(".;")
         if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
