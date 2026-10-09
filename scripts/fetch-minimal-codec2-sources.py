@@ -118,6 +118,40 @@ if tree_env:
         host_aidl_hash_gen.chmod(0o755)
         print("CODEC2_NARROW_AIDL_HASH_GEN_WRAPPER=1")
 
+    # dep_fixer is a Soong bootstrap host tool. The warm probe intentionally
+    # stops soon after soong_build is ready, so the canonical HOST_OUT copy may
+    # not exist. On the second fetch invocation, bootstrap.ninja is available:
+    # build the exact dep_fixer target and promote it before sysprop generation.
+    if os.environ.get("GITHUB_JOB")=="codec2-narrow-probe":
+        host_dep_fixer=tree/"out/host/linux-x86/bin/dep_fixer"
+        bootstrap_ninja=tree/"out/soong/bootstrap.ninja"
+        if not host_dep_fixer.is_file() and bootstrap_ninja.is_file():
+            ninja=tree/"prebuilts/build-tools/linux-x86/bin/ninja"
+            if not ninja.is_file():
+                raise SystemExit("missing Android bootstrap ninja executable")
+            inventory=subprocess.check_output(
+                [str(ninja),"-f",str(bootstrap_ninja),"-t","targets","all"],
+                cwd=tree,text=True,
+            )
+            dep_target=None
+            for line in inventory.splitlines():
+                target=line.split(": ",1)[0]
+                if target.endswith("/dep_fixer"):
+                    dep_target=target
+                    break
+            if not dep_target:
+                raise SystemExit("bootstrap graph missing dep_fixer target")
+            subprocess.run([str(ninja),"-f",str(bootstrap_ninja),dep_target],cwd=tree,check=True)
+            dep_binary=Path(dep_target)
+            if not dep_binary.is_absolute():
+                dep_binary=tree/dep_binary
+            if not dep_binary.is_file():
+                raise SystemExit(f"dep_fixer target built but output is missing: {dep_binary}")
+            host_dep_fixer.parent.mkdir(parents=True,exist_ok=True)
+            host_dep_fixer.write_bytes(dep_binary.read_bytes())
+            host_dep_fixer.chmod(0o755)
+            print(f"CODEC2_NARROW_DEP_FIXER_READY={dep_binary}")
+
     # The direct narrow graph links host hidl-gen against Soong's shared
     # libc++.  Unlike a normal full build, the promoted HOST_OUT hidl-gen has
     # no install-time runtime-library setup.  GitHub Actions applies GITHUB_ENV
