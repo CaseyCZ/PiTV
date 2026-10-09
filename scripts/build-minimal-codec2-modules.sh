@@ -436,6 +436,49 @@ print(",".join(sorted(mods)))
       echo "CODEC2_NARROW_SYSPROP_READY=1"
     fi
 
+    # The narrow graph does not always install the host AIDL C++ generator.
+    # Resolve its real Soong target and promote it before Ninja preflight.
+    host_aidl_cpp="$TREE/out/host/linux-x86/bin/aidl-cpp"
+    if [ ! -x "$host_aidl_cpp" ]; then
+      aidl_cpp_line="$(printf '%s\\n' "$target_inventory" | grep -m1 -E '/aidl-cpp(/linux_glibc[^/]*)?/aidl-cpp: ' || true)"
+      if [ -z "$aidl_cpp_line" ]; then
+        echo "CODEC2_NARROW_AIDL_CPP_TARGET_MISSING=1" >&2
+        printf '%s\\n' "$target_inventory" | grep -E '/aidl-cpp[^:]*: ' | head -30 || true
+        exit 14
+      fi
+      aidl_cpp_target="${aidl_cpp_line%%: *}"
+      echo "CODEC2_NARROW_AIDL_CPP_TARGET=$aidl_cpp_target"
+      set +e
+      aidl_cpp_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$aidl_cpp_target" 2>&1)"
+      aidl_cpp_rc=$?
+      set -e
+      [ -z "$aidl_cpp_output" ] || printf '%s\\n' "$aidl_cpp_output"
+      if [ "$aidl_cpp_rc" -ne 0 ]; then
+        aidl_cpp_missing="$(printf '%s\\n' "$aidl_cpp_output" | python3 -c '
+import re, sys
+mods = set()
+for match in re.finditer(r"missing dependencies:\\s*([^\\n]+)", sys.stdin.read(), re.I):
+    for raw in match.group(1).split(","):
+        name = raw.strip().strip(chr(34) + chr(39)).rstrip(".;")
+        if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
+            mods.add(name)
+print(",".join(sorted(mods)))
+')"
+        if [ -n "$aidl_cpp_missing" ]; then
+          echo "CODEC2_NARROW_AIDL_CPP_MISSING=$aidl_cpp_missing"
+          REQUIRED_MODULES="${REQUIRED_MODULES:+$REQUIRED_MODULES,}$aidl_cpp_missing"
+          continue
+        fi
+        exit "$aidl_cpp_rc"
+      fi
+      case "$aidl_cpp_target" in /*) aidl_cpp_binary="$aidl_cpp_target" ;; *) aidl_cpp_binary="$TREE/$aidl_cpp_target" ;; esac
+      [ -s "$aidl_cpp_binary" ] || { echo "aidl-cpp build produced no executable" >&2; exit 14; }
+      mkdir -p "$(dirname "$host_aidl_cpp")"
+      cp "$aidl_cpp_binary" "$host_aidl_cpp"
+      chmod +x "$host_aidl_cpp"
+      echo "CODEC2_NARROW_AIDL_CPP_READY=1"
+    fi
+
     # Preflight the entire concrete AVC dependency graph without compiling.
     # Ninja -n checks missing inputs and absent generating rules up front.
     # Report all discovered missing host tools before the expensive build.
