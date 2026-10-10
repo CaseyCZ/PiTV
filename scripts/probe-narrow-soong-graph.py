@@ -51,10 +51,10 @@ required_modules = [
 ]
 
 # Cache only dependencies that concrete Ninja attempts have already proven to
-# be in the V4L2 AVC target closure.  Without this, each fresh CI runner spends
+# be in the V4L2 AVC target closure. Without this, each fresh CI runner spends
 # nearly all 16 outer build attempts rediscovering the same modules one layer at
 # a time and can hit the attempt cap immediately before the next valid provider
-# override is applied.  These are not speculative graph roots: every entry came
+# override is applied. These are not speculative graph roots: every entry came
 # from a prior "missing dependencies" failure of the same AVC target.
 proven_avc_modules = (
     "libbase",
@@ -125,6 +125,93 @@ proven_avc_modules = (
 for module_name in proven_avc_modules:
     if module_name not in required_modules:
         required_modules.append(module_name)
+
+# build-minimal-codec2-modules.sh deliberately reduces frameworks/av/Android.bp
+# to its package/license prefix before the direct narrow Soong probe. The real
+# AVC closure has now proven that libstagefright_foundation needs av-headers,
+# which in Android 13 is declared after av-types-aidl in that same root file.
+# Re-introduce only the production C++ AIDL interface and header module here;
+# explicitly disable the default Java backend so dexpreopt/dex2oat remains out
+# of the disposable graph. The parent script restores the original Android.bp
+# from its temporary-edit backup when the narrow build exits.
+av_root_bp = tree / "frameworks/av/Android.bp"
+if "av-headers" in required_modules:
+    if not av_root_bp.is_file():
+        raise SystemExit("missing frameworks/av/Android.bp")
+    av_root_text = av_root_bp.read_text(errors="ignore")
+    if 'name: "av-headers"' not in av_root_text:
+        if 'name: "frameworks_av_license"' not in av_root_text:
+            raise SystemExit("unexpected reduced frameworks/av root structure")
+        av_root_text = av_root_text.rstrip() + r'''
+
+aidl_interface {
+    name: "av-types-aidl",
+    unstable: true,
+    host_supported: true,
+    vendor_available: true,
+    double_loadable: true,
+    local_include_dir: "aidl",
+    srcs: [
+        "aidl/android/media/InterpolatorConfig.aidl",
+        "aidl/android/media/InterpolatorType.aidl",
+        "aidl/android/media/MicrophoneInfoData.aidl",
+        "aidl/android/media/VolumeShaperConfiguration.aidl",
+        "aidl/android/media/VolumeShaperConfigurationOptionFlag.aidl",
+        "aidl/android/media/VolumeShaperConfigurationType.aidl",
+        "aidl/android/media/VolumeShaperOperation.aidl",
+        "aidl/android/media/VolumeShaperOperationFlag.aidl",
+        "aidl/android/media/VolumeShaperState.aidl",
+    ],
+    backend: {
+        java: {
+            enabled: false,
+        },
+        cpp: {
+            min_sdk_version: "29",
+            apex_available: [
+                "//apex_available:platform",
+                "com.android.bluetooth",
+                "com.android.media",
+                "com.android.media.swcodec",
+            ],
+        },
+    },
+}
+
+cc_library_headers {
+    name: "av-headers",
+    export_include_dirs: ["include"],
+    static_libs: [
+        "av-types-aidl-cpp",
+    ],
+    export_static_lib_headers: [
+        "av-types-aidl-cpp",
+    ],
+    header_libs: [
+        "libaudioclient_aidl_conversion_util",
+    ],
+    export_header_lib_headers: [
+        "libaudioclient_aidl_conversion_util",
+    ],
+    host_supported: true,
+    vendor_available: true,
+    double_loadable: true,
+    min_sdk_version: "29",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.bluetooth",
+        "com.android.media",
+        "com.android.media.swcodec",
+    ],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
+}
+''' + "\n"
+        av_root_bp.write_text(av_root_text)
+        print("CODEC2_NARROW_AV_HEADERS_NATIVE_ONLY=1")
 
 selected = {x.strip() for x in module_list.read_text().splitlines() if x.strip()}
 overridden = []
