@@ -49,6 +49,83 @@ required_raw = os.environ.get("PITV_CODEC2_NARROW_REQUIRED_MODULES", "")
 required_modules = [
     x.strip() for x in re.split(r"[\n,]+", required_raw) if x.strip()
 ]
+
+# Cache only dependencies that concrete Ninja attempts have already proven to
+# be in the V4L2 AVC target closure.  Without this, each fresh CI runner spends
+# nearly all 16 outer build attempts rediscovering the same modules one layer at
+# a time and can hit the attempt cap immediately before the next valid provider
+# override is applied.  These are not speculative graph roots: every entry came
+# from a prior "missing dependencies" failure of the same AVC target.
+proven_avc_modules = (
+    "libbase",
+    "libc++",
+    "libclang_rt.builtins",
+    "libcrypto",
+    "libhidl-gen-hash",
+    "libhidl-gen-host-utils",
+    "libhidl-gen-utils",
+    "libjsoncpp",
+    "liblog",
+    "fmtlib",
+    "libc++abi",
+    "libhwbinder_headers",
+    "libcutils_headers",
+    "libz",
+    "libpropertyinfoparser",
+    "crtbegin_dynamic",
+    "crtend_android",
+    "libavservices_minijail",
+    "libc",
+    "libchrome",
+    "libdl",
+    "libm",
+    "libutils",
+    "libstagefright_bufferqueue_helper",
+    "libstagefright_foundation",
+    "libui",
+    "libhardware",
+    "libnativewindow",
+    "libstagefright_bufferpool@1.0",
+    "libyuv_static",
+    "android.hardware.media@1.0_interface",
+    "android.hidl.base@1.0_interface",
+    "android.hardware.media.bufferpool@2.0",
+    "android.hardware.media.omx@1.0",
+    "android.hidl.safe_union@1.0",
+    "libminijail",
+    "jni_headers",
+    "libevent",
+    "libmodpb64",
+    "media_plugin_headers",
+    "libbinder_headers",
+    "libstagefright_bufferpool@2.0.1",
+    "libdmabufheap",
+    "libgralloctypes",
+    "libion",
+    "linux_bionic_supported",
+    "libvndksupport",
+    "android.hidl.manager@1.1_genc++_headers",
+    "android.hidl.manager@1.2_genc++_headers",
+    "libcap",
+    "android.hidl.token@1.0-utils",
+    "libEGL",
+    "libgui_bufferqueue_static",
+    "libhidlmemory",
+    "android.hidl.token@1.0",
+    "gl_headers",
+    "LibGuiProperties",
+    "inputconstants_aidl",
+    "libbinderthreadstateutils",
+    "libsync",
+    "android.hidl.memory.token@1.0",
+    "android.hidl.memory@1.0",
+    "av-headers",
+    "media_ndk_headers",
+)
+for module_name in proven_avc_modules:
+    if module_name not in required_modules:
+        required_modules.append(module_name)
+
 selected = {x.strip() for x in module_list.read_text().splitlines() if x.strip()}
 overridden = []
 for module_name, rel in required_provider_overrides.items():
