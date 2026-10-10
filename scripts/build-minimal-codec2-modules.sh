@@ -481,19 +481,21 @@ print(",".join(sorted(mods)))
 
     # Preflight the entire concrete AVC dependency graph without compiling.
     # Ninja -n checks missing inputs and absent generating rules up front.
-    # Report all discovered missing host tools before the expensive build.
+    # A canonical missing HOST_OUT tool can be closed by adding only its
+    # Soong module to the next narrow-graph attempt. Do not expand arbitrary
+    # intermediates here: that would pull unrelated framework/test graphs.
     echo "CODEC2_NARROW_PREFLIGHT_BEGIN=1"
     preflight_output="$("$NINJA" -n -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)" || preflight_rc=$?
     preflight_rc="${preflight_rc:-0}"
     echo "CODEC2_NARROW_PREFLIGHT_RC=$preflight_rc"
-    printf '%s\\n' "$preflight_output" | python3 -c '
+    printf '%s\n' "$preflight_output" | python3 -c '
 import re, sys
 text = sys.stdin.read()
 for line in text.splitlines():
     if re.search(r"ninja: error:|missing and no known rule|missing dependencies:", line, re.I):
         print("CODEC2_NARROW_PREFLIGHT_ISSUE=" + line[:600])
 ' || true
-    for host_tool in hidl-gen aidl sysprop_cpp ndkstubgen sbox merge_zips; do
+    for host_tool in hidl-gen aidl aidl-cpp sysprop_cpp ndkstubgen sbox merge_zips; do
       if [ -x "$TREE/out/host/linux-x86/bin/$host_tool" ]; then
         echo "CODEC2_NARROW_HOST_TOOL_OK=$host_tool"
       else
@@ -501,15 +503,42 @@ for line in text.splitlines():
       fi
     done
     echo "CODEC2_NARROW_PREFLIGHT_END=1"
-    # Fail immediately on a broken graph instead of spending the build budget
-    # retrying an AVC target that Ninja already proved cannot be built.
     if [ "$preflight_rc" -ne 0 ]; then
+      preflight_host_modules="$(printf '%s\n' "$preflight_output" | python3 -c '
+import re, sys
+text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
+mods = set()
+for line in text.splitlines():
+    if "missing and no known rule to make it" not in line.lower():
+        continue
+    for match in re.finditer(r"[\047\"]([^\047\"]*/out/host/linux-x86/bin/([A-Za-z0-9_.+-]+))[\047\"]", line):
+        mods.add(match.group(2))
+print(",".join(sorted(mods)))
+')"
+      if [ -n "$preflight_host_modules" ]; then
+        preflight_added=0
+        IFS=',' read -r -a preflight_host_array <<< "$preflight_host_modules"
+        for module in "${preflight_host_array[@]}"; do
+case ",$REQUIRED_MODULES," in
+  *",$module,"*) ;;
+  *)
+    REQUIRED_MODULES="${REQUIRED_MODULES:+$REQUIRED_MODULES,}$module"
+    preflight_added=1
+    ;;
+esac
+        done
+        if [ "$preflight_added" -eq 1 ]; then
+echo "CODEC2_NARROW_PREFLIGHT_HOST_MODULES=$preflight_host_modules"
+unset preflight_rc
+continue
+        fi
+        echo "CODEC2_NARROW_PREFLIGHT_HOST_MODULES_STALLED=$preflight_host_modules" >&2
+      fi
       echo "CODEC2_NARROW_PREFLIGHT_BLOCKED=1" >&2
-      printf '%s\\n' "$preflight_output" | tail -80 >&2
+      printf '%s\n' "$preflight_output" | tail -80 >&2
       exit "$preflight_rc"
     fi
     unset preflight_rc
-
 
     set +e
     build_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)"
