@@ -326,7 +326,7 @@ PYNARROW
     # resulting executable to the canonical HOST_OUT path expected by HIDL.
     hidl_gen="$TREE/out/host/linux-x86/bin/hidl-gen"
     if [ ! -x "$hidl_gen" ]; then
-      hidl_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '(^|/)hidl-gen: ' || true)"
+      hidl_line="$(awk -v pat='(^|/)hidl-gen: ' '$0 ~ pat { print; exit }' <<<"$target_inventory")"
       if [ -z "$hidl_line" ]; then
         echo "CODEC2_NARROW_HIDL_GEN_TARGETS_BEGIN=1"
         printf '%s\n' "$target_inventory" | grep -E '(^|/)(hidl-gen|libhidl-gen[^/:]*): ' | head -80 || true
@@ -382,7 +382,7 @@ print(",".join(sorted(mods)))
       echo "CODEC2_NARROW_HIDL_GEN_PROMOTED=$hidl_binary"
     fi
 
-    target_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '(^|/)[^:]*android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' || true)"
+    target_line="$(awk -v pat='(^|/)[^:]*android\.hardware\.media\.c2@1\.0-service-v4l2-64: ' '$0 ~ pat { print; exit }' <<<"$target_inventory")"
     if [ -z "$target_line" ]; then
       echo "CODEC2_NARROW_V4L2_TARGET_CANDIDATES_BEGIN=1"
       printf '%s\n' "$target_inventory" | grep -E 'android\.hardware\.media\.c2@1\.0-service-v4l2|libv4l2_codec2' | head -80 || true
@@ -398,7 +398,7 @@ print(",".join(sorted(mods)))
     host_sysprop_cpp="$TREE/out/host/linux-x86/bin/sysprop_cpp"
     if [ ! -x "$host_sysprop_cpp" ]; then
       # The host binary lives in Soong intermediates; promote it to HOST_OUT.
-      sysprop_target="$(printf '%s\n' "$target_inventory" | grep -m1 -E '/sysprop_cpp/linux_glibc_x86_64/sysprop_cpp: ' || true)"
+      sysprop_target="$(awk -v pat='/sysprop_cpp/linux_glibc_x86_64/sysprop_cpp: ' '$0 ~ pat { print; exit }' <<<"$target_inventory")"
       sysprop_target="${sysprop_target%%: *}"
       if [ -z "$sysprop_target" ]; then
         echo "CODEC2_NARROW_SYSPROP_TARGET_MISSING=1" >&2
@@ -430,9 +430,46 @@ print(",".join(sorted(mods)))
       fi
       test -s "$sysprop_target"
       mkdir -p "$(dirname "$host_sysprop_cpp")"
-      cp "$sysprop_target" "$host_sysprop_cpp"
+      cp -f "$sysprop_target" "$host_sysprop_cpp"
       chmod +x "$host_sysprop_cpp"
       test -x "$host_sysprop_cpp"
+
+      # Direct narrow Soong builds produce host shared-library dependencies
+      # only in intermediates.  The promoted HOST_OUT sysprop_cpp keeps the
+      # normal host RUNPATH, so mirror any unresolved linux_glibc runtime
+      # libraries into HOST_OUT/lib64 before Ninja invokes it for sysprop
+      # generation (for example libprotobuf-cpp-full.so).
+      host_runtime_libdir="$TREE/out/host/linux-x86/lib64"
+      mkdir -p "$host_runtime_libdir"
+      export LD_LIBRARY_PATH="$host_runtime_libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      for runtime_pass in 1 2 3 4; do
+        sysprop_missing_runtime="$(ldd "$host_sysprop_cpp" 2>/dev/null | awk '$2 == "=>" && $3 == "not" && $4 == "found" { print $1 }')"
+        [ -n "$sysprop_missing_runtime" ] || break
+        runtime_progress=0
+        while IFS= read -r runtime_lib; do
+          [ -n "$runtime_lib" ] || continue
+          runtime_src="$(find "$TREE/out/soong/.intermediates" -type f -name "$runtime_lib" -path '*/linux_glibc_x86_64*/*' -print -quit 2>/dev/null || true)"
+          if [ -n "$runtime_src" ] && [ -f "$runtime_src" ]; then
+            cp -f "$runtime_src" "$host_runtime_libdir/$runtime_lib"
+            echo "CODEC2_NARROW_HOST_RUNTIME_PROMOTED=$runtime_lib source=$runtime_src"
+            runtime_progress=1
+          else
+            echo "CODEC2_NARROW_HOST_RUNTIME_NOT_FOUND=$runtime_lib" >&2
+          fi
+        done <<< "$sysprop_missing_runtime"
+        if [ "$runtime_progress" -ne 1 ]; then
+          echo "unable to close sysprop_cpp host runtime dependencies" >&2
+          ldd "$host_sysprop_cpp" >&2 || true
+          exit 14
+        fi
+      done
+      sysprop_missing_runtime="$(ldd "$host_sysprop_cpp" 2>/dev/null | awk '$2 == "=>" && $3 == "not" && $4 == "found" { print $1 }')"
+      if [ -n "$sysprop_missing_runtime" ]; then
+        echo "CODEC2_NARROW_SYSPROP_RUNTIME_MISSING=$(tr '\n' ',' <<<"$sysprop_missing_runtime" | sed 's/,$//')" >&2
+        ldd "$host_sysprop_cpp" >&2 || true
+        exit 14
+      fi
+      echo "CODEC2_NARROW_SYSPROP_RUNTIME_READY=1"
       echo "CODEC2_NARROW_SYSPROP_READY=1"
     fi
 
@@ -440,7 +477,7 @@ print(",".join(sorted(mods)))
     # Resolve its real Soong target and promote it before Ninja preflight.
     host_aidl_cpp="$TREE/out/host/linux-x86/bin/aidl-cpp"
     if [ ! -x "$host_aidl_cpp" ]; then
-      aidl_cpp_line="$(printf '%s\n' "$target_inventory" | grep -m1 -E '/aidl-cpp(/linux_glibc[^/]*)?/aidl-cpp: ' || true)"
+      aidl_cpp_line="$(awk -v pat='/aidl-cpp(/linux_glibc[^/]*)?/aidl-cpp: ' '$0 ~ pat { print; exit }' <<<"$target_inventory")"
       if [ -z "$aidl_cpp_line" ]; then
         echo "CODEC2_NARROW_AIDL_CPP_TARGET_MISSING=1" >&2
         printf '%s\n' "$target_inventory" | grep -E '/aidl-cpp[^:]*: ' | head -30 || true
