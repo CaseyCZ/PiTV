@@ -17,6 +17,7 @@ from pathlib import Path
 # CODEC2_NARROW_SOONG_READY=1
 # CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1
 # CODEC2_NARROW_MISSING_LABEL=
+# CODEC2_NARROW_REQUIRED_PROVIDER_OVERRIDE=
 # label_no_files_re
 # source_candidates = [rel for rel in out if not rel.startswith("prebuilts/vndk/")]
 # Allow_missing_dependencies
