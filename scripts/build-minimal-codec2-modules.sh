@@ -81,7 +81,8 @@ body=s.find("{",start); ret=s.find("    return ret;",body)
 if body<0 or ret<0: raise SystemExit("unexpected V4L2 Codec2 listComponents body")
 prefix=s[:body+1]
 suffix=s[ret:]
-new='''\n    std::vector<std::shared_ptr<const C2Component::Traits>> ret;
+new='''\
+    std::vector<std::shared_ptr<const C2Component::Traits>> ret;
     ret.push_back(GetTraits(V4L2ComponentName::kH264Decoder));
 '''
 p.write_text(prefix+new+suffix)
@@ -348,7 +349,7 @@ text = re.sub(r"\x1b\[[0-9;]*m", "", sys.stdin.read())
 mods = set()
 for match in re.finditer(r"missing dependencies:\s*([^\n]+)", text, re.I):
     for raw in match.group(1).split(","):
-        name = raw.strip().strip("\"\\047").rstrip(".;")
+        name = raw.strip().strip("\"\047").rstrip(".;")
         if re.fullmatch(r"[A-Za-z0-9_.+@:/=-]+", name):
             mods.add(name)
 print(",".join(sorted(mods)))
@@ -578,7 +579,7 @@ continue
     unset preflight_rc
 
     set +e
-    build_output="$("$NINJA" -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)"
+    build_output="$("$NINJA" -d keepdepfile -f "$NARROW_NINJA" -j"$JOBS" "$avc_target" 2>&1)"
     build_rc=$?
     set -e
     [ -z "$build_output" ] || printf '%s\n' "$build_output"
