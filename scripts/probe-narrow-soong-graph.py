@@ -153,22 +153,76 @@ def _strip_top_level_modules(text: str, module_type: str):
         removed += 1
     return "".join(out), removed
 
-# aidl-cpp shares system/tools/aidl/Android.bp with many test aidl_interface
-# modules. Their Java variants trigger dexpreopt/dex2oatd even though only the
-# native host generator is needed on the AVC path. Strip those interfaces only
-# for this disposable graph and restore the source file afterwards.
+
+def _extract_top_level_module(text: str, module_type: str, module_name=None):
+    pat = re.compile(rf"(?m)^[ \t]*{re.escape(module_type)}[ \t]*\{{")
+    name_pat = None
+    if module_name is not None:
+        name_pat = re.compile(
+            rf'(?m)^[ \t]*name[ \t]*:[ \t]*"{re.escape(module_name)}"[ \t]*,'
+        )
+    for match in pat.finditer(text):
+        brace = text.find("{", match.start(), match.end())
+        depth = 0
+        in_string = False
+        escaped = False
+        end = -1
+        for i in range(brace, len(text)):
+            ch = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end < 0:
+            raise SystemExit(f"unterminated {module_type} block")
+        block = text[match.start():end]
+        if name_pat is None or name_pat.search(block):
+            return block.strip()
+    suffix = "" if module_name is None else f" named {module_name}"
+    raise SystemExit(f"missing {module_type}{suffix} in narrow AIDL provider")
+
+
+# aidl-cpp shares system/tools/aidl/Android.bp with the complete AIDL compiler
+# test suite (cc/java/rust tests, fuzzers and integration interfaces). Selecting
+# that provider file for one host generator otherwise lets unrelated Java test
+# variants create dexpreopt/dex2oatd edges. Keep only the production host
+# compiler chain plus the native trace header provider, then restore the source.
 aidl_tool_bp = tree / "system/tools/aidl/Android.bp"
 if not aidl_tool_bp.is_file():
     raise SystemExit("missing system/tools/aidl/Android.bp")
 _aidl_tool_original = aidl_tool_bp.read_bytes()
 _aidl_tool_stat = aidl_tool_bp.stat()
-_aidl_tool_text, _aidl_tool_removed = _strip_top_level_modules(
-    _aidl_tool_original.decode("utf-8"), "aidl_interface"
+_aidl_source_text = _aidl_tool_original.decode("utf-8")
+_aidl_keep = (
+    ("package", None),
+    ("license", "system_tools_aidl_license"),
+    ("cc_defaults", "aidl_defaults"),
+    ("cc_library_static", "libaidl-common"),
+    ("cc_binary_host", "aidl"),
+    ("cc_binary_host", "aidl-cpp"),
+    ("cc_library_headers", "libandroid_aidltrace"),
 )
-if _aidl_tool_removed < 1 or 'name: "aidl-cpp"' not in _aidl_tool_text:
-    raise SystemExit("unexpected system/tools/aidl Android.bp structure")
+_aidl_tool_text = "\n\n".join(
+    _extract_top_level_module(_aidl_source_text, module_type, module_name)
+    for module_type, module_name in _aidl_keep
+) + "\n"
+if 'name: "aidl-cpp"' not in _aidl_tool_text or "aidl_test_" in _aidl_tool_text:
+    raise SystemExit("unexpected system/tools/aidl host-only reduction")
 aidl_tool_bp.write_text(_aidl_tool_text)
-print(f"CODEC2_NARROW_AIDL_TOOL_NATIVE_ONLY=1 removed_aidl={_aidl_tool_removed}")
+print(f"CODEC2_NARROW_AIDL_TOOL_HOST_ONLY=1 kept_modules={len(_aidl_keep)}")
 
 def _restore_aidl_tool_bp():
     aidl_tool_bp.write_bytes(_aidl_tool_original)
