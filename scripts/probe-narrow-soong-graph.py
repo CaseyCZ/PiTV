@@ -142,7 +142,7 @@ if "av-headers" in required_modules:
     if 'name: "av-headers"' not in av_root_text:
         if 'name: "frameworks_av_license"' not in av_root_text:
             raise SystemExit("unexpected reduced frameworks/av root structure")
-        av_root_text = av_root_text.rstrip() + r'''
+        av_root_text = av_root_text.rstrip() + '''
 
 aidl_interface {
     name: "av-types-aidl",
