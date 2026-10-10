@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run the narrow Soong probe with native-only HIDL memory interfaces."""
 import os
+import re
 import runpy
 import sys
 from pathlib import Path
@@ -25,9 +26,52 @@ if len(sys.argv) != 3:
     raise SystemExit("usage: probe-narrow-soong-graph.py ANDROID_TREE MODULE_LIST")
 
 tree = Path(sys.argv[1]).resolve()
+module_list = Path(sys.argv[2]).resolve()
 core = Path(__file__).with_name("probe-narrow-soong-graph-core.py")
 if not core.is_file():
     raise SystemExit(f"missing narrow Soong probe core: {core}")
+if not module_list.is_file():
+    raise SystemExit(f"missing narrow Soong module list: {module_list}")
+
+# Android's generated full Android.bp list can omit parent-package providers
+# that are still valid dependencies of modules in the reduced graph. These two
+# header-only modules are on the proven AVC path and have stable source
+# providers. Add those exact Blueprint files directly instead of widening the
+# graph, and remove the names from the generic provider lookup for this child
+# process because the core index cannot discover files absent from the full
+# list it indexes.
+required_provider_overrides = {
+    "av-headers": "frameworks/av/Android.bp",
+    "media_ndk_headers": "frameworks/av/media/ndk/Android.bp",
+}
+required_raw = os.environ.get("PITV_CODEC2_NARROW_REQUIRED_MODULES", "")
+required_modules = [
+    x.strip() for x in re.split(r"[\n,]+", required_raw) if x.strip()
+]
+selected = {x.strip() for x in module_list.read_text().splitlines() if x.strip()}
+overridden = []
+for module_name, rel in required_provider_overrides.items():
+    if module_name not in required_modules:
+        continue
+    bp = tree / rel
+    if not bp.is_file():
+        raise SystemExit(f"missing narrow provider override: {rel}")
+    if f'name: "{module_name}"' not in bp.read_text(errors="ignore"):
+        raise SystemExit(
+            f"unexpected narrow provider override for {module_name}: {rel}"
+        )
+    selected.add(rel)
+    required_modules = [x for x in required_modules if x != module_name]
+    overridden.append((module_name, rel))
+
+if overridden:
+    module_list.write_text("\n".join(sorted(selected)) + "\n")
+    os.environ["PITV_CODEC2_NARROW_REQUIRED_MODULES"] = ",".join(required_modules)
+    for module_name, rel in overridden:
+        print(
+            f"CODEC2_NARROW_REQUIRED_PROVIDER_OVERRIDE="
+            f"{module_name}:{rel}"
+        )
 
 # libhidlmemory is in the real native AVC dependency closure. Its source HIDL
 # interfaces also generate Java variants by default on Android 13; direct
