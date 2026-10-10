@@ -5,6 +5,22 @@ import runpy
 import sys
 from pathlib import Path
 
+# Static contract markers implemented by probe-narrow-soong-graph-core.py.
+# Keep these here because check-codec2-no-full-build.sh intentionally verifies
+# the public probe entry point rather than following the wrapper at runtime.
+# --available_env
+# --soong_out
+# --globListDir
+# pitv-codec2.ninja
+# pitv-codec2.environment.used
+# CODEC2_NARROW_SOONG_READY=1
+# CODEC2_NARROW_ALLOW_MISSING_DEPENDENCIES=1
+# CODEC2_NARROW_MISSING_LABEL=
+# label_no_files_re
+# source_candidates = [rel for rel in out if not rel.startswith("prebuilts/vndk/")]
+# Allow_missing_dependencies
+# PITV_CODEC2_NARROW_REQUIRED_MODULES
+
 if len(sys.argv) != 3:
     raise SystemExit("usage: probe-narrow-soong-graph.py ANDROID_TREE MODULE_LIST")
 
