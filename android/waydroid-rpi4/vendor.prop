@@ -1,0 +1,6 @@
+# PiTV Raspberry Pi 4 Android 13 media properties.
+
+# V4L2 Codec2 / AVC
+debug.stagefright.c2-poolmask=0x350000
+persist.v4l2_codec2.rank.decoder=128
+ro.vendor.v4l2_codec2.decode_concurrent_instances=4

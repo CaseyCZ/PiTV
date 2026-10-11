@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<settings version="1">
+  <!--
+    PiTV Raspberry Pi 4 media defaults.
+
+    Physical Pi 4 testing showed Kodi playback stutters badly unless the DRM
+    PRIME decoder and its hardware path are enabled. Kodi's Linux defaults
+    leave useprimedecoder=false, so an appliance image must opt in explicitly.
+    This file changes defaults only: values already saved by the user in
+    guisettings.xml remain user-owned.
+  -->
+  <section id="player">
+    <category id="videoplayer">
+      <group id="3">
+        <setting id="videoplayer.useprimedecoder">
+          <default>true</default>
+        </setting>
+        <setting id="videoplayer.useprimedecoderforhw">
+          <default>true</default>
+        </setting>
+      </group>
+    </category>
+  </section>
+</settings>

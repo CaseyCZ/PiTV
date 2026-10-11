@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEV="${1:-}"
+MODE="${2:-}"
+
+[[ "$DEV" =~ ^/dev/cec[0-9]+$ ]] || exit 2
+[ -c "$DEV" ] || exit 2
+
+case "$MODE" in
+  on|standby|active|volup|voldown|mute) ;;
+  *) exit 2 ;;
+esac
+
+# Output commands are short-lived, but serialize them per adapter so a wake,
+# volume press and Active Source announcement cannot interleave frames.
+LOCK="/run/lock/pitv-cec-control-${DEV##*/}.lock"
+exec 9>"$LOCK"
+/usr/bin/flock -w 2 9 || exit 11
+
+case "$MODE" in
+  on)
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --image-view-on
+    ;;
+  standby)
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --standby
+    ;;
+  active)
+    PA="$(/usr/bin/cec-ctl -d "$DEV" 2>/dev/null |
+      sed -n 's/^[[:space:]]*Physical Address[[:space:]]*:[[:space:]]*//p' |
+      head -n1 | tr -d '[:space:]')"
+    [[ "$PA" =~ ^[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]\.[0-9A-Fa-f]$ ]] || exit 4
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --active-source "phys-addr=$PA"
+    ;;
+  volup|voldown|mute)
+    case "$MODE" in
+      volup) UI_CMD="volume-up" ;;
+      voldown) UI_CMD="volume-down" ;;
+      mute) UI_CMD="mute" ;;
+    esac
+    /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-pressed "ui-cmd=$UI_CMD"
+    sleep 0.05
+    exec /usr/bin/cec-ctl -d "$DEV" -s --to 0 --user-control-released
+    ;;
+esac

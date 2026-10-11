@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -un)" != "pitv" ]; then
+  echo "PiTV TV session musí běžet jako uživatel pitv." >&2
+  exit 2
+fi
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+export SDL_VIDEODRIVER=wayland
+
+RUNTIME="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="$RUNTIME"
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+
+for _ in $(seq 1 100); do
+  [ -d "$RUNTIME" ] && break
+  sleep 0.1
+done
+[ -d "$RUNTIME" ] || {
+  echo "PiTV runtime $RUNTIME neexistuje; user manager není připravený." >&2
+  exit 3
+}
+
+systemctl --user start   dbus.socket pipewire.socket pipewire-pulse.socket wireplumber.service   >/dev/null 2>&1 || true
+
+for _ in $(seq 1 100); do
+  [ -S "$RUNTIME/bus" ] && [ -S "$RUNTIME/pulse/native" ] && break
+  sleep 0.1
+done
+
+[ -S "$RUNTIME/bus" ] || {
+  echo "PiTV user D-Bus není připravený." >&2
+  exit 4
+}
+[ -S "$RUNTIME/pulse/native" ] || {
+  echo "PiTV PipeWire/Pulse není připravený." >&2
+  exit 5
+}
+
+# Invalidate the previous shell generation before runtime cleanup. This is
+# repeated here even though pitv-shell.service has an ExecStartPre guard: it
+# keeps manual/non-systemd session starts safe as well.
+rm -f "$RUNTIME/pitv-wayland-display"       "$RUNTIME/pitv-waydroid-app-ready"       "$RUNTIME/pitv-waydroid-runtime-ready"       "$RUNTIME/pitv-global-action"
+
+# One recovery boundary for the complete TV session. External TV applications
+# and any old nested Android surface are cleaned once before the new shell is
+# constructed. Individual launcher/app restarts do not own this responsibility.
+if [ -x /usr/local/libexec/pitv-helper ]; then
+  printf '{}' |
+    sudo -n /usr/local/libexec/pitv-helper tv-runtime-reset       >/tmp/pitv-runtime-reset.log 2>&1 || true
+fi
+
+# labwc has a native TV-session lifecycle: -s starts one primary client only
+# after the compositor/Wayland socket is ready and terminates the compositor
+# when that client exits. systemd Restart=always then recreates the whole shell.
+exec labwc -s /usr/local/bin/pitv-launcher-run

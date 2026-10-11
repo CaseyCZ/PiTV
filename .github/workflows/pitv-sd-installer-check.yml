@@ -1,0 +1,159 @@
+name: PiTV SD Installer Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer and engine
+        shell: powershell
+        run: |
+          foreach ($file in @(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              exit 1
+            }
+            Write-Host ("PowerShell syntax OK: " + $file)
+          }
+
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
+      - name: Compile native raw disk helper
+        shell: powershell
+        run: |
+          Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
+          if (-not ("PiTVNativeDisk" -as [type])) {
+            throw "PiTVNativeDisk.cs did not compile."
+          }
+          Write-Host "PiTVNativeDisk C# helper compiles"
+
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          cmake --build $build --config Release --target PiTV-XZ
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) {
+            throw "PiTV-XZ.exe was not produced."
+          }
+
+          $bin = Join-Path $env:RUNNER_TEMP "PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Add-Content -Path $env:GITHUB_ENV -Value ("PITV_XZ_EXE=" + $bin)
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify raw XZ extraction
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dir = Join-Path $env:RUNNER_TEMP "pitv-xz-test"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+
+          $src = Join-Path $dir "sample.img"
+          $xz = Join-Path $dir "sample.img.xz"
+          $out = Join-Path $dir "expanded.img"
+
+          python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
+
+          & $env:PITV_XZ_EXE $xz $out
+          if ($LASTEXITCODE -ne 0) {
+            throw "PiTV-XZ failed to expand the test stream."
+          }
+
+          $a = (Get-FileHash -Algorithm SHA256 $src).Hash
+          $b = (Get-FileHash -Algorithm SHA256 $out).Hash
+          if ($a -ne $b) {
+            throw "PiTV-XZ output is not byte-identical."
+          }
+          Write-Host "PiTV-XZ raw XZ extraction OK"
+
+      - name: Verify PiTV writer contract
+        shell: powershell
+        run: |
+          $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
+
+          if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
+            throw "Legacy Raspberry Pi Imager dependency is still present."
+          }
+          if ($installer -notmatch "PiTV-ImageEngine\.ps1") {
+            throw "Installer does not load PiTV-ImageEngine.ps1"
+          }
+
+          foreach ($required in @(
+            "Get-PiTVOnlineImageFile",
+            "Prepare-PiTVRawImage",
+            "Write-PiTVRawImageToDisk",
+            "Install-PiTVCloudInitToBootPartition"
+          )) {
+            if ($installer -notmatch [regex]::Escape($required)) {
+              throw "Installer write flow is missing $required"
+            }
+          }
+
+          foreach ($required in @(
+            "PiTVNativeDisk",
+            "PhysicalDrive",
+            "CACHE HIT",
+            "image_download_sha256",
+            "Get-PiTVDeviceSha256",
+            "Wait-PiTVTargetDiskReadyAfterRawWrite",
+            "DiskPartRescan",
+            "Write-PiTVBytesDurable",
+            "FINALIZE RETRY",
+            "PiTV-XZ.exe"
+          )) {
+            if ($engine -notmatch [regex]::Escape($required)) {
+              throw "Image engine is missing contract item $required"
+            }
+          }
+
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/flush contract OK"
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"

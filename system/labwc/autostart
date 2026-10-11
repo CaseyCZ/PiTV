@@ -1,0 +1,5 @@
+#!/bin/sh
+# PiTV 1.5: applications are supervised by pitv-session/systemd.
+# labwc autostart deliberately starts nothing so recovery cannot create
+# a second launcher.
+exit 0

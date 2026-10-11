@@ -1,0 +1,4 @@
+# PiTV kiosk session
+if [ -z "${SSH_TTY:-}" ] && [ "$(tty 2>/dev/null)" = "/dev/tty1" ]; then
+  exec /usr/local/bin/pitv-session
+fi

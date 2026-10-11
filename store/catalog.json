@@ -1,0 +1,99 @@
+{
+  "version": 9,
+  "apps": [
+    {
+      "id": "kodi",
+      "name": "Kodi",
+      "description": "Mediální centrum pro filmy, seriály, hudbu a síťové zdroje.",
+      "category": "Media",
+      "platform": "linux",
+      "icon": "KODI",
+      "featured": true,
+      "source_label": "Ubuntu",
+      "installer": {
+        "type": "apt",
+        "package": "kodi"
+      }
+    },
+    {
+      "id": "smarttube",
+      "name": "SmartTube",
+      "description": "Android TV YouTube klient. PiTV stáhne nejnovější stabilní ARM64 release.",
+      "category": "Video",
+      "platform": "android",
+      "icon": "ST",
+      "featured": true,
+      "source_label": "Official GitHub",
+      "requires": "waydroid",
+      "installer": {
+        "type": "github_release_apk",
+        "repo": "yuliskov/SmartTube",
+        "asset_regex": "^SmartTube_stable_.*_arm64-v8a\\.apk$",
+        "expected_packages": [
+          "org.smarttube.stable",
+          "com.teamsmart.videomanager.tv"
+        ]
+      }
+    },
+    {
+      "id": "stremio",
+      "name": "Stremio",
+      "description": "Oficiální Stremio klient pro Linux ARM64. Běží nativně v PiTV bez Waydroidu.",
+      "category": "Media",
+      "platform": "linux",
+      "icon": "STR",
+      "featured": true,
+      "source_label": "Official Stremio / Flathub",
+      "installer": {
+        "type": "flatpak",
+        "app_id": "com.stremio.Stremio"
+      }
+    },
+    {
+      "id": "youtube-tv",
+      "name": "YouTube",
+      "description": "Klasická oficiální aplikace YouTube pro Android TV.",
+      "category": "Video",
+      "platform": "android",
+      "icon": "YT",
+      "featured": true,
+      "source_label": "Google Play",
+      "requires": "gapps",
+      "installer": {
+        "type": "play_store",
+        "package": "com.google.android.youtube.tv"
+      }
+    },
+    {
+      "id": "spotify-tv",
+      "name": "Spotify",
+      "description": "Oficiální Spotify pro televizi s ovladačem a Spotify Connect.",
+      "category": "Music",
+      "platform": "android",
+      "icon": "SP",
+      "featured": true,
+      "source_label": "Google Play",
+      "requires": "gapps",
+      "installer": {
+        "type": "play_store",
+        "package": "com.spotify.tv.android"
+      }
+    },
+    {
+      "id": "plex",
+      "name": "Plex Player",
+      "description": "TV přehrávač Plex pro Linux ARM64 přes Kodi + PM4K. Bez Androidu/Waydroidu.",
+      "category": "Media",
+      "platform": "linux",
+      "icon": "PLEX",
+      "featured": true,
+      "source_label": "Kodi + PM4K (community)",
+      "requires": "kodi",
+      "installer": {
+        "type": "kodi_addon",
+        "package": "kodi",
+        "addon_id": "script.plexmod"
+      }
+    }
+  ]
+}

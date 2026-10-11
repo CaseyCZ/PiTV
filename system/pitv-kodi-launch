@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -un)" != "pitv" ]; then
+  echo "Kodi musí běžet v TV session uživatele pitv." >&2
+  exit 10
+fi
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+RUNTIME="/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="$RUNTIME"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc
+export PULSE_RUNTIME_PATH="$RUNTIME/pulse"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME/bus"
+
+if [ ! -S "$RUNTIME/bus" ] || [ ! -S "$RUNTIME/pulse/native" ]; then
+  echo "PiTV TV session (D-Bus/PipeWire) není připravená." >&2
+  exit 11
+fi
+
+MARKER="$RUNTIME/pitv-wayland-display"
+WAYLAND_DISPLAY="$(head -n1 "$MARKER" 2>/dev/null || true)"
+if [[ ! "$WAYLAND_DISPLAY" =~ ^wayland-[0-9]+$ ]] ||
+   [ ! -S "$RUNTIME/$WAYLAND_DISPLAY" ]; then
+  WAYLAND_DISPLAY=""
+fi
+export WAYLAND_DISPLAY
+[ -n "${WAYLAND_DISPLAY:-}" ] || {
+  echo "PiTV Wayland není připravený." >&2
+  exit 12
+}
+
+command -v kodi >/dev/null 2>&1 || {
+  echo "Kodi není nainstalované." >&2
+  exit 3
+}
+
+LOG=/tmp/pitv-kodi.log
+touch "$LOG"
+
+# PiTV owns HDMI-CEC below the visual shell through pitv-inputd. Kodi must not
+# open the same adapter independently; doing so was physically observed on the
+# Pi 4 as repeated OpenConnection failures during shutdown. Persist Kodi's own
+# CEC peripheral as disabled while keeping all remote keys available through
+# the PiTV virtual Linux input device.
+disable_kodi_cec() {
+  /usr/bin/python3 - <<'PY'
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+base = Path.home() / ".kodi" / "userdata" / "peripheral_data"
+base.mkdir(parents=True, exist_ok=True)
+paths = set(base.glob("cec_*.xml"))
+# Kodi keeps this legacy location as a supported fallback for the generic
+# built-in CEC adapter, so create it even before the first discovery scan.
+paths.add(base / "cec_CEC_Adapter.xml")
+
+for path in paths:
+    try:
+        if path.exists():
+            tree = ET.parse(path)
+            root = tree.getroot()
+            if root.tag != "settings":
+                continue
+        else:
+            root = ET.Element("settings")
+            tree = ET.ElementTree(root)
+
+        setting = next(
+            (node for node in root.findall("setting")
+             if node.get("id") == "enabled"),
+            None,
+        )
+        if setting is None:
+            setting = ET.SubElement(root, "setting", {"id": "enabled"})
+        setting.set("value", "0")
+        tree.write(path, encoding="utf-8", xml_declaration=True)
+    except Exception:
+        pass
+PY
+}
+
+disable_kodi_cec >>"$LOG" 2>&1 || true
+
+KODI_USER_LOG="$HOME/.kodi/temp/kodi.log"
+KODI_LOG_INODE_BEFORE="$(stat -c %i "$KODI_USER_LOG" 2>/dev/null || echo 0)"
+KODI_LOG_LINES_BEFORE="$(wc -l <"$KODI_USER_LOG" 2>/dev/null || echo 0)"
+
+find_kodi_bin() {
+  pgrep -n -u pitv -x kodi.bin 2>/dev/null || true
+}
+
+KODI_PID="$(find_kodi_bin)"
+KODI_WRAPPER_PID=""
+
+if [ -z "$KODI_PID" ]; then
+  kodi "$@" >>"$LOG" 2>&1 &
+  KODI_WRAPPER_PID=$!
+
+  # Ubuntu's kodi launcher can hand off to kodi.bin and exit. Track the real
+  # player, not only the short-lived shell wrapper.
+  for _ in $(seq 1 100); do
+    KODI_PID="$(find_kodi_bin)"
+    [ -n "$KODI_PID" ] && break
+    if ! kill -0 "$KODI_WRAPPER_PID" 2>/dev/null; then
+      # Give a just-spawned kodi.bin a short final window to appear even after
+      # the distro wrapper exits.
+      sleep 0.1
+    else
+      sleep 0.1
+    fi
+  done
+fi
+
+if [ -z "$KODI_PID" ]; then
+  echo "Kodi se nespustilo; viz $LOG" >&2
+  if [ -n "$KODI_WRAPPER_PID" ]; then
+    wait "$KODI_WRAPPER_PID" 2>/dev/null || true
+  fi
+  exit 4
+fi
+
+# Track only log lines belonging to this Kodi run. Kodi normally rotates its
+# log on startup; the inode/line-count fallback also handles truncate-in-place.
+KODI_LOG_INODE_NOW="$(stat -c %i "$KODI_USER_LOG" 2>/dev/null || echo 0)"
+KODI_LOG_LINES_NOW="$(wc -l <"$KODI_USER_LOG" 2>/dev/null || echo 0)"
+if [ "$KODI_LOG_INODE_NOW" != "$KODI_LOG_INODE_BEFORE" ] ||
+   [ "$KODI_LOG_LINES_NOW" -lt "$KODI_LOG_LINES_BEFORE" ]; then
+  KODI_LOG_CURSOR=0
+else
+  KODI_LOG_CURSOR="$KODI_LOG_LINES_BEFORE"
+fi
+
+kodi_application_stopped() {
+  [ -f "$KODI_USER_LOG" ] || return 1
+  local current start
+  current="$(wc -l <"$KODI_USER_LOG" 2>/dev/null || echo 0)"
+  if [ "$current" -lt "$KODI_LOG_CURSOR" ]; then
+    KODI_LOG_CURSOR=0
+  fi
+  [ "$current" -gt "$KODI_LOG_CURSOR" ] || return 1
+  start=$((KODI_LOG_CURSOR + 1))
+  if sed -n "${start},${current}p" "$KODI_USER_LOG" 2>/dev/null |
+      grep -F "Application stopped" >/dev/null; then
+    KODI_LOG_CURSOR="$current"
+    return 0
+  fi
+  KODI_LOG_CURSOR="$current"
+  return 1
+}
+
+shutdown_kodi() {
+  # Prefer Kodi's own Quit when the optional event client is installed.
+  if command -v kodi-send >/dev/null 2>&1; then
+    kodi-send --action="Quit" >/dev/null 2>&1 || true
+  fi
+
+  if kill -0 "$KODI_PID" 2>/dev/null; then
+    kill -TERM "$KODI_PID" 2>/dev/null || true
+  fi
+
+  for _ in $(seq 1 20); do
+    kill -0 "$KODI_PID" 2>/dev/null || return 0
+    sleep 0.1
+  done
+
+  kill -KILL "$KODI_PID" 2>/dev/null || true
+}
+trap 'shutdown_kodi; exit 0' TERM INT HUP
+
+# Stay attached to the real kodi.bin for its whole lifetime. This makes PiTV's
+# external-process tracking reliable even when /usr/bin/kodi has already exited.
+#
+# Kodi can finish its UI shutdown ("Application stopped") but leave kodi.bin
+# alive while its CEC thread keeps retrying the adapter. Settings are already
+# saved before that marker. Give final cleanup a short grace period, then
+# terminate the stale runtime so PiTV can deterministically return to launcher.
+while kill -0 "$KODI_PID" 2>/dev/null; do
+  if kodi_application_stopped; then
+    echo "PiTV: Kodi UI ukončeno; dokončuji proces…" >>"$LOG"
+    for _ in $(seq 1 12); do
+      kill -0 "$KODI_PID" 2>/dev/null || break
+      sleep 0.25
+    done
+    if kill -0 "$KODI_PID" 2>/dev/null; then
+      kill -TERM "$KODI_PID" 2>/dev/null || true
+      for _ in $(seq 1 8); do
+        kill -0 "$KODI_PID" 2>/dev/null || break
+        sleep 0.25
+      done
+    fi
+    kill -0 "$KODI_PID" 2>/dev/null &&
+      kill -KILL "$KODI_PID" 2>/dev/null || true
+    break
+  fi
+  sleep 0.25
+done
+
+if [ -n "$KODI_WRAPPER_PID" ]; then
+  for _ in $(seq 1 8); do
+    kill -0 "$KODI_WRAPPER_PID" 2>/dev/null || break
+    sleep 0.25
+  done
+  if kill -0 "$KODI_WRAPPER_PID" 2>/dev/null; then
+    kill -TERM "$KODI_WRAPPER_PID" 2>/dev/null || true
+  fi
+  wait "$KODI_WRAPPER_PID" 2>/dev/null || true
+fi

@@ -1,0 +1,340 @@
+name: PiTV Alpha Release
+
+on:
+  push:
+    branches: [Master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pitv-alpha-pipeline
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-24.04
+    outputs:
+      windows: ${{ steps.diff.outputs.windows }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: diff
+        name: Detect Windows installer changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "windows=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          before="${{ github.event.before }}"
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            echo "windows=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$before" "$GITHUB_SHA" | grep -q '^tools/windows/'; then
+            echo "windows=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "windows=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  fast-check:
+    name: PiTV Fast Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python syntax
+        run: |
+          python3 -m py_compile \
+            pitv/pitv.py \
+            pitv/apk_backend.py \
+            pitv/store_backend.py \
+            pitv/update_backend.py \
+            system/pitv-helper \
+            system/pitv-self-update \
+            system/pitv-inputd \
+            system/pitv-displayd \
+            system/pitv-waydroid-device-patch
+
+      - name: Shell syntax
+        run: |
+          for file in \
+            install.sh uninstall.sh \
+            system/pitv-session system/pitv-session-run \
+            system/pitv-launcher-run system/pitv-android-warm \
+            system/pitv-waydroid-launch system/pitv-kodi-launch \
+            system/pitv-kodi-addon system/pitv-cec-control \
+            tools/pitv-flasher.sh scripts/install-waydroid.sh \
+            scripts/build-waydroid-rpi4-v4l2.sh \
+            scripts/install-waydroid-rpi4-v4l2-image.sh
+          do
+            bash -n "$file"
+          done
+
+      - name: Data syntax
+        run: |
+          python3 - <<'PY'
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for path in Path("config").rglob("*.json"):
+              json.loads(path.read_text(encoding="utf-8"))
+          for path in Path("store").glob("*.json"):
+              json.loads(path.read_text(encoding="utf-8"))
+          ET.parse("system/labwc/rc.xml")
+          media = ET.parse("android/waydroid-rpi4/media_codecs.xml").getroot()
+          codecs = {x.get("name") for x in media.findall(".//MediaCodec")}
+          includes = {x.get("href") for x in media.findall(".//Include")}
+          assert "c2.v4l2.avc.decoder" in codecs
+          assert "media_codecs_ffmpeg_c2.xml" in includes
+
+          ffmpeg = ET.parse(
+              "android/waydroid-rpi4/media_codecs_ffmpeg_c2.xml"
+          ).getroot()
+          ffmpeg_codecs = {
+              x.get("name") for x in ffmpeg.findall(".//MediaCodec")
+          }
+          assert ffmpeg_codecs == {"c2.ffmpeg.hevc.decoder"}
+          print("PiTV JSON/XML syntax OK")
+          PY
+
+      - name: Core self-tests
+        run: |
+          sudo python3 system/pitv-helper self-test </dev/null
+          python3 system/pitv-self-update --self-test
+          python3 system/pitv-inputd --self-test
+          python3 system/pitv-displayd --self-test
+
+  windows-check:
+    name: PiTV SD Installer Check
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer and engine
+        shell: powershell
+        run: |
+          foreach ($file in @(
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1",
+            "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1"
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $file,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object {
+                Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message)
+              }
+              exit 1
+            }
+            Write-Host ("PowerShell syntax OK: " + $file)
+          }
+
+      - name: Verify live Ubuntu catalog
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -SelfTestCatalog
+
+      - name: Compile native raw disk helper
+        shell: powershell
+        run: |
+          Add-Type -Path "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs"
+          if (-not ("PiTVNativeDisk" -as [type])) {
+            throw "PiTVNativeDisk.cs did not compile."
+          }
+          if (-not ([PiTVNativeDisk].GetMethod("LockVolume"))) {
+            throw "PiTVNativeDisk LockVolume helper is missing."
+          }
+          Write-Host "PiTVNativeDisk C# helper compiles"
+
+      - name: Build lightweight PiTV XZ decoder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $build = Join-Path $env:RUNNER_TEMP "pitv-xz-build"
+
+          cmake -S "$env:GITHUB_WORKSPACE\tools\windows\native" -B $build -A x64 -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure for PiTV-XZ failed." }
+
+          cmake --build $build --config Release --target PiTV-XZ
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ build failed." }
+
+          $exe = Get-ChildItem $build -Recurse -Filter "PiTV-XZ.exe" -File | Select-Object -First 1
+          if (-not $exe) { throw "PiTV-XZ.exe was not produced." }
+
+          $bin = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+          Copy-Item $exe.FullName $bin -Force
+          Write-Host ("Built " + $bin + " (" + $exe.Length + " bytes)")
+
+      - name: Verify PiTV XZ extraction
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dir = Join-Path $env:RUNNER_TEMP "pitv-xz-release-test"
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $src = Join-Path $dir "sample.img"
+          $xz = Join-Path $dir "sample.img.xz"
+          $out = Join-Path $dir "expanded.img"
+          $decoder = "$env:GITHUB_WORKSPACE\tools\windows\PiTV-XZ.exe"
+
+          python -c "import lzma, pathlib, sys; data=bytes(range(256))*16384; pathlib.Path(sys.argv[1]).write_bytes(data); pathlib.Path(sys.argv[2]).write_bytes(lzma.compress(data, format=lzma.FORMAT_XZ))" "$src" "$xz"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to create XZ test fixture." }
+
+          & $decoder $xz $out
+          if ($LASTEXITCODE -ne 0) { throw "PiTV-XZ failed to expand the test image." }
+
+          if ((Get-FileHash -Algorithm SHA256 $src).Hash -ne (Get-FileHash -Algorithm SHA256 $out).Hash) {
+            throw "PiTV-XZ output is not byte-identical."
+          }
+          Write-Host "PiTV-XZ raw XZ extraction OK"
+
+      - name: Verify PiTV writer contract
+        shell: powershell
+        run: |
+          $installer = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-SD-Installer.ps1" -Raw
+          $engine = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTV-ImageEngine.ps1" -Raw
+          $native = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\PiTVNativeDisk.cs" -Raw
+
+          if ($installer -match "Ensure-Imager|Assert-ImagerCliContract|Invoke-ImagerWrite") {
+            throw "Legacy Raspberry Pi Imager dependency is still present."
+          }
+
+          foreach ($required in @(
+            "Get-PiTVOnlineImageFile",
+            "Prepare-PiTVRawImage",
+            "Write-PiTVRawImageToDisk",
+            "Install-PiTVCloudInitToBootPartition"
+          )) {
+            if ($installer -notmatch [regex]::Escape($required)) {
+              throw "Installer write flow is missing $required"
+            }
+          }
+
+          foreach ($required in @(
+            "PiTVNativeDisk",
+            "PhysicalDrive",
+            "CACHE HIT",
+            "image_download_sha256",
+            "Get-PiTVDeviceSha256",
+            "Wait-PiTVTargetDiskReadyAfterRawWrite",
+            "DiskPartRescan",
+            "Write-PiTVBytesDurable",
+            "FINALIZE RETRY",
+            "PiTV-XZ.exe",
+            "LockVolume"
+          )) {
+            if ($engine -notmatch [regex]::Escape($required)) {
+              throw "Image engine is missing contract item $required"
+            }
+          }
+
+          foreach ($required in @(
+            "FSCTL_LOCK_VOLUME",
+            "FSCTL_DISMOUNT_VOLUME",
+            "LockAndDismount",
+            "FlushFileBuffers",
+            "FILE_FLAG_WRITE_THROUGH"
+          )) {
+            if ($native -notmatch [regex]::Escape($required)) {
+              throw "Native disk helper is missing $required"
+            }
+          }
+
+          Write-Host "PiTV raw writer/cache/volume-lock contract OK"
+
+      - name: Upload PiTV XZ decoder
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows/PiTV-XZ.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Verify launcher target
+        shell: powershell
+        run: |
+          $launcher = Get-Content "$env:GITHUB_WORKSPACE\tools\windows\Start-PiTV-SD-Installer.cmd" -Raw
+          if ($launcher -notmatch "PiTV-SD-Installer\.ps1") {
+            throw "Launcher does not reference PiTV-SD-Installer.ps1"
+          }
+          Write-Host "Launcher target OK"
+
+  release:
+    name: Publish Alpha
+    needs:
+      - fast-check
+      - changes
+      - windows-check
+    if: ${{ always() && needs.fast-check.result == 'success' && (needs.windows-check.result == 'success' || needs.windows-check.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download PiTV XZ decoder
+        if: needs.changes.outputs.windows == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: pitv-xz-windows
+          path: tools/windows
+
+      - name: Build Windows installer
+        if: needs.changes.outputs.windows == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p "dist/PiTV-SD-Installer-Windows"
+          cp tools/windows/Start-PiTV-SD-Installer.cmd "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-SD-Installer.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-ImageEngine.ps1 "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTVNativeDisk.cs "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/PiTV-XZ.exe "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/THIRD-PARTY-NOTICES.txt "dist/PiTV-SD-Installer-Windows/"
+          cp tools/windows/README.md "dist/PiTV-SD-Installer-Windows/README.md"
+          cp LICENSE "dist/PiTV-SD-Installer-Windows/LICENSE"
+          (
+            cd dist
+            zip -9 -r "PiTV-SD-Installer-Windows.zip" "PiTV-SD-Installer-Windows" >/dev/null
+          )
+          test -s dist/PiTV-SD-Installer-Windows.zip
+          ls -lh dist/PiTV-SD-Installer-Windows.zip
+
+      - name: Publish rolling Alpha release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_CHANGED: ${{ needs.changes.outputs.windows }}
+        run: |
+          set -euo pipefail
+          git config user.name "CaseyCZ"
+          git config user.email "25530709+CaseyCZ@users.noreply.github.com"
+          git tag -f alpha "$GITHUB_SHA"
+          git push -f origin refs/tags/alpha
+
+          if gh release view alpha >/dev/null 2>&1; then
+            gh release edit alpha --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          else
+            gh release create alpha --target "$GITHUB_SHA" --title "PiTV Alpha" --notes-file release-notes/alpha.md --prerelease
+          fi
+
+          if [ "$WINDOWS_CHANGED" = "true" ]; then
+            gh release upload alpha dist/PiTV-SD-Installer-Windows.zip --clobber
+          fi
+          gh release view alpha --json url,tagName,name,isDraft,isPrerelease,assets

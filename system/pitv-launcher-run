@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$(id -un)" != "pitv" ]; then
+  echo "PiTV launcher musí běžet jako uživatel pitv." >&2
+  exit 2
+fi
+
+export HOME=/home/pitv
+export USER=pitv
+export LOGNAME=pitv
+export PITV_SUPERVISED=1
+
+: "${XDG_RUNTIME_DIR:?PiTV XDG_RUNTIME_DIR není nastavený}"
+: "${WAYLAND_DISPLAY:?PiTV WAYLAND_DISPLAY není nastavený}"
+[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] || {
+  echo "PiTV Wayland socket není dostupný." >&2
+  exit 3
+}
+
+# Publish only the compositor-selected display. Optional runtimes such as Cage
+# must never guess from wayland-* files, because nested compositors create their
+# own sockets in the same XDG_RUNTIME_DIR.
+MARKER="$XDG_RUNTIME_DIR/pitv-wayland-display"
+TMP="$MARKER.$$"
+printf '%s\n' "$WAYLAND_DISPLAY" >"$TMP"
+mv -f "$TMP" "$MARKER"
+
+exec /usr/bin/python3 /opt/pitv/pitv/pitv.py

@@ -1,0 +1,76 @@
+name: PiTV Restore Point
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: "Short label for this known-good restore point"
+        required: true
+        default: "physical-ok"
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    name: Create permanent restore point
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Minimal sanity check
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            pitv/pitv.py \
+            pitv/apk_backend.py \
+            pitv/store_backend.py \
+            pitv/update_backend.py \
+            system/pitv-helper \
+            system/pitv-self-update
+          bash -n install.sh
+          bash -n system/pitv-session
+          bash -n system/pitv-waydroid-launch
+          python3 -m json.tool store/catalog.json >/dev/null
+          python3 -m json.tool store/server_catalog.json >/dev/null
+
+      - name: Create restore tag and release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABEL: ${{ inputs.label }}
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +'%Y%m%d-%H%M%S')"
+          tag="restore-$stamp"
+          safe_label="$(printf '%s' "$LABEL" | tr '\n\r' '  ')"
+
+          cat > /tmp/restore-notes.md <<EOF
+          Known-good PiTV restore point.
+
+          Label: $safe_label
+          Commit: $GITHUB_SHA
+          Created: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+
+          This release permanently pins the full repository state at this commit.
+          EOF
+
+          gh release create "$tag" \
+            --target "$GITHUB_SHA" \
+            --title "PiTV Restore Point · $safe_label" \
+            --notes-file /tmp/restore-notes.md
+
+          mkdir -p /tmp/pitv-restore-assets
+          if gh release download alpha \
+              --pattern "PiTV-SD-Installer-Windows.zip" \
+              --dir /tmp/pitv-restore-assets >/dev/null 2>&1; then
+            if [ -s /tmp/pitv-restore-assets/PiTV-SD-Installer-Windows.zip ]; then
+              gh release upload "$tag" \
+                /tmp/pitv-restore-assets/PiTV-SD-Installer-Windows.zip
+            fi
+          fi
+
+          gh release view "$tag" --json url,tagName,name
