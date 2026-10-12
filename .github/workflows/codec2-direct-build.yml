@@ -61,6 +61,8 @@ jobs:
             sleep $((attempt * 5))
           done
           repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+          echo "CODEC2_DIRECT_DROP_REPO_METADATA=1"
+          rm -rf "$TREE/.repo"
           df -h "$TREE"
 
       - name: Fetch pinned Codec2 sources
