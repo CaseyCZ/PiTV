@@ -90,10 +90,20 @@ jobs:
           test -s "$bootstrap_ninja"
           NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
           [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
-          # ndkstubgen is not a bootstrap.ninja target. fetch-minimal-codec2-sources.py
-          # already creates its lightweight HOST_OUT wrapper for this disposable tree.
-          test -x "out/host/linux-x86/bin/ndkstubgen"
-          echo "CODEC2_FFMPEG_HEVC_HOST_TOOL=ndkstubgen-wrapper"
+
+          # The narrow source fetch prepares lightweight wrappers in HOST_OUT.
+          # Generated Soong edges reference the equivalent SOONG_HOST_OUT paths,
+          # so promote the same wrappers there instead of expanding the graph.
+          for wrapper in ndkstubgen aidl aidl_hash_gen; do
+            host_tool="out/host/linux-x86/bin/$wrapper"
+            soong_tool="out/soong/host/linux-x86/bin/$wrapper"
+            test -x "$host_tool"
+            mkdir -p "$(dirname "$soong_tool")"
+            cp -f "$host_tool" "$soong_tool"
+            chmod +x "$host_tool" "$soong_tool"
+            echo "CODEC2_FFMPEG_HEVC_HOST_TOOL=$wrapper-wrapper"
+          done
+
           for tool in sbox soong_zip zipsync merge_zips; do
             soong_tool="out/soong/host/linux-x86/bin/$tool"
             host_tool="out/host/linux-x86/bin/$tool"
