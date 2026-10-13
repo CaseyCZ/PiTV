@@ -136,8 +136,9 @@ jobs:
           cd "$TREE"
           NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
           [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+          bootstrap_ninja="out/soong/bootstrap.ninja"
           "$NINJA" -f out/soong/pitv-codec2.ninja -t targets all > /tmp/pitv-ffmpeg-hevc-targets.txt
-          target_line="$(awk -v pat='(^|/)[^:]*android\.hardware\.media\.c2@1\.2-service-ffmpeg: ' '$0 ~ pat { print; exit }' /tmp/pitv-ffmpeg-hevc-targets.txt)"
+          target_line="$(grep -m1 -E '(^|/)[^:]*android\.hardware\.media\.c2@1\.2-service-ffmpeg: ' /tmp/pitv-ffmpeg-hevc-targets.txt || true)"
           if [ -z "$target_line" ]; then
             echo "CODEC2_FFMPEG_HEVC_TARGET_CANDIDATES_BEGIN=1"
             grep -E 'ffmpeg|libavcodec|libffmpeg_utils' /tmp/pitv-ffmpeg-hevc-targets.txt | head -120 || true
@@ -147,15 +148,64 @@ jobs:
           fi
           hevc_target="${target_line%%: *}"
           echo "CODEC2_FFMPEG_HEVC_TARGET=$hevc_target"
-          set +e
-          "$NINJA" -n -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
-            > /tmp/pitv-ffmpeg-hevc-dry-run.log 2>&1
-          rc=$?
-          set -e
+
+          # Dry-run repeatedly and close any missing Soong host executable from
+          # the already restored bootstrap graph. This avoids one-commit-per-tool
+          # failures while keeping the Android target graph narrow.
+          dry_rc=1
+          for attempt in $(seq 1 32); do
+            echo "CODEC2_FFMPEG_HEVC_DRY_RUN_ATTEMPT=$attempt"
+            set +e
+            "$NINJA" -n -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
+              > /tmp/pitv-ffmpeg-hevc-dry-run.log 2>&1
+            dry_rc=$?
+            set -e
+            if [ "$dry_rc" -eq 0 ]; then
+              break
+            fi
+
+            missing="$(python3 - <<'PY'
+import re
+from pathlib import Path
+text = Path('/tmp/pitv-ffmpeg-hevc-dry-run.log').read_text(errors='replace')
+m = re.search(r"ninja: error: '([^']*out/soong/host/linux-x86/bin/[^']+)', needed by .*missing and no known rule to make it", text)
+print(m.group(1) if m else '')
+PY
+)"
+            if [ -z "$missing" ]; then
+              cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+              echo "CODEC2_FFMPEG_HEVC_NON_HOST_DRY_RUN_FAILURE=1" >&2
+              exit "$dry_rc"
+            fi
+            case "$missing" in
+              "$TREE"/*) rel="${missing#"$TREE"/}" ;;
+              out/*) rel="$missing" ;;
+              *)
+                cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+                echo "unexpected missing host tool path: $missing" >&2
+                exit "$dry_rc"
+                ;;
+            esac
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_HOST_MISSING=$rel"
+            if ! "$NINJA" -n -f "$bootstrap_ninja" "$rel" >/dev/null 2>&1; then
+              cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+              echo "bootstrap graph cannot provide $rel" >&2
+              exit "$dry_rc"
+            fi
+            "$NINJA" -f "$bootstrap_ninja" "$rel"
+            test -x "$rel" || test -s "$rel"
+            base="${rel#out/soong/host/linux-x86/bin/}"
+            host_rel="out/host/linux-x86/bin/$base"
+            mkdir -p "$(dirname "$host_rel")"
+            cp -f "$rel" "$host_rel"
+            chmod +x "$rel" "$host_rel" || true
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_HOST_READY=$rel"
+          done
+
           cat /tmp/pitv-ffmpeg-hevc-dry-run.log
-          echo "CODEC2_FFMPEG_HEVC_DRY_RUN_RC=$rc"
-          if [ "$rc" -ne 0 ]; then
-            exit "$rc"
+          echo "CODEC2_FFMPEG_HEVC_DRY_RUN_RC=$dry_rc"
+          if [ "$dry_rc" -ne 0 ]; then
+            exit "$dry_rc"
           fi
           echo "CODEC2_FFMPEG_HEVC_GRAPH_READY=1"
 
