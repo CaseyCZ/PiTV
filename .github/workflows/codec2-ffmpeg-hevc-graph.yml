@@ -83,6 +83,26 @@ jobs:
           cmp "$TREE/out/soong/pitv-source-manifest.xml" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
           du -sh "$TREE/out"
 
+      - name: Restore narrow bootstrap host tools
+        run: |
+          cd "$TREE"
+          bootstrap_ninja="out/soong/bootstrap.ninja"
+          test -s "$bootstrap_ninja"
+          NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+          [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+          for tool in sbox soong_zip zipsync merge_zips ndkstubgen; do
+            soong_tool="out/soong/host/linux-x86/bin/$tool"
+            host_tool="out/host/linux-x86/bin/$tool"
+            if [ ! -s "$soong_tool" ]; then
+              "$NINJA" -f "$bootstrap_ninja" "$soong_tool"
+            fi
+            test -s "$soong_tool"
+            mkdir -p "$(dirname "$host_tool")"
+            cp -f "$soong_tool" "$host_tool"
+            chmod +x "$soong_tool" "$host_tool"
+            echo "CODEC2_FFMPEG_HEVC_HOST_TOOL=$tool"
+          done
+
       - name: Prepare narrow FFmpeg HEVC tree
         run: |
           python3 scripts/prepare-narrow-ffmpeg-hevc.py \
