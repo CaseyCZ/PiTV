@@ -33,6 +33,17 @@ jobs:
           grep -q '"v4l2_request": true' "$RUNNER_TEMP/ffmpeg-android13-objects.json"
           grep -q '"codec": "HEVC"' "$RUNNER_TEMP/ffmpeg-android13-objects.json"
 
+      - name: Generate narrow FFmpeg Soong shim
+        run: |
+          python3 scripts/generate-ffmpeg-android13-soong.py \
+            "$RUNNER_TEMP/codec2-sources/ffmpeg" \
+            "$RUNNER_TEMP/codec2-sources/ffmpeg_codec2" \
+            "$RUNNER_TEMP/ffmpeg-android13-objects.json"
+          grep -q 'name: "libavcodec"' "$RUNNER_TEMP/codec2-sources/ffmpeg/Android.bp"
+          grep -q 'name: "android.hardware.media.c2@1.2-service-ffmpeg"' \
+            "$RUNNER_TEMP/codec2-sources/ffmpeg_codec2/Android.bp"
+          ! grep -q 'libavformat' "$RUNNER_TEMP/codec2-sources/ffmpeg_codec2/Android.bp"
+
       - name: Show compact inventory
         run: |
           python3 - "$RUNNER_TEMP/ffmpeg-android13-objects.json" <<'PY'
@@ -40,8 +51,14 @@ jobs:
           data = json.load(open(sys.argv[1]))
           print(f"revision={data['ffmpeg_revision']}")
           print(f"total_objects={data['total_objects']}")
+          selected = 0
           for name, item in data['libraries'].items():
               print(f"{name}: objects={item['object_count']} deps={','.join(item['fflibs']) or '-'}")
+              if name != 'libavformat':
+                  selected += item['object_count']
+          print(f"narrow_soong_objects={selected}")
+          if selected != 1102:
+              raise SystemExit(f"unexpected narrow Soong object count: {selected}")
           PY
 
       - uses: actions/upload-artifact@v4
