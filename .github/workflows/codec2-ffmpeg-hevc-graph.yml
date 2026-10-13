@@ -131,7 +131,7 @@ jobs:
             "$TREE/out/.module_paths/pitv-ffmpeg-hevc.Android.bp.list"
           test -s "$TREE/out/soong/pitv-codec2.ninja"
 
-      - name: Locate and dry-run FFmpeg HEVC service
+      - name: Build and verify FFmpeg HEVC service
         run: |
           cd "$TREE"
           NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
@@ -150,8 +150,8 @@ jobs:
           echo "CODEC2_FFMPEG_HEVC_TARGET=$hevc_target"
 
           # Dry-run repeatedly and close any missing Soong host executable from
-          # the already restored bootstrap graph. This avoids one-commit-per-tool
-          # failures while keeping the Android target graph narrow.
+          # the already restored bootstrap graph. This keeps the Android graph
+          # narrow while satisfying the host-side generators it references.
           dry_rc=1
           for attempt in $(seq 1 32); do
             echo "CODEC2_FFMPEG_HEVC_DRY_RUN_ATTEMPT=$attempt"
@@ -202,14 +202,50 @@ jobs:
           fi
           echo "CODEC2_FFMPEG_HEVC_GRAPH_READY=1"
 
-      - name: Upload HEVC graph diagnostics
+          # Build the actual ARM64 service from the already verified narrow graph.
+          set +e
+          "$NINJA" -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
+            > /tmp/pitv-ffmpeg-hevc-build.log 2>&1
+          build_rc=$?
+          set -e
+          cat /tmp/pitv-ffmpeg-hevc-build.log
+          echo "CODEC2_FFMPEG_HEVC_BUILD_RC=$build_rc"
+          if [ "$build_rc" -ne 0 ]; then
+            exit "$build_rc"
+          fi
+          test -f "$hevc_target"
+
+          artifact_dir="${GITHUB_WORKSPACE}/codec2-hevc-build"
+          mkdir -p "$artifact_dir"
+          binary="$artifact_dir/android.hardware.media.c2@1.2-service-ffmpeg"
+          cp -a "$hevc_target" "$binary"
+
+          file "$binary" | tee /tmp/pitv-ffmpeg-hevc-file.txt
+          readelf -h "$binary" | tee /tmp/pitv-ffmpeg-hevc-readelf-header.txt
+          readelf -d "$binary" | tee /tmp/pitv-ffmpeg-hevc-readelf-dynamic.txt
+          sha256sum "$binary" | tee /tmp/pitv-ffmpeg-hevc-sha256.txt
+          stat -c '%n %s bytes' "$binary" | tee /tmp/pitv-ffmpeg-hevc-size.txt
+
+          grep -q 'ELF 64-bit' /tmp/pitv-ffmpeg-hevc-file.txt
+          grep -q 'Machine:.*AArch64' /tmp/pitv-ffmpeg-hevc-readelf-header.txt
+          echo "CODEC2_FFMPEG_HEVC_ELF64_AARCH64=1"
+          echo "CODEC2_FFMPEG_HEVC_BINARY=$binary"
+
+      - name: Upload HEVC build and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pitv-ffmpeg-hevc-graph-${{ github.sha }}
+          name: pitv-ffmpeg-hevc-build-${{ github.sha }}
           path: |
+            codec2-hevc-build/
             ${{ env.TREE }}/out/.module_paths/pitv-ffmpeg-hevc.Android.bp.list
             /tmp/pitv-ffmpeg-hevc-targets.txt
             /tmp/pitv-ffmpeg-hevc-dry-run.log
+            /tmp/pitv-ffmpeg-hevc-build.log
+            /tmp/pitv-ffmpeg-hevc-file.txt
+            /tmp/pitv-ffmpeg-hevc-readelf-header.txt
+            /tmp/pitv-ffmpeg-hevc-readelf-dynamic.txt
+            /tmp/pitv-ffmpeg-hevc-sha256.txt
+            /tmp/pitv-ffmpeg-hevc-size.txt
           if-no-files-found: warn
-          retention-days: 3
+          retention-days: 7
