@@ -164,14 +164,7 @@ jobs:
               break
             fi
 
-            missing="$(python3 - <<'PY'
-import re
-from pathlib import Path
-text = Path('/tmp/pitv-ffmpeg-hevc-dry-run.log').read_text(errors='replace')
-m = re.search(r"ninja: error: '([^']*out/soong/host/linux-x86/bin/[^']+)', needed by .*missing and no known rule to make it", text)
-print(m.group(1) if m else '')
-PY
-)"
+            missing="$(grep -m1 -oE "'[^']*out/soong/host/linux-x86/bin/[^']+'" /tmp/pitv-ffmpeg-hevc-dry-run.log | sed "s/^'//;s/'$//" || true)"
             if [ -z "$missing" ]; then
               cat /tmp/pitv-ffmpeg-hevc-dry-run.log
               echo "CODEC2_FFMPEG_HEVC_NON_HOST_DRY_RUN_FAILURE=1" >&2
