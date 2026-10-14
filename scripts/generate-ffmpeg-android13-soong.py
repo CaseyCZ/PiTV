@@ -54,7 +54,7 @@ COMMON_CFLAGS = [
 ]
 
 LIB_SHARED = {
-    "libavutil": [],
+    "libavutil": ["libdrm"],
     "libswresample": ["libavutil"],
     "libswscale": ["libavutil"],
     "libavcodec": [
