@@ -17,10 +17,11 @@ from pathlib import Path
 PINNED_FFMPEG = "92c47af5c1f739194355ca765779d5756b56669b"
 PINNED_CODEC2 = "6a8cb149c8cc0190678b7371fb587a5ebcd6723f"
 FFMPEG_LIBS = ("libavutil", "libswresample", "libswscale", "libavcodec")
+TARGET_CONFIG_CFLAG = '-DTARGET_CONFIG="config-armv8-a.h"'
 
 COMMON_CFLAGS = [
     "-DANDROID_SDK_VERSION=33",
-    "-DTARGET_CONFIG=\\\"config-armv8-a.h\\\"",
+    TARGET_CONFIG_CFLAG,
     "-DHAVE_AV_CONFIG_H",
     "-D_FILE_OFFSET_BITS=64",
     "-D_LARGEFILE_SOURCE",
@@ -113,7 +114,7 @@ def write_ffmpeg_bp(root: Path, inventory: dict) -> Path:
         "    asflags: [\n",
         '        "-DPIC",\n',
         '        "-fPIC",\n',
-        '        "-DTARGET_CONFIG=\\\"config-armv8-a.h\\\"",\n',
+        f"        {q(TARGET_CONFIG_CFLAG)},\n",
         "    ],\n",
         "    ldflags: [\n",
         '        "-Wl,--no-fatal-warnings",\n',
@@ -184,7 +185,7 @@ cc_binary {{
     srcs: [
 {bp_list(service_sources)}
     ],
-    cflags: ["-DTARGET_CONFIG=\\\"config-armv8-a.h\\\""],
+    cflags: [{q(TARGET_CONFIG_CFLAG)}],
     shared_libs: [
         "android.hardware.media.c2@1.2",
         "libavcodec",
