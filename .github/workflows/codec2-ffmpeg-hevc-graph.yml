@@ -21,7 +21,7 @@ jobs:
     env:
       TREE: ${{ github.workspace }}/android13
       SOURCES: ${{ github.workspace }}/codec2-sources
-      PITV_CODEC2_NARROW_REQUIRED_MODULES: libdav1d,libdrm,libcutils,libgtest_prod_headers,libgtest,libandroid_runtime_vm_headers
+      PITV_CODEC2_NARROW_REQUIRED_MODULES: libdav1d,libdrm,libcutils,libgtest_prod_headers,libgtest,libandroid_runtime_vm_headers,libprocessgroup_headers
       PITV_CODEC2_NARROW_MAX_ATTEMPTS: 64
     steps:
       - uses: actions/checkout@v4
