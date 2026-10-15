@@ -1,0 +1,314 @@
+name: Codec2 Narrow FFmpeg HEVC Graph
+
+on:
+  push:
+    branches: [experiment/rpi4-codec2-narrow-soong-graph]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: codec2-ffmpeg-hevc-graph-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  graph:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[probe-ffmpeg-hevc-graph]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TREE: ${{ github.workspace }}/android13
+      SOURCES: ${{ github.workspace }}/codec2-sources
+      PITV_CODEC2_LUNCH: aosp_rpi4_tv-userdebug
+      PITV_CODEC2_REQUIRED_GB: 10
+      PITV_CODEC2_NARROW_REQUIRED_MODULES: libdav1d,libdrm,libcutils,libgtest_prod_headers,libgtest,libandroid_runtime_vm_headers,libprocessgroup_headers
+      PITV_CODEC2_NARROW_MAX_ATTEMPTS: 64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup || true
+          df -h /
+
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Sync exact Raspberry Vanilla Android 13 tree
+        run: |
+          mkdir -p "$TREE" && cd "$TREE"
+          repo init -u https://android.googlesource.com/platform/manifest -b android-13.0.0_r75 --depth=1
+          curl -fsSL --create-dirs -o .repo/local_manifests/manifest_brcm_rpi4.xml \
+            https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/manifest_brcm_rpi4.xml
+          curl -fsSL -o .repo/local_manifests/remove_projects.xml \
+            https://raw.githubusercontent.com/raspberry-vanilla/android_local_manifest/android-13.0/remove_projects.xml
+          for attempt in 1 2 3; do
+            echo "CODEC2_REPO_SYNC_ATTEMPT=$attempt"
+            if repo sync -c --no-tags --no-clone-bundle --optimized-fetch --fail-fast -j8; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Android repo sync failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          repo manifest -r > "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+          rm -rf "$TREE/.repo"
+          echo "CODEC2_FFMPEG_HEVC_DROP_REPO_METADATA=1"
+          df -h "$TREE"
+
+      - name: Fetch pinned Codec2 sources
+        run: python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+
+      - name: Download known-good staged bootstrap checkpoint
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: pitv-codec2-staged-bootstrap-b05e1176f7f5e2d56f32f2f89f766bfdc5957e64
+          path: codec2-bootstrap-checkpoint
+          github-token: ${{ github.token }}
+          repository: CaseyCZ/PiTV
+          run-id: 38294055604
+
+      - name: Restore or rebuild Soong bootstrap
+        run: |
+          checkpoint="codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst"
+          if [ -s "$checkpoint" ]; then
+            tar --zstd -xf "$checkpoint" -C "$TREE"
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_REUSED=1"
+          else
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_CHECKPOINT_EXPIRED=1"
+            set +e
+            timeout --signal=TERM --kill-after=15s 90s env \
+              PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE=0 \
+              PITV_CODEC2_PHASE=graph \
+              bash scripts/build-minimal-codec2-modules.sh \
+                "$TREE" "$SOURCES" "${GITHUB_WORKSPACE}/codec2-bootstrap-payload"
+            rc=$?
+            set -e
+            echo "CODEC2_FFMPEG_HEVC_LOCAL_BOOTSTRAP_RC=$rc"
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
+              exit "$rc"
+            fi
+
+            for _ in $(seq 1 20); do
+              if ! pgrep -x soong_ui >/dev/null 2>&1 && \
+                 ! pgrep -x ninja >/dev/null 2>&1 && \
+                 ! pgrep -x soong_build >/dev/null 2>&1; then
+                break
+              fi
+              sleep 1
+            done
+            if pgrep -x soong_ui >/dev/null 2>&1 || \
+               pgrep -x ninja >/dev/null 2>&1 || \
+               pgrep -x soong_build >/dev/null 2>&1; then
+              pkill -KILL -x soong_ui 2>/dev/null || true
+              pkill -KILL -x ninja 2>/dev/null || true
+              pkill -KILL -x soong_build 2>/dev/null || true
+              sleep 1
+            fi
+
+            host_builder="$TREE/out/host/linux-x86/bin/soong_build"
+            bootstrap_builder="$TREE/out/soong/host/linux-x86/bin/soong_build"
+            if [ ! -s "$host_builder" ] && [ -s "$bootstrap_builder" ]; then
+              mkdir -p "$(dirname "$host_builder")"
+              cp "$bootstrap_builder" "$host_builder"
+              chmod +x "$host_builder"
+              echo "CODEC2_FFMPEG_HEVC_PROMOTED_SOONG_BUILDER=1"
+            fi
+            test -x "$host_builder"
+            mkdir -p "$TREE/out/soong"
+            cp "${GITHUB_WORKSPACE}/pitv-source-manifest.xml" \
+              "$TREE/out/soong/pitv-source-manifest.xml"
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_REBUILT=1"
+          fi
+
+          test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          test -s "$TREE/out/soong/bootstrap.ninja"
+          test -f "$TREE/out/soong/pitv-source-manifest.xml"
+          cmp "$TREE/out/soong/pitv-source-manifest.xml" \
+            "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+          du -sh "$TREE/out"
+
+      - name: Restore narrow bootstrap host tools
+        run: |
+          cd "$TREE"
+          bootstrap_ninja="out/soong/bootstrap.ninja"
+          test -s "$bootstrap_ninja"
+          NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+          [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+
+          # The narrow source fetch prepares lightweight wrappers in HOST_OUT.
+          # Generated Soong edges reference the equivalent SOONG_HOST_OUT paths,
+          # so promote the same wrappers there instead of expanding the graph.
+          for wrapper in ndkstubgen aidl aidl_hash_gen; do
+            host_tool="out/host/linux-x86/bin/$wrapper"
+            soong_tool="out/soong/host/linux-x86/bin/$wrapper"
+            test -x "$host_tool"
+            mkdir -p "$(dirname "$soong_tool")"
+            cp -f "$host_tool" "$soong_tool"
+            chmod +x "$host_tool" "$soong_tool"
+            echo "CODEC2_FFMPEG_HEVC_HOST_TOOL=$wrapper-wrapper"
+          done
+
+          for tool in sbox soong_zip zipsync merge_zips; do
+            soong_tool="out/soong/host/linux-x86/bin/$tool"
+            host_tool="out/host/linux-x86/bin/$tool"
+            if [ ! -s "$soong_tool" ]; then
+              "$NINJA" -f "$bootstrap_ninja" "$soong_tool"
+            fi
+            test -s "$soong_tool"
+            mkdir -p "$(dirname "$host_tool")"
+            cp -f "$soong_tool" "$host_tool"
+            chmod +x "$soong_tool" "$host_tool"
+            echo "CODEC2_FFMPEG_HEVC_HOST_TOOL=$tool"
+          done
+
+      - name: Prepare narrow FFmpeg HEVC tree
+        run: |
+          python3 scripts/prepare-narrow-ffmpeg-hevc.py \
+            "$TREE" \
+            "$SOURCES" \
+            "$TREE/out/.module_paths/pitv-ffmpeg-hevc.Android.bp.list"
+
+      - name: Generate narrow HEVC Soong graph
+        run: |
+          python3 scripts/probe-narrow-soong-graph.py \
+            "$TREE" \
+            "$TREE/out/.module_paths/pitv-ffmpeg-hevc.Android.bp.list"
+          test -s "$TREE/out/soong/pitv-codec2.ninja"
+
+      - name: Build and verify FFmpeg HEVC service
+        run: |
+          cd "$TREE"
+          NINJA="$TREE/prebuilts/build-tools/linux-x86/bin/ninja"
+          [ -x "$NINJA" ] || NINJA="$(command -v ninja)"
+          bootstrap_ninja="out/soong/bootstrap.ninja"
+          "$NINJA" -f out/soong/pitv-codec2.ninja -t targets all > /tmp/pitv-ffmpeg-hevc-targets.txt
+          target_line="$(grep -m1 -E '(^|/)[^:]*android\.hardware\.media\.c2@1\.2-service-ffmpeg: ' /tmp/pitv-ffmpeg-hevc-targets.txt || true)"
+          if [ -z "$target_line" ]; then
+            echo "CODEC2_FFMPEG_HEVC_TARGET_CANDIDATES_BEGIN=1"
+            grep -E 'ffmpeg|libavcodec|libffmpeg_utils' /tmp/pitv-ffmpeg-hevc-targets.txt | head -120 || true
+            echo "CODEC2_FFMPEG_HEVC_TARGET_CANDIDATES_END=1"
+            echo "narrow graph missing FFmpeg HEVC service target" >&2
+            exit 13
+          fi
+          hevc_target="${target_line%%: *}"
+          echo "CODEC2_FFMPEG_HEVC_TARGET=$hevc_target"
+
+          # Dry-run repeatedly and close any missing Soong host executable from
+          # the already restored bootstrap graph. This keeps the Android graph
+          # narrow while satisfying the host-side generators it references.
+          dry_rc=1
+          for attempt in $(seq 1 32); do
+            echo "CODEC2_FFMPEG_HEVC_DRY_RUN_ATTEMPT=$attempt"
+            set +e
+            "$NINJA" -n -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
+              > /tmp/pitv-ffmpeg-hevc-dry-run.log 2>&1
+            dry_rc=$?
+            set -e
+            if [ "$dry_rc" -eq 0 ]; then
+              break
+            fi
+
+            missing="$(grep -m1 -oE "'[^']*out/soong/host/linux-x86/bin/[^']+'" /tmp/pitv-ffmpeg-hevc-dry-run.log | sed "s/^'//;s/'$//" || true)"
+            if [ -z "$missing" ]; then
+              cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+              echo "CODEC2_FFMPEG_HEVC_NON_HOST_DRY_RUN_FAILURE=1" >&2
+              exit "$dry_rc"
+            fi
+            case "$missing" in
+              "$TREE"/*) rel="${missing#"$TREE"/}" ;;
+              out/*) rel="$missing" ;;
+              *)
+                cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+                echo "unexpected missing host tool path: $missing" >&2
+                exit "$dry_rc"
+                ;;
+            esac
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_HOST_MISSING=$rel"
+            if ! "$NINJA" -n -f "$bootstrap_ninja" "$rel" >/dev/null 2>&1; then
+              cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+              echo "bootstrap graph cannot provide $rel" >&2
+              exit "$dry_rc"
+            fi
+            "$NINJA" -f "$bootstrap_ninja" "$rel"
+            test -x "$rel" || test -s "$rel"
+            base="${rel#out/soong/host/linux-x86/bin/}"
+            host_rel="out/host/linux-x86/bin/$base"
+            mkdir -p "$(dirname "$host_rel")"
+            cp -f "$rel" "$host_rel"
+            chmod +x "$rel" "$host_rel" || true
+            echo "CODEC2_FFMPEG_HEVC_BOOTSTRAP_HOST_READY=$rel"
+          done
+
+          cat /tmp/pitv-ffmpeg-hevc-dry-run.log
+          echo "CODEC2_FFMPEG_HEVC_DRY_RUN_RC=$dry_rc"
+          if [ "$dry_rc" -ne 0 ]; then
+            exit "$dry_rc"
+          fi
+          echo "CODEC2_FFMPEG_HEVC_GRAPH_READY=1"
+
+          # Soong's normal build launcher keeps depfiles because later rules,
+          # including clang-tidy, may consume them as explicit inputs.
+          set +e
+          "$NINJA" -d keepdepfile -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
+            > /tmp/pitv-ffmpeg-hevc-build.log 2>&1
+          build_rc=$?
+          set -e
+          cat /tmp/pitv-ffmpeg-hevc-build.log
+          echo "CODEC2_FFMPEG_HEVC_BUILD_RC=$build_rc"
+          if [ "$build_rc" -ne 0 ]; then
+            exit "$build_rc"
+          fi
+          test -f "$hevc_target"
+
+          artifact_dir="${GITHUB_WORKSPACE}/codec2-hevc-build"
+          mkdir -p "$artifact_dir"
+          binary="$artifact_dir/android.hardware.media.c2@1.2-service-ffmpeg"
+          cp -a "$hevc_target" "$binary"
+
+          file "$binary" | tee /tmp/pitv-ffmpeg-hevc-file.txt
+          readelf -h "$binary" | tee /tmp/pitv-ffmpeg-hevc-readelf-header.txt
+          readelf -d "$binary" | tee /tmp/pitv-ffmpeg-hevc-readelf-dynamic.txt
+          sha256sum "$binary" | tee /tmp/pitv-ffmpeg-hevc-sha256.txt
+          stat -c '%n %s bytes' "$binary" | tee /tmp/pitv-ffmpeg-hevc-size.txt
+
+          grep -q 'ELF 64-bit' /tmp/pitv-ffmpeg-hevc-file.txt
+          grep -q 'Machine:.*AArch64' /tmp/pitv-ffmpeg-hevc-readelf-header.txt
+          echo "CODEC2_FFMPEG_HEVC_ELF64_AARCH64=1"
+          echo "CODEC2_FFMPEG_HEVC_BINARY=$binary"
+
+      - name: Assemble HEVC runtime payload
+        run: |
+          bash scripts/collect-ffmpeg-hevc-runtime.sh \
+            "$TREE" \
+            "$SOURCES" \
+            "${GITHUB_WORKSPACE}/codec2-hevc-runtime"
+
+      - name: Upload HEVC build and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pitv-ffmpeg-hevc-build-${{ github.sha }}
+          path: |
+            codec2-hevc-build/
+            codec2-hevc-runtime/
+            ${{ env.TREE }}/out/.module_paths/pitv-ffmpeg-hevc.Android.bp.list
+            /tmp/pitv-ffmpeg-hevc-targets.txt
+            /tmp/pitv-ffmpeg-hevc-dry-run.log
+            /tmp/pitv-ffmpeg-hevc-build.log
+            /tmp/pitv-ffmpeg-hevc-file.txt
+            /tmp/pitv-ffmpeg-hevc-readelf-header.txt
+            /tmp/pitv-ffmpeg-hevc-readelf-dynamic.txt
+            /tmp/pitv-ffmpeg-hevc-sha256.txt
+            /tmp/pitv-ffmpeg-hevc-size.txt
+          if-no-files-found: warn
+          retention-days: 7

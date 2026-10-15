@@ -18,6 +18,12 @@ tree = Path(sys.argv[1]).resolve()
 manifest = tree / "out/soong/bootstrap.ninja"
 depfile = tree / "out/soong/bootstrap.ninja.d"
 soong_build = tree / "out/host/linux-x86/bin/soong_build"
+bootstrap_soong_build = tree / "out/soong/host/linux-x86/bin/soong_build"
+bootstrap_target = (
+    "out/soong/host/linux-x86/bin/soong_build"
+    if bootstrap_soong_build.is_file()
+    else "out/host/linux-x86/bin/soong_build"
+)
 
 for path, label in (
     (manifest, "bootstrap manifest"),
@@ -98,7 +104,7 @@ if normalize:
                 "out/soong/bootstrap.ninja",
                 "-t",
                 "inputs",
-                "out/host/linux-x86/bin/soong_build",
+                bootstrap_target,
             ],
             cwd=tree,
             check=True,

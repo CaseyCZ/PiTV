@@ -1,0 +1,215 @@
+name: Codec2 Low Memory Recovery
+
+on:
+  push:
+    branches: [experiment/rpi4-codec2-narrow-soong-graph]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: codec2-lowmem-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TREE: ${{ github.workspace }}/android13
+  SOURCES: ${{ github.workspace }}/codec2-sources
+  OUT: ${{ github.workspace }}/codec2-payload
+  PITV_CODEC2_LUNCH: aosp_rpi4_tv-userdebug
+  PITV_CODEC2_JOBS: 1
+  PITV_CODEC2_SYNC_JOBS: 4
+  PITV_CODEC2_REQUIRED_GB: 10
+  PITV_CODEC2_REQUIRE_BOOTSTRAP_REUSE: 1
+  PITV_CODEC2_NORMALIZE_BOOTSTRAP_REUSE: 1
+  BOOTSTRAP_RUN_ID: 38294055604
+  BOOTSTRAP_SHA: b05e1176f7f5e2d56f32f2f89f766bfdc5957e64
+
+jobs:
+  graph:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-codec2-lowmem]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup || true
+          df -h /
+          free -h
+
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL --retry 3 https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Sync Android 13 robustly
+        run: bash scripts/prepare-codec2-android-tree.sh "$TREE" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+
+      - name: Enable low-memory swap
+        run: |
+          swapfile=/swapfile-pitv-codec2
+          sudo rm -f "$swapfile"
+          if sudo fallocate -l 4G "$swapfile" && \
+             sudo chmod 600 "$swapfile" && \
+             sudo mkswap "$swapfile" && \
+             sudo swapon "$swapfile"; then
+            echo "CODEC2_SWAP_ENABLED=1"
+            sudo swapon --show
+          else
+            echo "CODEC2_SWAP_ENABLED=0"
+            sudo swapoff "$swapfile" 2>/dev/null || true
+            sudo rm -f "$swapfile"
+          fi
+          free -h
+          df -h /
+
+      - name: Fetch pinned Codec2 sources
+        run: python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pitv-codec2-staged-bootstrap-${{ env.BOOTSTRAP_SHA }}
+          path: codec2-bootstrap-checkpoint
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: CaseyCZ/PiTV
+          run-id: ${{ env.BOOTSTRAP_RUN_ID }}
+
+      - name: Restore bootstrap checkpoint
+        run: |
+          test -s codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst
+          tar --zstd -xf codec2-bootstrap-checkpoint/codec2-bootstrap-state.tar.zst -C "$TREE"
+          test -s "$TREE/out/soong/pitv-source-manifest.xml"
+          cmp "$TREE/out/soong/pitv-source-manifest.xml" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+          test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          du -sh "$TREE/out"
+          free -h
+
+      - name: Build isolated Python 2.7
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz \
+            -o /tmp/Python-2.7.18.tgz
+          mkdir -p /tmp/pitv-python27-src
+          tar -xzf /tmp/Python-2.7.18.tgz -C /tmp/pitv-python27-src --strip-components=1
+          cd /tmp/pitv-python27-src
+          ./configure --prefix=/tmp/pitv-python27 --without-ensurepip > /tmp/pitv-python27-configure.log
+          make -j1 > /tmp/pitv-python27-build.log 2>&1
+          make install > /tmp/pitv-python27-install.log 2>&1
+          echo "/tmp/pitv-python27/bin" >> "$GITHUB_PATH"
+          /tmp/pitv-python27/bin/python2.7 --version
+          rm -rf /tmp/pitv-python27-src /tmp/Python-2.7.18.tgz
+
+      - name: Generate complete Codec2 graph with low memory pressure
+        run: |
+          free -h
+          PITV_CODEC2_JOBS=1 PITV_CODEC2_PHASE=graph \
+            bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          echo "CODEC2_LOWMEM_GRAPH_READY=1"
+          free -h
+          du -sh "$TREE/out"
+          tar --exclude='out/.path_interposer_log' --zstd -cf "${GITHUB_WORKSPACE}/codec2-lowmem-graph-state.tar.zst" -C "$TREE" out
+          ls -lh "${GITHUB_WORKSPACE}/codec2-lowmem-graph-state.tar.zst"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pitv-codec2-lowmem-graph-${{ github.sha }}
+          path: codec2-lowmem-graph-state.tar.zst
+          if-no-files-found: error
+          retention-days: 2
+
+  modules:
+    needs: [graph]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup || true
+          df -h /
+          free -h
+
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL --retry 3 https://storage.googleapis.com/git-repo-downloads/repo -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Sync Android 13 robustly
+        run: bash scripts/prepare-codec2-android-tree.sh "$TREE" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+
+      - name: Enable low-memory swap
+        run: |
+          swapfile=/swapfile-pitv-codec2
+          sudo rm -f "$swapfile"
+          if sudo fallocate -l 4G "$swapfile" && \
+             sudo chmod 600 "$swapfile" && \
+             sudo mkswap "$swapfile" && \
+             sudo swapon "$swapfile"; then
+            echo "CODEC2_SWAP_ENABLED=1"
+            sudo swapon --show
+          else
+            echo "CODEC2_SWAP_ENABLED=0"
+            sudo swapoff "$swapfile" 2>/dev/null || true
+            sudo rm -f "$swapfile"
+          fi
+          free -h
+          df -h /
+
+      - name: Fetch pinned Codec2 sources
+        run: python3 scripts/fetch-minimal-codec2-sources.py "$SOURCES"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pitv-codec2-lowmem-graph-${{ github.sha }}
+          path: codec2-graph-checkpoint
+
+      - name: Restore graph checkpoint
+        run: |
+          test -s codec2-graph-checkpoint/codec2-lowmem-graph-state.tar.zst
+          tar --zstd -xf codec2-graph-checkpoint/codec2-lowmem-graph-state.tar.zst -C "$TREE"
+          test -s "$TREE/out/soong/pitv-source-manifest.xml"
+          cmp "$TREE/out/soong/pitv-source-manifest.xml" "${GITHUB_WORKSPACE}/pitv-source-manifest.xml"
+          test -x "$TREE/out/host/linux-x86/bin/soong_build"
+          du -sh "$TREE/out"
+          free -h
+
+      - name: Build isolated Python 2.7
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz \
+            -o /tmp/Python-2.7.18.tgz
+          mkdir -p /tmp/pitv-python27-src
+          tar -xzf /tmp/Python-2.7.18.tgz -C /tmp/pitv-python27-src --strip-components=1
+          cd /tmp/pitv-python27-src
+          ./configure --prefix=/tmp/pitv-python27 --without-ensurepip > /tmp/pitv-python27-configure.log
+          make -j1 > /tmp/pitv-python27-build.log 2>&1
+          make install > /tmp/pitv-python27-install.log 2>&1
+          echo "/tmp/pitv-python27/bin" >> "$GITHUB_PATH"
+          /tmp/pitv-python27/bin/python2.7 --version
+          rm -rf /tmp/pitv-python27-src /tmp/Python-2.7.18.tgz
+
+      - name: Build AVC and HEVC Codec2 payload with low memory pressure
+        run: |
+          free -h
+          PITV_CODEC2_JOBS=1 PITV_CODEC2_PHASE=modules \
+            bash scripts/build-minimal-codec2-modules.sh "$TREE" "$SOURCES" "$OUT"
+          python3 scripts/codec2-payload-readiness.py "$OUT"
+          test -s "$OUT/PITV-CODEC2-PAYLOAD.txt"
+          echo "CODEC2_LOWMEM_PAYLOAD_READY=1"
+          free -h
+          cat "$OUT/PITV-CODEC2-PAYLOAD.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pitv-rpi4-codec2-payload-${{ github.sha }}
+          path: codec2-payload/
+          if-no-files-found: error
+          retention-days: 14
