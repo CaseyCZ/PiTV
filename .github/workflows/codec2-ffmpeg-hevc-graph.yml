@@ -202,9 +202,10 @@ jobs:
           fi
           echo "CODEC2_FFMPEG_HEVC_GRAPH_READY=1"
 
-          # Build the actual ARM64 service from the already verified narrow graph.
+          # Soong's normal build launcher keeps depfiles because later rules,
+          # including clang-tidy, may consume them as explicit inputs.
           set +e
-          "$NINJA" -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
+          "$NINJA" -d keepdepfile -f out/soong/pitv-codec2.ninja -j2 "$hevc_target" \
             > /tmp/pitv-ffmpeg-hevc-build.log 2>&1
           build_rc=$?
           set -e
