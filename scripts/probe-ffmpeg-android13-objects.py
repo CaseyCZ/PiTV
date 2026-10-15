@@ -32,6 +32,7 @@ REQUIRED_AVCODEC_SOURCES = (
     "hevcdec.c",
     "v4l2_req_media.c",
     "v4l2_req_devscan.c",
+    "neon/mpegvideo.c",
 )
 
 MAKEFILE = r"""
@@ -53,6 +54,7 @@ X86ASM-OBJS :=
 include $(FFMPEG_SRC)/android/config-armv8-a.mak
 include $(FFMPEG_SRC)/$(LIB)/Makefile
 -include $(FFMPEG_SRC)/$(LIB)/aarch64/Makefile
+-include $(FFMPEG_SRC)/$(LIB)/neon/Makefile
 include $(FFMPEG_SRC)/ffbuild/arch.mak
 
 FINAL_OBJS := $(sort $(OBJS) $(OBJS-yes))
@@ -161,9 +163,15 @@ def main() -> int:
         }
 
     avcodec_sources = set(libraries["libavcodec"]["sources"])
-    for basename in REQUIRED_AVCODEC_SOURCES:
-        if not any(path.endswith("/" + basename) for path in avcodec_sources):
-            raise SystemExit(f"libavcodec probe missing required hardware source: {basename}")
+    for required_source in REQUIRED_AVCODEC_SOURCES:
+        if not any(
+            path == f"libavcodec/{required_source}"
+            or path.endswith("/" + required_source)
+            for path in avcodec_sources
+        ):
+            raise SystemExit(
+                f"libavcodec probe missing required hardware source: {required_source}"
+            )
 
     inventory = {
         "schema": 1,
