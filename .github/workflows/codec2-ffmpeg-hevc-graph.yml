@@ -286,6 +286,13 @@ jobs:
           echo "CODEC2_FFMPEG_HEVC_ELF64_AARCH64=1"
           echo "CODEC2_FFMPEG_HEVC_BINARY=$binary"
 
+      - name: Assemble HEVC runtime payload
+        run: |
+          bash scripts/collect-ffmpeg-hevc-runtime.sh \
+            "$TREE" \
+            "$SOURCES" \
+            "${GITHUB_WORKSPACE}/codec2-hevc-runtime"
+
       - name: Upload HEVC build and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -293,6 +300,7 @@ jobs:
           name: pitv-ffmpeg-hevc-build-${{ github.sha }}
           path: |
             codec2-hevc-build/
+            codec2-hevc-runtime/
             ${{ env.TREE }}/out/.module_paths/pitv-ffmpeg-hevc.Android.bp.list
             /tmp/pitv-ffmpeg-hevc-targets.txt
             /tmp/pitv-ffmpeg-hevc-dry-run.log
