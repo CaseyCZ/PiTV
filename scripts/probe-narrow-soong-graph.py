@@ -97,6 +97,7 @@ proven_avc_modules = (
     "libnativewindow",
     "libstagefright_bufferpool@1.0",
     "libyuv_static",
+    "libjpeg",
     "android.hardware.media@1.0_interface",
     "android.hidl.base@1.0_interface",
     "android.hardware.media.bufferpool@2.0",
