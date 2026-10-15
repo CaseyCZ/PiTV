@@ -47,6 +47,35 @@ for rel in "${runtime_paths[@]}"; do
   cp -a "$src" "$OUT/$rel"
 done
 
+# The upstream FFmpeg Codec2 XML advertises every codec even though the narrow
+# service binary above has been reduced to the HEVC component only. Package a
+# matching runtime XML so Android never selects components the service cannot
+# instantiate.
+codec_xml="$OUT/vendor/etc/media_codecs_ffmpeg_c2.xml"
+python3 - "$codec_xml" <<'PYXML'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+path = Path(sys.argv[1])
+tree = ET.parse(path)
+root = tree.getroot()
+keep_name = "c2.ffmpeg.hevc.decoder"
+kept = []
+for parent in root.iter():
+    for child in list(parent):
+        if child.tag != "MediaCodec":
+            continue
+        if child.get("name") == keep_name:
+            kept.append(child)
+        else:
+            parent.remove(child)
+if len(kept) != 1 or kept[0].get("type") != "video/hevc":
+    raise SystemExit("could not isolate c2.ffmpeg.hevc.decoder in runtime codec XML")
+ET.indent(tree, space="    ")
+tree.write(path, encoding="utf-8", xml_declaration=True)
+PYXML
+
 mkdir -p "$OUT/vendor/etc/init" "$OUT/vendor/etc/vintf/manifest"
 cp -a \
   "$SOURCES/ffmpeg_codec2/android.hardware.media.c2@1.2-service-ffmpeg.rc" \
@@ -87,7 +116,6 @@ for rel in "${elf_paths[@]}"; do
   readelf -h "$elf" | grep -q 'Machine:.*AArch64'
 done
 
-codec_xml="$OUT/vendor/etc/media_codecs_ffmpeg_c2.xml"
 mapfile -t codec_names < <(grep -oE 'c2\.ffmpeg\.[^"< ]+' "$codec_xml" | sort -u)
 if [ "${#codec_names[@]}" -ne 1 ] || [ "${codec_names[0]}" != "c2.ffmpeg.hevc.decoder" ]; then
   printf 'unexpected FFmpeg Codec2 runtime components: %s\n' "${codec_names[*]:-none}" >&2
