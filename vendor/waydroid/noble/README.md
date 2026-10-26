@@ -9,9 +9,9 @@ is unavailable.
 Mirrored packages:
 
 - libglibutil_1.0.80_arm64.deb
-- libgbinder_1.1.43_arm64.deb
+- libgbinder_1.1.45_arm64.deb
 - python3-gbinder_1.3.1_arm64.deb
-- waydroid_1.6.2_all.deb
+- waydroid_1.6.3_all.deb
 
 Source: https://repo.waydro.id/dists/noble/
 
